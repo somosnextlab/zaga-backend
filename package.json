@@ -24,7 +24,8 @@
     "prisma:studio": "prisma studio",
     "typeorm": "typeorm-ts-node-commonjs",
     "typeorm:run": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
-    "typeorm:revert": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert"
+    "typeorm:revert": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.3",
