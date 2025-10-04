@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Lint
+      run: npm run lint
+
+    - name: Format check
+      run: npm run format -- --check
+
+    - name: Build
+      run: npm run build
+
+    - name: Test
+      run: npm run test
+
+    - name: Prisma generate
+      run: npx prisma generate
+
+    - name: Test Prisma connection
+      run: npx prisma db push --accept-data-loss
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
