@@ -27,7 +27,9 @@ export class EvaluacionProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<ConsultaFuenteJob | ConsolidarEvaluacionJob>): Promise<any> {
+  async process(
+    job: Job<ConsultaFuenteJob | ConsolidarEvaluacionJob>,
+  ): Promise<unknown> {
     this.logger.log(`Procesando job ${job.id} de tipo ${job.data.tipo}`);
 
     try {
@@ -35,9 +37,13 @@ export class EvaluacionProcessor extends WorkerHost {
         case 'consulta_fuente:BCRA':
           return await this.procesarConsultaBcra(job.data as ConsultaFuenteJob);
         case 'consolidar_evaluacion':
-          return await this.procesarConsolidarEvaluacion(job.data as ConsolidarEvaluacionJob);
+          return await this.procesarConsolidarEvaluacion(
+            job.data as ConsolidarEvaluacionJob,
+          );
         default:
-          throw new Error(`Tipo de job no reconocido: ${(job.data as any).tipo}`);
+          throw new Error(
+            `Tipo de job no reconocido: ${(job.data as { tipo: string }).tipo}`,
+          );
       }
     } catch (error) {
       this.logger.error(`Error procesando job ${job.id}:`, error);
@@ -59,7 +65,7 @@ export class EvaluacionProcessor extends WorkerHost {
         config: {
           persona_id: data.persona_id,
           solicitud_id: data.solicitud_id,
-          resultado: situacion as any,
+          resultado: situacion as object,
           consultado_en: new Date(),
         },
       },
@@ -70,7 +76,7 @@ export class EvaluacionProcessor extends WorkerHost {
         config: {
           persona_id: data.persona_id,
           solicitud_id: data.solicitud_id,
-          resultado: situacion as any,
+          resultado: situacion as object,
           consultado_en: new Date(),
         },
         activa: true,
@@ -82,7 +88,9 @@ export class EvaluacionProcessor extends WorkerHost {
   }
 
   private async procesarConsolidarEvaluacion(data: ConsolidarEvaluacionJob) {
-    this.logger.log(`Consolidando evaluación para solicitud ${data.solicitud_id}`);
+    this.logger.log(
+      `Consolidando evaluación para solicitud ${data.solicitud_id}`,
+    );
 
     // Obtener datos de la solicitud
     const solicitud = await this.prisma.financiera_solicitudes.findUnique({
@@ -101,16 +109,17 @@ export class EvaluacionProcessor extends WorkerHost {
     }
 
     // Obtener consultas de fuentes externas
-    const consultasBcra = await this.prisma.financiera_fuentes_externas.findMany({
-      where: {
-        nombre: 'BCRA',
-        tipo: 'consulta_situacion',
-        config: {
-          path: ['solicitud_id'],
-          equals: data.solicitud_id,
+    const consultasBcra =
+      await this.prisma.financiera_fuentes_externas.findMany({
+        where: {
+          nombre: 'BCRA',
+          tipo: 'consulta_situacion',
+          config: {
+            path: ['solicitud_id'],
+            equals: data.solicitud_id,
+          },
         },
-      },
-    });
+      });
 
     // Calcular score basado en las consultas
     let score = 0;
@@ -119,8 +128,10 @@ export class EvaluacionProcessor extends WorkerHost {
 
     if (consultasBcra.length > 0) {
       const ultimaConsulta = consultasBcra[0];
-      const resultado = ultimaConsulta.config as any;
-      
+      const resultado = ultimaConsulta.config as {
+        resultado: { categoria: string; mora?: boolean };
+      };
+
       if (resultado.resultado.categoria === 'A') {
         score = 85;
         categoria = 'A';
@@ -156,7 +167,9 @@ export class EvaluacionProcessor extends WorkerHost {
       },
     });
 
-    this.logger.log(`Evaluación consolidada para solicitud ${data.solicitud_id}: Score ${score}, Categoría ${categoria}`);
+    this.logger.log(
+      `Evaluación consolidada para solicitud ${data.solicitud_id}: Score ${score}, Categoría ${categoria}`,
+    );
     return evaluacion;
   }
 }

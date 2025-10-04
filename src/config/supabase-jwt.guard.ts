@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createRemoteJWKSet,jwtVerify } from 'jose';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {
@@ -49,8 +49,12 @@ export class SupabaseJwtGuard implements CanActivate {
       request.user = {
         user_id: payload.sub,
         email: payload.email,
-        rol: (payload as any).user_metadata?.rol || 'cliente',
-        persona_id: (payload as any).user_metadata?.persona_id,
+        rol:
+          (payload as { user_metadata?: { rol?: string; persona_id?: string } })
+            .user_metadata?.rol || 'cliente',
+        persona_id: (
+          payload as { user_metadata?: { rol?: string; persona_id?: string } }
+        ).user_metadata?.persona_id,
       };
 
       return true;
@@ -59,7 +63,9 @@ export class SupabaseJwtGuard implements CanActivate {
     }
   }
 
-  private extractTokenFromHeader(request: any): string | undefined {
+  private extractTokenFromHeader(request: {
+    headers: { authorization?: string };
+  }): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }

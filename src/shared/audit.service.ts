@@ -7,7 +7,7 @@ export interface AuditEvent {
   evento: string;
   entidad: string;
   entidadId: string;
-  detalle?: Record<string, any>;
+  detalle?: object;
   usuarioId?: string;
   ip?: string;
   userAgent?: string;
@@ -19,7 +19,15 @@ export class AuditService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async audit(evento: string, entidad: string, entidadId: string, detalle?: Record<string, any>, usuarioId?: string, ip?: string, userAgent?: string): Promise<void> {
+  async audit(
+    evento: string,
+    entidad: string,
+    entidadId: string,
+    detalle?: object,
+    usuarioId?: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
     try {
       await this.prisma.financiera_auditoria.create({
         data: {
@@ -33,9 +41,14 @@ export class AuditService {
         },
       });
 
-      this.logger.log(`Auditoría registrada: ${evento} en ${entidad}:${entidadId}`);
+      this.logger.log(
+        `Auditoría registrada: ${evento} en ${entidad}:${entidadId}`,
+      );
     } catch (error) {
-      this.logger.error('Error al registrar auditoría:', error instanceof Error ? error.message : String(error));
+      this.logger.error(
+        'Error al registrar auditoría:',
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 
