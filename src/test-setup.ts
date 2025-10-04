@@ -13,7 +13,7 @@ beforeEach(() => {
 
 // Mock de console.error para evitar spam en los tests
 const originalConsoleError = console.error;
-console.error = (...args: any[]) => {
+console.error = (...args: unknown[]) => {
   // Solo mostrar errores que no sean de Redis
   if (!args[0]?.toString().includes('getaddrinfo ENOTFOUND localhost:6379')) {
     originalConsoleError(...args);
