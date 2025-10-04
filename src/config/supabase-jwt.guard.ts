@@ -1,12 +1,12 @@
+import { JwksClientService } from '@adapters/jwks.client';
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
+  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { jwtVerify, createRemoteJWKSet } from 'jose';
-import { JwksClientService } from '@adapters/jwks.client';
+import { createRemoteJWKSet,jwtVerify } from 'jose';
 
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {

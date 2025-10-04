@@ -1,8 +1,8 @@
+import { BcraAdapter } from '@modules/fuentes-externas/adapters/bcra.adapter';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
 import { PrismaService } from '@shared/prisma.service';
-import { BcraAdapter } from '@modules/fuentes-externas/adapters/bcra.adapter';
+import { Job } from 'bullmq';
 
 export interface ConsultaFuenteJob {
   tipo: 'consulta_fuente:BCRA';

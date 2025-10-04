@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@shared/prisma.service';
+
 import { CreateGaranteDto } from './dtos/create-garante.dto';
 import { UpdateGaranteDto } from './dtos/update-garante.dto';
 

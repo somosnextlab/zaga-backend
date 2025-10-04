@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { VerificacionIdentidadService } from './verificacion-identidad.service';
-import { UploadDocumentoDto } from './dtos/upload-documento.dto';
-import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
-import { RolesGuard } from '@config/roles.guard';
 import { Roles } from '@config/roles.decorator';
+import { RolesGuard } from '@config/roles.guard';
+import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth,ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { UploadDocumentoDto } from './dtos/upload-documento.dto';
+import { VerificacionIdentidadService } from './verificacion-identidad.service';
 
 @ApiTags('Verificación de Identidad')
 @ApiBearerAuth('JWT-auth')

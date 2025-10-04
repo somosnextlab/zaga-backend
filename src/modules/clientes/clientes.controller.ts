@@ -1,20 +1,21 @@
+import { Roles } from '@config/roles.decorator';
+import { RolesGuard } from '@config/roles.guard';
+import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth,ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { ClientesService } from './clientes.service';
 import { CreateClienteDto } from './dtos/create-cliente.dto';
 import { UpdateClienteDto } from './dtos/update-cliente.dto';
-import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
-import { RolesGuard } from '@config/roles.guard';
-import { Roles } from '@config/roles.decorator';
 
 @ApiTags('Clientes')
 @ApiBearerAuth('JWT-auth')

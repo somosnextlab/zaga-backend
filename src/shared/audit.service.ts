@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+
 import { Logger } from './logger';
+import { PrismaService } from './prisma.service';
 
 export interface AuditEvent {
   evento: string;

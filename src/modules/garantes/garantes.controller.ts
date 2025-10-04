@@ -1,20 +1,21 @@
+import { Roles } from '@config/roles.decorator';
+import { RolesGuard } from '@config/roles.guard';
+import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { GarantesService } from './garantes.service';
+import { ApiBearerAuth,ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { CreateGaranteDto } from './dtos/create-garante.dto';
 import { UpdateGaranteDto } from './dtos/update-garante.dto';
-import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
-import { RolesGuard } from '@config/roles.guard';
-import { Roles } from '@config/roles.decorator';
+import { GarantesService } from './garantes.service';
 
 @ApiTags('Garantes')
 @ApiBearerAuth('JWT-auth')

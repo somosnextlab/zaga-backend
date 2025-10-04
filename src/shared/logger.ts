@@ -5,7 +5,7 @@ export class Logger extends NestLogger implements LoggerService {
     super(context);
   }
 
-  log(message: any, context?: string) {
+  log(message: string | object, context?: string) {
     if (context === undefined) {
       super.log(message);
     } else {
@@ -13,19 +13,19 @@ export class Logger extends NestLogger implements LoggerService {
     }
   }
 
-  error(message: any, trace?: string, context?: string) {
+  error(message: string | object, trace?: string, context?: string) {
     super.error(message, trace, context);
   }
 
-  warn(message: any, context?: string) {
+  warn(message: string | object, context?: string) {
     super.warn(message, context);
   }
 
-  debug(message: any, context?: string) {
+  debug(message: string | object, context?: string) {
     super.debug(message, context);
   }
 
-  verbose(message: any, context?: string) {
+  verbose(message: string | object, context?: string) {
     super.verbose(message, context);
   }
 }

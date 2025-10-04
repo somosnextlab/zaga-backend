@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException,Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@shared/prisma.service';
+
+import { AddGaranteDto } from './dtos/add-garante.dto';
 import { CreateSolicitudDto } from './dtos/create-solicitud.dto';
 import { UpdateSolicitudDto } from './dtos/update-solicitud.dto';
-import { AddGaranteDto } from './dtos/add-garante.dto';
 
 @Injectable()
 export class SolicitudesService {
@@ -125,7 +126,7 @@ export class SolicitudesService {
   }
 
   async addGarante(solicitudId: string, addGaranteDto: AddGaranteDto) {
-    const solicitud = await this.findOne(solicitudId);
+    const _solicitud = await this.findOne(solicitudId);
 
     // Verificar que el garante existe
     const garante = await this.prisma.financiera_garantes.findUnique({

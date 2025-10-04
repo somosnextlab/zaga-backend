@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsUUID, IsNumber, IsOptional, IsPositive, IsIn, Min, Max } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsIn, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class CreateSolicitudDto {
   @ApiProperty({

@@ -1,27 +1,43 @@
+/** @type {import('eslint').Linter.Config} */
 module.exports = {
+  root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: 'tsconfig.json',
-    tsconfigRootDir: __dirname,
+    project: ['./tsconfig.json', './tsconfig.build.json', './tsconfig.e2e.json'],
     sourceType: 'module',
+    ecmaVersion: 'latest',
   },
-  plugins: ['@typescript-eslint/eslint-plugin'],
-  extends: [
-    '@typescript-eslint/recommended',
-    'plugin:prettier/recommended',
-  ],
-  root: true,
   env: {
     node: true,
+    es2022: true,
     jest: true,
   },
-  ignorePatterns: ['.eslintrc.js'],
+  plugins: ['@typescript-eslint', 'import', 'simple-import-sort'],
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    // Si usás reglas estrictas con tipos:
+    // 'plugin:@typescript-eslint/recommended-requiring-type-checking',
+    'plugin:import/recommended',
+    'plugin:import/typescript',
+    'prettier',
+  ],
   rules: {
-    '@typescript-eslint/interface-name-prefix': 'off',
-    '@typescript-eslint/explicit-function-return-type': 'off',
+    // Import helpers
+    'simple-import-sort/imports': 'warn',
+    'simple-import-sort/exports': 'warn',
+    'import/order': 'off',
+    'import/no-unresolved': 'off', // TS lo resuelve
+    // TS tweaks
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/explicit-module-boundary-types': 'off',
-    '@typescript-eslint/no-explicit-any': 'off',
-    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-    'prettier/prettier': 'error',
   },
+  ignorePatterns: [
+    'dist',
+    'node_modules',
+    // Si tu proyecto genera archivos fuera de src:
+    '*.config.js',
+    'coverage',
+    '.eslintrc.js',
+  ],
 };

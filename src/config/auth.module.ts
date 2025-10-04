@@ -1,7 +1,8 @@
-import { Module, Global } from '@nestjs/common';
 import { JwksClientService } from '@adapters/jwks.client';
-import { SupabaseJwtGuard } from './supabase-jwt.guard';
+import { Global,Module } from '@nestjs/common';
+
 import { RolesGuard } from './roles.guard';
+import { SupabaseJwtGuard } from './supabase-jwt.guard';
 
 @Global()
 @Module({

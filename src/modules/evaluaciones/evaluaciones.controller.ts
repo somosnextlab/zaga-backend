@@ -1,9 +1,10 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { EvaluacionesService } from './evaluaciones.service';
-import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
-import { RolesGuard } from '@config/roles.guard';
 import { Roles } from '@config/roles.decorator';
+import { RolesGuard } from '@config/roles.guard';
+import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth,ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { EvaluacionesService } from './evaluaciones.service';
 
 @ApiTags('Evaluaciones')
 @ApiBearerAuth('JWT-auth')

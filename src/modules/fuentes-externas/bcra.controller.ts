@@ -1,9 +1,10 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { BcraAdapter } from './adapters/bcra.adapter';
-import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
-import { RolesGuard } from '@config/roles.guard';
 import { Roles } from '@config/roles.decorator';
+import { RolesGuard } from '@config/roles.guard';
+import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth,ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { BcraAdapter } from './adapters/bcra.adapter';
 
 @ApiTags('BCRA')
 @ApiBearerAuth('JWT-auth')
@@ -31,7 +32,7 @@ export class BcraController {
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Sin permisos suficientes' })
-  async getSituacion(@Param('personaId') personaId: string) {
+  async getSituacion(@Param('personaId') _personaId: string) {
     // En un caso real, aquí obtendrías el CUIT de la persona desde la base de datos
     // Por ahora usamos un CUIT de ejemplo
     const cuit = '20123456789'; // Esto debería venir de la base de datos

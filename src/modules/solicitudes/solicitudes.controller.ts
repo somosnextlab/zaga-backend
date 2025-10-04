@@ -1,21 +1,22 @@
+import { Roles } from '@config/roles.decorator';
+import { RolesGuard } from '@config/roles.guard';
+import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { SolicitudesService } from './solicitudes.service';
+import { ApiBearerAuth,ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { AddGaranteDto } from './dtos/add-garante.dto';
 import { CreateSolicitudDto } from './dtos/create-solicitud.dto';
 import { UpdateSolicitudDto } from './dtos/update-solicitud.dto';
-import { AddGaranteDto } from './dtos/add-garante.dto';
-import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
-import { RolesGuard } from '@config/roles.guard';
-import { Roles } from '@config/roles.decorator';
+import { SolicitudesService } from './solicitudes.service';
 // import { Queue } from 'bullmq';
 // import { Inject } from '@nestjs/common';
 
@@ -108,7 +109,7 @@ export class SolicitudesController {
   @ApiResponse({ status: 202, description: 'Evaluación iniciada exitosamente' })
   @ApiResponse({ status: 404, description: 'Solicitud no encontrada' })
   async evaluar(@Param('id') id: string) {
-    const solicitud = await this.solicitudesService.findOne(id);
+    const _solicitud = await this.solicitudesService.findOne(id);
     
     // TODO: Implementar evaluación con BullMQ cuando esté configurado
     // await this.evaluacionQueue.add('consulta_fuente:BCRA', {

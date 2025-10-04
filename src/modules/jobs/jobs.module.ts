@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
-import { ConfigService } from '@nestjs/config';
-import { EvaluacionProcessor } from './evaluacion.processor';
 import { BcraAdapter } from '@modules/fuentes-externas/adapters/bcra.adapter';
+import { BullModule } from '@nestjs/bullmq';
+import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+import { EvaluacionProcessor } from './evaluacion.processor';
 
 @Module({
   imports: [

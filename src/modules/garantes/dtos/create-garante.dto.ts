@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsUUID, IsOptional, IsIn } from 'class-validator';
+import { IsIn,IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateGaranteDto {
   @ApiProperty({
