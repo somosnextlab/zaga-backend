@@ -7,6 +7,9 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "setupFilesAfterEnv": ["<rootDir>/../src/test-setup.ts"],
+  "testTimeout": 30000,
+  "forceExit": true,
+  "detectOpenHandles": true,
   "moduleNameMapper": {
     "^@app/(.*)$": "<rootDir>/../src/$1",
     "^@modules/(.*)$": "<rootDir>/../src/modules/$1",
