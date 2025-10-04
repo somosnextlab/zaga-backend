@@ -2,7 +2,7 @@
 FROM node:20-alpine AS base
 
 # Instalar dependencias necesarias
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl libssl3
 
 WORKDIR /app
 

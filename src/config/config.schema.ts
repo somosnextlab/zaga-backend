@@ -9,7 +9,7 @@ export const configSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL es requerida'),
 
   // Redis
-  REDIS_URL: z.string().min(1, 'REDIS_URL es requerida'),
+  REDIS_URL: z.string().optional(),
 
   // Supabase
   SUPABASE_PROJECT_URL: z.string().url('SUPABASE_PROJECT_URL debe ser una URL válida').optional(),

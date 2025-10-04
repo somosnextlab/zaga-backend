@@ -24,10 +24,27 @@ const RedisProvider: Provider = {
       };
     }
 
+    // En producción, si Redis no está disponible, usar mock también
+    if (!redisUrl || redisUrl.includes('host:port')) {
+      logger.warn('Redis no configurado, usando mock para producción');
+      return {
+        get: () => Promise.resolve(null),
+        set: () => Promise.resolve('OK'),
+        del: () => Promise.resolve(1),
+        exists: () => Promise.resolve(0),
+        expire: () => Promise.resolve(0),
+        on: () => {},
+        disconnect: () => Promise.resolve(),
+      };
+    }
+
     const redis = new Redis(redisUrl, {
       enableReadyCheck: false,
-      maxRetriesPerRequest: null,
+      maxRetriesPerRequest: 3,
       lazyConnect: true,
+      connectTimeout: 10000,
+      commandTimeout: 5000,
+      family: 0, // Habilita búsqueda DNS dual (IPv4 e IPv6) para Railway
     });
 
     redis.on('connect', () => {
@@ -40,6 +57,10 @@ const RedisProvider: Provider = {
 
     redis.on('close', () => {
       logger.log('Conexión Redis cerrada');
+    });
+
+    redis.on('reconnecting', () => {
+      logger.log('Reconectando a Redis...');
     });
 
     return redis;
