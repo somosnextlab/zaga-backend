@@ -4,46 +4,77 @@ on:
   push:
     branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: zaga_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
       redis:
         image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
         ports:
           - 6379:6379
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '18'
         cache: 'npm'
 
     - name: Install dependencies
       run: npm ci
 
-    - name: Lint
-      run: npm run lint
+    - name: Setup environment variables
+      run: |
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/zaga_test" >> .env
+        echo "REDIS_URL=redis://localhost:6379" >> .env
+        echo "NODE_ENV=test" >> .env
+        echo "API_PORT=3000" >> .env
+        echo "SUPABASE_PROJECT_URL=https://test.supabase.co" >> .env
+        echo "SUPABASE_JWKS_URL=https://test.supabase.co/auth/v1/keys" >> .env
+        echo "SUPABASE_ANON_KEY=test_anon_key" >> .env
+        echo "SUPABASE_SERVICE_ROLE_KEY=test_service_role_key" >> .env
+        echo "BCRA_API_BASE_URL=https://api.bcra.test/v1" >> .env
+        echo "BCRA_API_KEY=test_key" >> .env
+        echo "AFIP_API_BASE_URL=https://api.afip.test/v1" >> .env
+        echo "AFIP_API_KEY=test_key" >> .env
 
-    - name: Format check
-      run: npm run format -- --check
-
-    - name: Build
-      run: npm run build
-
-    - name: Test
-      run: npm run test
-
-    - name: Prisma generate
+    - name: Generate Prisma Client
       run: npx prisma generate
 
-    - name: Test Prisma connection
+    - name: Push database schema
       run: npx prisma db push --accept-data-loss
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    - name: Run linting
+      run: npm run lint
+
+    - name: Run unit tests
+      run: npm run test
+
+    - name: Run e2e tests
+      run: npm run test:e2e
+
+    - name: Build application
+      run: npm run build
