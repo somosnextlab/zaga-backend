@@ -1,3 +1,5 @@
+import { RolesGuard } from '@config/roles.guard';
+import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { CreatePerfilDto } from './dtos/create-perfil.dto';
@@ -25,11 +27,11 @@ describe('UsuariosController', () => {
         },
       ],
     })
-    .overrideGuard(require('@config/supabase-jwt.guard').SupabaseJwtGuard)
-    .useValue({ canActivate: jest.fn().mockReturnValue(true) })
-    .overrideGuard(require('@config/roles.guard').RolesGuard)
-    .useValue({ canActivate: jest.fn().mockReturnValue(true) })
-    .compile();
+      .overrideGuard(SupabaseJwtGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .compile();
 
     controller = module.get<UsuariosController>(UsuariosController);
     service = module.get<UsuariosService>(UsuariosService);
@@ -83,7 +85,9 @@ describe('UsuariosController', () => {
       mockUsuariosService.findAll.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(controller.findAll()).rejects.toThrow('Error de base de datos');
+      await expect(controller.findAll()).rejects.toThrow(
+        'Error de base de datos',
+      );
       expect(service.findAll).toHaveBeenCalledTimes(1);
     });
   });
@@ -163,7 +167,9 @@ describe('UsuariosController', () => {
       mockUsuariosService.findMe.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(controller.findMe(mockRequest)).rejects.toThrow('Error de base de datos');
+      await expect(controller.findMe(mockRequest)).rejects.toThrow(
+        'Error de base de datos',
+      );
       expect(service.findMe).toHaveBeenCalledWith('user-123');
     });
   });
@@ -204,7 +210,10 @@ describe('UsuariosController', () => {
 
       // Assert
       expect(result).toEqual(expectedResponse);
-      expect(service.crearPerfil).toHaveBeenCalledWith(createPerfilDto, 'user-123');
+      expect(service.crearPerfil).toHaveBeenCalledWith(
+        createPerfilDto,
+        'user-123',
+      );
       expect(service.crearPerfil).toHaveBeenCalledTimes(1);
     });
 
@@ -236,7 +245,10 @@ describe('UsuariosController', () => {
 
       // Assert
       expect(result).toEqual(expectedResponse);
-      expect(service.crearPerfil).toHaveBeenCalledWith(createPerfilDto, 'user-con-perfil');
+      expect(service.crearPerfil).toHaveBeenCalledWith(
+        createPerfilDto,
+        'user-con-perfil',
+      );
     });
 
     it('debería manejar errores al crear perfil', async () => {
@@ -258,8 +270,13 @@ describe('UsuariosController', () => {
       mockUsuariosService.crearPerfil.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(controller.crearPerfil(createPerfilDto, mockRequest)).rejects.toThrow('Error de base de datos');
-      expect(service.crearPerfil).toHaveBeenCalledWith(createPerfilDto, 'user-123');
+      await expect(
+        controller.crearPerfil(createPerfilDto, mockRequest),
+      ).rejects.toThrow('Error de base de datos');
+      expect(service.crearPerfil).toHaveBeenCalledWith(
+        createPerfilDto,
+        'user-123',
+      );
     });
   });
 });

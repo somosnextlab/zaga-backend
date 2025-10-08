@@ -6,7 +6,6 @@ import { UsuariosService } from './usuarios.service';
 
 describe('UsuariosService', () => {
   let service: UsuariosService;
-  let prismaService: PrismaService;
 
   // Mock del PrismaService
   const mockPrismaService = {
@@ -36,7 +35,6 @@ describe('UsuariosService', () => {
     }).compile();
 
     service = module.get<UsuariosService>(UsuariosService);
-    prismaService = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
@@ -65,7 +63,9 @@ describe('UsuariosService', () => {
         },
       ];
 
-      mockPrismaService.seguridad_usuarios.findMany.mockResolvedValue(mockUsuarios);
+      mockPrismaService.seguridad_usuarios.findMany.mockResolvedValue(
+        mockUsuarios,
+      );
 
       // Act
       const result = await service.findAll();
@@ -76,7 +76,9 @@ describe('UsuariosService', () => {
         data: mockUsuarios,
         count: 2,
       });
-      expect(mockPrismaService.seguridad_usuarios.findMany).toHaveBeenCalledTimes(1);
+      expect(
+        mockPrismaService.seguridad_usuarios.findMany,
+      ).toHaveBeenCalledTimes(1);
     });
 
     it('debería manejar errores de base de datos', async () => {
@@ -85,8 +87,12 @@ describe('UsuariosService', () => {
       mockPrismaService.seguridad_usuarios.findMany.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.findAll()).rejects.toThrow('Error al obtener usuarios');
-      expect(mockPrismaService.seguridad_usuarios.findMany).toHaveBeenCalledTimes(1);
+      await expect(service.findAll()).rejects.toThrow(
+        'Error al obtener usuarios',
+      );
+      expect(
+        mockPrismaService.seguridad_usuarios.findMany,
+      ).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -111,8 +117,12 @@ describe('UsuariosService', () => {
         telefono: '+54911234567',
       };
 
-      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(mockUsuario);
-      mockPrismaService.financiera_personas.findUnique.mockResolvedValue(mockPersona);
+      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(
+        mockUsuario,
+      );
+      mockPrismaService.financiera_personas.findUnique.mockResolvedValue(
+        mockPersona,
+      );
 
       // Act
       const result = await service.findMe(userId);
@@ -125,10 +135,14 @@ describe('UsuariosService', () => {
           persona: mockPersona,
         },
       });
-      expect(mockPrismaService.seguridad_usuarios.findUnique).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.seguridad_usuarios.findUnique,
+      ).toHaveBeenCalledWith({
         where: { user_id: userId },
       });
-      expect(mockPrismaService.financiera_personas.findUnique).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.financiera_personas.findUnique,
+      ).toHaveBeenCalledWith({
         where: { id: 'persona-123' },
       });
     });
@@ -145,7 +159,9 @@ describe('UsuariosService', () => {
         updated_at: new Date(),
       };
 
-      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(mockUsuario);
+      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(
+        mockUsuario,
+      );
 
       // Act
       const result = await service.findMe(userId);
@@ -158,10 +174,14 @@ describe('UsuariosService', () => {
           persona: null,
         },
       });
-      expect(mockPrismaService.seguridad_usuarios.findUnique).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.seguridad_usuarios.findUnique,
+      ).toHaveBeenCalledWith({
         where: { user_id: userId },
       });
-      expect(mockPrismaService.financiera_personas.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrismaService.financiera_personas.findUnique,
+      ).not.toHaveBeenCalled();
     });
 
     it('debería retornar error cuando el usuario no existe', async () => {
@@ -186,7 +206,9 @@ describe('UsuariosService', () => {
       mockPrismaService.seguridad_usuarios.findUnique.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.findMe(userId)).rejects.toThrow('Error al obtener perfil del usuario');
+      await expect(service.findMe(userId)).rejects.toThrow(
+        'Error al obtener perfil del usuario',
+      );
     });
   });
 
@@ -218,8 +240,12 @@ describe('UsuariosService', () => {
         email: 'juan@example.com',
       };
 
-      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(mockUsuario);
-      mockPrismaService.financiera_personas.create.mockResolvedValue(mockPersona);
+      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(
+        mockUsuario,
+      );
+      mockPrismaService.financiera_personas.create.mockResolvedValue(
+        mockPersona,
+      );
       mockPrismaService.seguridad_usuarios.update.mockResolvedValue({});
       mockPrismaService.financiera_clientes.create.mockResolvedValue({});
 
@@ -237,30 +263,36 @@ describe('UsuariosService', () => {
         },
       });
 
-      expect(mockPrismaService.seguridad_usuarios.findUnique).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.seguridad_usuarios.findUnique,
+      ).toHaveBeenCalledWith({
         where: { user_id: userId },
       });
-      expect(mockPrismaService.financiera_personas.create).toHaveBeenCalledWith({
-        data: {
-          tipo_doc: 'DNI',
-          numero_doc: '12345678',
-          nombre: 'Juan',
-          apellido: 'Pérez',
-          email: 'juan@example.com',
-          telefono: '+54911234567',
-          fecha_nac: new Date('1990-01-01'),
+      expect(mockPrismaService.financiera_personas.create).toHaveBeenCalledWith(
+        {
+          data: {
+            tipo_doc: 'DNI',
+            numero_doc: '12345678',
+            nombre: 'Juan',
+            apellido: 'Pérez',
+            email: 'juan@example.com',
+            telefono: '+54911234567',
+            fecha_nac: new Date('1990-01-01'),
+          },
         },
-      });
+      );
       expect(mockPrismaService.seguridad_usuarios.update).toHaveBeenCalledWith({
         where: { user_id: userId },
         data: { persona_id: 'persona-123' },
       });
-      expect(mockPrismaService.financiera_clientes.create).toHaveBeenCalledWith({
-        data: {
-          persona_id: 'persona-123',
-          estado: 'activo',
+      expect(mockPrismaService.financiera_clientes.create).toHaveBeenCalledWith(
+        {
+          data: {
+            persona_id: 'persona-123',
+            estado: 'activo',
+          },
         },
-      });
+      );
     });
 
     it('debería retornar error cuando el usuario ya tiene perfil', async () => {
@@ -280,7 +312,9 @@ describe('UsuariosService', () => {
         estado: 'activo',
       };
 
-      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(mockUsuario);
+      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(
+        mockUsuario,
+      );
 
       // Act
       const result = await service.crearPerfil(createPerfilDto, userId);
@@ -290,7 +324,9 @@ describe('UsuariosService', () => {
         success: false,
         message: 'El usuario ya tiene un perfil creado',
       });
-      expect(mockPrismaService.financiera_personas.create).not.toHaveBeenCalled();
+      expect(
+        mockPrismaService.financiera_personas.create,
+      ).not.toHaveBeenCalled();
     });
 
     it('debería manejar errores de base de datos', async () => {
@@ -307,7 +343,9 @@ describe('UsuariosService', () => {
       mockPrismaService.seguridad_usuarios.findUnique.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.crearPerfil(createPerfilDto, userId)).rejects.toThrow('Error al crear perfil del usuario');
+      await expect(
+        service.crearPerfil(createPerfilDto, userId),
+      ).rejects.toThrow('Error al crear perfil del usuario');
     });
   });
 });

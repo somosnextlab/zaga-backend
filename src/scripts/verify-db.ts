@@ -52,7 +52,6 @@ async function verifyDatabase() {
     }
 
     console.log('\n✅ Verificación completada exitosamente');
-
   } catch (error) {
     console.error('❌ Error durante la verificación:', error);
   } finally {
