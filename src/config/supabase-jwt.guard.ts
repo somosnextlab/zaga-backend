@@ -29,7 +29,7 @@ export class SupabaseJwtGuard implements CanActivate {
       request.user = {
         user_id: 'dev-user',
         email: 'dev@example.com',
-        rol: 'admin',
+        rol: 'admin', // Rol válido para desarrollo
         persona_id: 'dev-persona-id',
       };
       return true;
@@ -46,15 +46,21 @@ export class SupabaseJwtGuard implements CanActivate {
       });
 
       // Extraer información del usuario del payload
+      const userMetadata = (
+        payload as { user_metadata?: { rol?: string; persona_id?: string } }
+      ).user_metadata;
+      const userRole = userMetadata?.rol;
+
+      // Validar que el rol sea válido, si no, asignar 'cliente' por defecto
+      const validRoles = ['admin', 'cliente'];
+      const finalRole =
+        userRole && validRoles.includes(userRole) ? userRole : 'cliente';
+
       request.user = {
         user_id: payload.sub,
         email: payload.email,
-        rol:
-          (payload as { user_metadata?: { rol?: string; persona_id?: string } })
-            .user_metadata?.rol || 'cliente',
-        persona_id: (
-          payload as { user_metadata?: { rol?: string; persona_id?: string } }
-        ).user_metadata?.persona_id,
+        rol: finalRole,
+        persona_id: userMetadata?.persona_id,
       };
 
       return true;
