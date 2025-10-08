@@ -2,227 +2,241 @@
 
 Backend API para el sistema de gestión de préstamos Zaga, construido con NestJS, TypeScript y Prisma.
 
-## 🚀 Características
+## 🚀 Stack Tecnológico
 
-- **NestJS 10** con arquitectura modular
-- **TypeScript ES2022** con configuración estricta
-- **Prisma** como ORM con soporte para PostgreSQL (Supabase)
-- **Autenticación JWT** con Supabase y verificación JWKS
-- **Sistema de roles** (admin, analista, cobranzas, cliente)
-- **BullMQ** para procesamiento de colas con Redis
-- **Swagger/OpenAPI** para documentación de API
-- **Docker** para containerización
-- **ESLint + Prettier** para calidad de código
-- **Husky + lint-staged** para hooks de Git
+- **NestJS 10** + **TypeScript** + **Prisma ORM**
+- **PostgreSQL** (Supabase) + **Redis** + **BullMQ**
+- **Autenticación JWT** con **RLS (Row Level Security)**
+- **Swagger/OpenAPI** + **Docker** + **Railway**
 
-## 📋 Requisitos
+## 🛠️ Instalación Rápida
 
-- Node.js 20+
-- PostgreSQL (Supabase)
-- Redis
-- Docker (opcional)
+```bash
+# 1. Clonar e instalar
+git clone <repository-url>
+cd zaga-backend
+npm install
 
-## 🛠️ Instalación
+# 2. Configurar variables de entorno
+cp env.example .env
+# Editar .env con tus valores
 
-### Desarrollo Local
+# 3. Configurar base de datos
+npx prisma generate
+npx prisma db push
 
-1. **Clonar el repositorio**
-   ```bash
-   git clone <repository-url>
-   cd zaga-backend
-   ```
+# 4. Ejecutar
+npm run start:dev
+```
 
-2. **Instalar dependencias**
-   ```bash
-   npm install
-   ```
+### Variables de Entorno Principales
 
-3. **Configurar variables de entorno**
-   ```bash
-   cp env.example .env
-   ```
-   
-   Editar `.env` con tus valores:
-   ```env
-   API_PORT=3000
-   NODE_ENV=development
-   DATABASE_URL=postgresql://USER:PASS@HOST:PORT/dbname?pgbouncer=true&connection_limit=1
-   REDIS_URL=redis://default:pass@host:port
-   SUPABASE_PROJECT_URL=https://<project-id>.supabase.co
-   SUPABASE_JWKS_URL=https://<project-id>.supabase.co/auth/v1/keys
-   SUPABASE_ANON_KEY=your_anon_key_here
-   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
-   BCRA_API_BASE_URL=https://api.bcra.example/v1
-   BCRA_API_KEY=changeme
-   ```
-
-4. **Configurar base de datos**
-   ```bash
-   npx prisma generate
-   npx prisma db push
-   ```
-
-5. **Ejecutar la aplicación**
-   ```bash
-   npm run start:dev
-   ```
-
-### Docker
-
-1. **Desarrollo con Docker Compose**
-   ```bash
-   docker-compose -f docker-compose.dev.yml up
-   ```
-
-2. **Producción**
-   ```bash
-   docker build -t zaga-backend .
-   docker run -p 3000:3000 --env-file .env zaga-backend
-   ```
+```env
+DATABASE_URL=postgresql://...
+REDIS_URL=redis://...
+SUPABASE_PROJECT_URL=https://...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
 
 ## 📚 API Documentation
-
-Una vez que la aplicación esté ejecutándose, la documentación de la API estará disponible en:
 
 - **Swagger UI**: http://localhost:3000/docs
 - **Health Check**: http://localhost:3000/salud
 
 ## 🔐 Autenticación
 
-La API utiliza JWT tokens de Supabase. Para autenticarse:
+### Sistema JWT con Supabase + RLS
 
-1. Obtén un token JWT de Supabase
-2. Incluye el token en el header `Authorization: Bearer <token>`
-3. El token debe contener los metadatos de usuario con `rol` y `persona_id`
+1. **Frontend** envía JWT en `Authorization: Bearer <token>`
+2. **SupabaseJwtGuard** verifica token con JWKS
+3. **RLS** aplica políticas automáticamente basadas en `auth.jwt()`
 
 ### Roles Disponibles
 
 - **admin**: Acceso completo
 - **analista**: Gestión de solicitudes y evaluaciones
-- **cobranzas**: Gestión de pagos y cobranzas
-- **cliente**: Acceso limitado a sus propios datos
+- **cobranzas**: Gestión de pagos
+- **cliente**: Solo sus propios datos (RLS aplicado)
 
-## 🏗️ Estructura del Proyecto
+## 🏗️ Arquitectura
 
-```
-src/
-├── config/                 # Configuración y guards
-│   ├── config.schema.ts
-│   ├── supabase-jwt.guard.ts
-│   ├── roles.decorator.ts
-│   └── roles.guard.ts
-├── shared/                 # Servicios compartidos
-│   ├── logger.ts
-│   ├── prisma.service.ts
-│   ├── redis.provider.ts
-│   └── audit.service.ts
-├── modules/               # Módulos de negocio
-│   ├── salud/
-│   ├── clientes/
-│   ├── garantes/
-│   ├── solicitudes/
-│   ├── evaluaciones/
-│   ├── prestamos/
-│   ├── pagos/
-│   ├── verificacion-identidad/
-│   ├── fuentes-externas/
-│   └── jobs/
-├── adapters/              # Adaptadores externos
-│   └── jwks.client.ts
-└── main.ts
-```
+### Módulos Principales
+
+- **`clientes/`** - Gestión de clientes
+- **`solicitudes/`** - Solicitudes de préstamos (RLS)
+- **`prestamos/`** - Préstamos aprobados (RLS)
+- **`pagos/`** - Gestión de pagos
+- **`evaluaciones/`** - Evaluaciones crediticias
+- **`usuarios/`** - Información de usuarios (RLS)
+- **`verificacion-identidad/`** - Documentos de identidad
+- **`fuentes-externas/`** - Integración BCRA/AFIP
+- **`jobs/`** - Procesamiento asíncrono BullMQ
+
+### Servicios Compartidos
+
+- **PrismaService** - ORM global
+- **AuditService** - Trazabilidad completa
+- **Logger** - Sistema de logging con Pino
+- **RedisProvider** - Cache distribuido
 
 ## 🔄 Endpoints Principales
 
 ### Salud
+
 - `GET /salud` - Estado de la aplicación
 
 ### Clientes
-- `GET /clientes` - Listar clientes
-- `POST /clientes` - Crear cliente
-- `GET /clientes/:id` - Obtener cliente
-- `PATCH /clientes/:id` - Actualizar cliente
-- `DELETE /clientes/:id` - Eliminar cliente
 
-### Solicitudes
-- `GET /solicitudes` - Listar solicitudes
-- `POST /solicitudes` - Crear solicitud
-- `GET /solicitudes/:id` - Obtener solicitud
-- `POST /solicitudes/:id/evaluar` - Evaluar solicitud
+- `GET /clientes` - Listar clientes (admin, analista)
+- `POST /clientes` - Crear cliente (admin, analista)
+- `GET /clientes/:id` - Obtener cliente (admin, analista)
+
+### Solicitudes (RLS)
+
+- `GET /solicitudes` - Listar solicitudes (RLS aplicado)
+- `POST /solicitudes` - Crear solicitud (cliente_id del JWT)
+- `POST /solicitudes/:id/evaluar` - Iniciar evaluación (admin, analista)
 - `POST /solicitudes/:id/garantes` - Agregar garante
-- `GET /solicitudes/:id/garantes` - Listar garantes
-- `GET /solicitudes/:id/evaluaciones` - Listar evaluaciones
+
+### Préstamos (RLS)
+
+- `GET /prestamos` - Listar préstamos (RLS aplicado)
+- `GET /prestamos/:id` - Obtener préstamo (RLS aplicado)
+
+### Usuarios (RLS)
+
+- `GET /usuarios/yo` - Información del usuario (RLS aplicado)
 
 ### Verificación de Identidad
+
 - `POST /verificacion-identidad/:personaId/documentos` - Subir documento
 - `GET /verificacion-identidad/:personaId/documentos` - Listar documentos
 
 ### Fuentes Externas
-- `GET /bcra/:personaId/situacion` - Consultar BCRA (solo admin/staff)
+
+- `GET /bcra/:personaId/situacion` - Consultar BCRA (admin, staff)
+
+## ⚙️ Funcionalidades por Rol
+
+### Clientes
+
+- Crear solicitudes de préstamo
+- Ver sus propias solicitudes y préstamos
+- Subir documentos de identidad
+- Agregar garantes a sus solicitudes
+
+### Analistas
+
+- Gestionar solicitudes de préstamos
+- Iniciar evaluaciones crediticias
+- Consultar fuentes externas (BCRA)
+- Ver todos los clientes y solicitudes
+
+### Cobranzas
+
+- Consultar pagos y préstamos
+- Ver documentos de identidad
+- Seguimiento de cronogramas de pago
+
+### Administradores
+
+- Acceso completo a todos los módulos
+- Gestión de usuarios y roles
+- Auditoría completa del sistema
+
+## 🔄 Sistema de Colas (BullMQ)
+
+### Procesamiento Asíncrono
+
+- **Cola de evaluación**: `evaluacion`
+- **Jobs**: `consulta_fuente:BCRA`, `consolidar_evaluacion`
+- **Integración BCRA**: Consulta situación crediticia en background
 
 ## 🧪 Testing
 
 ```bash
-# Ejecutar tests
-npm run test
-
-# Tests en modo watch
-npm run test:watch
-
-# Coverage
-npm run test:cov
-
-# Tests e2e
-npm run test:e2e
+npm run test          # Tests unitarios
+npm run test:watch    # Tests en modo watch
+npm run test:cov      # Coverage
+npm run test:e2e      # Tests end-to-end
 ```
 
-## 📝 Scripts Disponibles
+## 📝 Scripts Principales
 
 ```bash
 # Desarrollo
-npm run start:dev          # Ejecutar en modo desarrollo
-npm run start:debug        # Ejecutar en modo debug
+npm run start:dev     # Modo desarrollo con hot reload
+npm run start:debug   # Modo debug
 
 # Producción
-npm run build              # Compilar TypeScript
-npm run start              # Ejecutar compilado
-npm run start:prod         # Ejecutar en producción
-
-# Calidad de código
-npm run lint               # Ejecutar ESLint
-npm run format             # Formatear con Prettier
+npm run build         # Compilar TypeScript
+npm run start         # Ejecutar compilado
 
 # Base de datos
 npm run prisma:generate    # Generar cliente Prisma
 npm run prisma:migrate:deploy  # Aplicar migraciones
 npm run prisma:studio      # Abrir Prisma Studio
+
+# Calidad de código
+npm run lint          # ESLint con auto-fix
+npm run format        # Prettier
 ```
 
 ## 🚀 Despliegue
 
-### Railway
+### Railway (Recomendado)
 
 1. Conecta tu repositorio a Railway
 2. Configura las variables de entorno
 3. Railway detectará automáticamente el `Dockerfile`
-4. Asegúrate de tener Redis configurado
 
-### Variables de Entorno Requeridas
+### Docker
 
-- `DATABASE_URL`: URL de conexión a PostgreSQL
-- `REDIS_URL`: URL de conexión a Redis
-- `SUPABASE_PROJECT_URL`: URL del proyecto Supabase
-- `SUPABASE_JWKS_URL`: URL de las claves JWKS
-- `SUPABASE_ANON_KEY`: Clave anónima de Supabase
-- `SUPABASE_SERVICE_ROLE_KEY`: Clave de servicio de Supabase
+```bash
+# Desarrollo
+docker-compose -f docker-compose.dev.yml up
+
+# Producción
+docker build -t zaga-backend .
+docker run -p 3000:3000 --env-file .env zaga-backend
+```
+
+## 🛡️ Seguridad
+
+### RLS (Row Level Security)
+
+- **Seguridad a nivel de fila** automática con Supabase
+- **Políticas granulares** por rol y cliente
+- **Prevención de manipulación** de cliente_id (server-side)
+
+### Auditoría
+
+- **Registro completo** de todas las acciones
+- **Metadatos**: Usuario, IP, User-Agent, timestamp
+- **Trazabilidad** en entidades críticas
+
+## 📈 Escalabilidad
+
+- **Arquitectura modular** para fácil mantenimiento
+- **Procesamiento asíncrono** con BullMQ
+- **Cache distribuido** con Redis
+- **Logging estructurado** para monitoreo
 
 ## 🤝 Contribución
 
 1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+2. Crea una rama (`git checkout -b feature/AmazingFeature`)
 3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
+
+### Estándares
+
+- Sigue los principios **SOLID**
+- Usa **TypeScript** con tipado estricto
+- Aplica **BEM** si ayuda a la claridad
+- Sigue las recomendaciones de **ESLint**
 
 ## 📄 Licencia
 
