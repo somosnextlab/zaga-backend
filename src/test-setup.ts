@@ -1,50 +1,10 @@
-// Setup global para tests
-import { mockRedis, mockQueue, mockWorker, resetRedisMocks } from './shared/redis.mock';
+// Configuración global para tests
+import 'reflect-metadata';
 
-// Configurar variables de entorno para tests
+// Mock de variables de entorno para tests
 process.env.NODE_ENV = 'test';
-process.env.REDIS_URL = 'redis://localhost:6379';
-
-// Configurar mocks globales
-global.mockRedis = mockRedis;
-global.mockQueue = mockQueue;
-global.mockWorker = mockWorker;
-
-// Resetear mocks antes de cada test
-beforeEach(() => {
-  resetRedisMocks();
-});
-
-// Mock de console.error para evitar spam en los tests
-const originalConsoleError = console.error;
-console.error = (...args: unknown[]) => {
-  const errorMessage = args[0]?.toString() || '';
-  
-  // Filtrar errores de Redis que no son críticos para los tests
-  if (
-    errorMessage.includes('getaddrinfo ENOTFOUND') ||
-    errorMessage.includes('redis://localhost:6379') ||
-    errorMessage.includes('ECONNREFUSED') ||
-    errorMessage.includes('Redis connection error')
-  ) {
-    return; // No mostrar estos errores en los tests
-  }
-  
-  originalConsoleError(...args);
-};
-
-// Mock de console.warn para evitar spam en los tests
-const originalConsoleWarn = console.warn;
-console.warn = (...args: unknown[]) => {
-  const warnMessage = args[0]?.toString() || '';
-  
-  // Filtrar warnings de Redis que no son críticos para los tests
-  if (
-    warnMessage.includes('Redis no configurado') ||
-    warnMessage.includes('Redis connection')
-  ) {
-    return; // No mostrar estos warnings en los tests
-  }
-  
-  originalConsoleWarn(...args);
-};
+process.env.API_PORT = '3000';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/zaga_test';
+process.env.SUPABASE_URL = 'https://test.supabase.co';
+process.env.SUPABASE_ANON_KEY = 'test-anon-key';
+process.env.SUPABASE_JWT_SECRET = 'test-jwt-secret';
