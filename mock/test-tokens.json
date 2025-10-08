@@ -1,0 +1,81 @@
+{
+  "description": "⚠️ IMPORTANTE: Estos son tokens de EJEMPLO y NO son válidos para producción. Solo para entender la estructura.",
+  "security_warning": "NUNCA uses estos tokens en producción. Genera tokens reales desde Supabase.",
+  "tokens": {
+    "admin": {
+      "description": "Token de administrador con acceso completo (EJEMPLO)",
+      "token": "TOKEN_EJEMPLO_ADMIN_NO_VALIDO",
+      "payload": {
+        "sub": "admin-user-id",
+        "email": "admin@zaga.com",
+        "app_metadata": {
+          "role": "admin",
+          "cliente_id": null
+        },
+        "user_metadata": {
+          "rol": "admin",
+          "persona_id": "admin-persona-id"
+        }
+      },
+      "expected_access": "Acceso completo a todos los datos"
+    },
+    "cliente": {
+      "description": "Token de cliente con acceso limitado a sus propios datos (EJEMPLO)",
+      "token": "TOKEN_EJEMPLO_CLIENTE_NO_VALIDO",
+      "payload": {
+        "sub": "cliente-user-id",
+        "email": "cliente@example.com",
+        "app_metadata": {
+          "role": "cliente",
+          "cliente_id": "cliente-uuid-123"
+        },
+        "user_metadata": {
+          "rol": "cliente",
+          "persona_id": "persona-uuid-456"
+        }
+      },
+      "expected_access": "Solo sus propios préstamos y solicitudes"
+    },
+    "analista": {
+      "description": "Token de analista con acceso a solicitudes y evaluaciones (EJEMPLO)",
+      "token": "TOKEN_EJEMPLO_ANALISTA_NO_VALIDO",
+      "payload": {
+        "sub": "analista-user-id",
+        "email": "analista@zaga.com",
+        "app_metadata": {
+          "role": "analista",
+          "cliente_id": null
+        },
+        "user_metadata": {
+          "rol": "analista",
+          "persona_id": "analista-persona-id"
+        }
+      },
+      "expected_access": "Acceso a solicitudes y evaluaciones"
+    },
+    "cobranzas": {
+      "description": "Token de cobranzas con acceso a pagos y cobranzas (EJEMPLO)",
+      "token": "TOKEN_EJEMPLO_COBRANZAS_NO_VALIDO",
+      "payload": {
+        "sub": "cobranzas-user-id",
+        "email": "cobranzas@zaga.com",
+        "app_metadata": {
+          "role": "cobranzas",
+          "cliente_id": null
+        },
+        "user_metadata": {
+          "rol": "cobranzas",
+          "persona_id": "cobranzas-persona-id"
+        }
+      },
+      "expected_access": "Acceso a pagos y cobranzas"
+    }
+  },
+  "usage_notes": [
+    "⚠️ SEGURIDAD: Estos tokens son de EJEMPLO y NO son válidos para producción",
+    "🔐 Para pruebas reales, genera tokens válidos desde Supabase",
+    "🛡️ Los tokens deben tener las políticas RLS configuradas en Supabase",
+    "🔑 El campo 'cliente_id' en app_metadata es crucial para RLS de clientes",
+    "🚨 NUNCA subas tokens reales a repositorios públicos"
+  ]
+}

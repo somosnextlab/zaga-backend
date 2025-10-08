@@ -15,6 +15,8 @@
     "^@modules/(.*)$": "<rootDir>/../src/modules/$1",
     "^@shared/(.*)$": "<rootDir>/../src/shared/$1",
     "^@config/(.*)$": "<rootDir>/../src/config/$1",
-    "^@adapters/(.*)$": "<rootDir>/../src/adapters/$1"
+    "^@adapters/(.*)$": "<rootDir>/../src/adapters/$1",
+    "^@supabase/supabase-user.service$": "<rootDir>/../src/supabase/supabase-user.service",
+    "^@supabase/supabase.module$": "<rootDir>/../src/supabase/supabase.module"
   }
 }

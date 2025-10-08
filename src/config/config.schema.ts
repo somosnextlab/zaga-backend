@@ -12,9 +12,11 @@ export const configSchema = z.object({
   REDIS_URL: z.string().optional(),
 
   // Supabase
+  SUPABASE_URL: z.string().url('SUPABASE_URL debe ser una URL válida').optional(),
   SUPABASE_PROJECT_URL: z.string().url('SUPABASE_PROJECT_URL debe ser una URL válida').optional(),
   SUPABASE_JWKS_URL: z.string().url('SUPABASE_JWKS_URL debe ser una URL válida').optional(),
   SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY es requerida').optional(),
+  SUPABASE_SERVICE_ROLE: z.string().min(1, 'SUPABASE_SERVICE_ROLE es requerida').optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY es requerida').optional(),
 
   // External APIs

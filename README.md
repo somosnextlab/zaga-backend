@@ -87,20 +87,49 @@ Una vez que la aplicación esté ejecutándose, la documentación de la API esta
 - **Swagger UI**: http://localhost:3000/docs
 - **Health Check**: http://localhost:3000/salud
 
-## 🔐 Autenticación
+## 🔐 Autenticación y RLS
 
-La API utiliza JWT tokens de Supabase. Para autenticarse:
+La API utiliza **JWT tokens de Supabase** con implementación del patrón **RLS (Row Level Security) "on-behalf-of user"**.
+
+### Cómo Funciona RLS
+
+1. **Frontend** envía JWT en `Authorization: Bearer <token>`
+2. **SupabaseJwtGuard** verifica token con JWKS
+3. **SupabaseUserService** crea cliente con token del usuario
+4. **Supabase RLS** aplica políticas basadas en `auth.jwt()`
+5. **Usuario** solo ve datos permitidos por RLS
+
+### Autenticación
+
+Para autenticarse:
 
 1. Obtén un token JWT de Supabase
 2. Incluye el token en el header `Authorization: Bearer <token>`
-3. El token debe contener los metadatos de usuario con `rol` y `persona_id`
+3. El token debe contener los metadatos de usuario con `rol` y `cliente_id`
 
 ### Roles Disponibles
 
-- **admin**: Acceso completo
+- **admin**: Acceso completo a todos los datos
 - **analista**: Gestión de solicitudes y evaluaciones
 - **cobranzas**: Gestión de pagos y cobranzas
-- **cliente**: Acceso limitado a sus propios datos
+- **cliente**: Acceso limitado a sus propios datos (RLS aplicado)
+
+### Estructura del Token JWT
+
+```json
+{
+  "sub": "user-id",
+  "email": "user@example.com",
+  "app_metadata": {
+    "role": "cliente",
+    "cliente_id": "cliente-uuid-123"
+  },
+  "user_metadata": {
+    "rol": "cliente",
+    "persona_id": "persona-uuid-456"
+  }
+}
+```
 
 ## 🏗️ Estructura del Proyecto
 
@@ -108,9 +137,12 @@ La API utiliza JWT tokens de Supabase. Para autenticarse:
 src/
 ├── config/                 # Configuración y guards
 │   ├── config.schema.ts
-│   ├── supabase-jwt.guard.ts
+│   ├── supabase-jwt.guard.ts  # Guard RLS con JWT
 │   ├── roles.decorator.ts
 │   └── roles.guard.ts
+├── supabase/              # Servicios Supabase RLS
+│   ├── supabase-user.service.ts  # Servicio RLS por request
+│   └── supabase.module.ts
 ├── shared/                 # Servicios compartidos
 │   ├── logger.ts
 │   ├── prisma.service.ts
@@ -120,10 +152,11 @@ src/
 │   ├── salud/
 │   ├── clientes/
 │   ├── garantes/
-│   ├── solicitudes/
+│   ├── solicitudes/       # Con RLS implementado
 │   ├── evaluaciones/
-│   ├── prestamos/
+│   ├── prestamos/         # Con RLS implementado
 │   ├── pagos/
+│   ├── usuarios/          # Nuevo: endpoint /usuarios/yo
 │   ├── verificacion-identidad/
 │   ├── fuentes-externas/
 │   └── jobs/
@@ -144,14 +177,21 @@ src/
 - `PATCH /clientes/:id` - Actualizar cliente
 - `DELETE /clientes/:id` - Eliminar cliente
 
-### Solicitudes
-- `GET /solicitudes` - Listar solicitudes
-- `POST /solicitudes` - Crear solicitud
+### Solicitudes (RLS Implementado)
+- `GET /solicitudes` - Listar solicitudes (RLS: admin ve todo, cliente solo las suyas)
+- `POST /solicitudes` - Crear solicitud (cliente_id extraído del JWT)
 - `GET /solicitudes/:id` - Obtener solicitud
 - `POST /solicitudes/:id/evaluar` - Evaluar solicitud
 - `POST /solicitudes/:id/garantes` - Agregar garante
 - `GET /solicitudes/:id/garantes` - Listar garantes
 - `GET /solicitudes/:id/evaluaciones` - Listar evaluaciones
+
+### Préstamos (RLS Implementado)
+- `GET /prestamos` - Listar préstamos (RLS: admin ve todo, cliente solo los suyos)
+- `GET /prestamos/:id` - Obtener préstamo
+
+### Usuarios (RLS Implementado)
+- `GET /usuarios/yo` - Información del usuario autenticado (RLS: solo sus datos)
 
 ### Verificación de Identidad
 - `POST /verificacion-identidad/:personaId/documentos` - Subir documento
@@ -175,6 +215,16 @@ npm run test:cov
 # Tests e2e
 npm run test:e2e
 ```
+
+### Archivos de Prueba
+
+- `test/rls.e2e-spec.ts` - Tests e2e para funcionalidad RLS
+- `mock/` - Archivos de prueba y datos mock
+  - `mock/README.md` - Documentación de archivos de prueba
+  - `mock/test-tokens.json` - Tokens de prueba para diferentes roles
+  - `mock/test-data.sql` - Datos de prueba y políticas RLS para Supabase
+  - `mock/curl-examples.sh` - Ejemplos de curl para probar endpoints (Linux/Mac)
+  - `mock/powershell-examples.ps1` - Ejemplos de PowerShell para probar endpoints (Windows)
 
 ## 📝 Scripts Disponibles
 
@@ -227,6 +277,30 @@ npm run prisma:studio      # Abrir Prisma Studio
 ## 📄 Licencia
 
 Este proyecto es privado y confidencial.
+
+## 🔐 Implementación RLS
+
+Este proyecto implementa el patrón **RLS (Row Level Security) "on-behalf-of user"** con Supabase.
+
+### Características RLS
+
+- **Seguridad a nivel de fila** automática basada en el contexto del usuario
+- **Tokens JWT** verificados con JWKS de Supabase
+- **Políticas granulares** por rol y cliente
+- **Cliente_id server-side** para prevenir manipulación
+
+### Documentación RLS
+
+- **Implementación completa**: `docs/RLS_IMPLEMENTATION.md`
+- **Resumen técnico**: `IMPLEMENTACION_RLS_RESUMEN.md`
+- **Archivos de prueba**: `mock/README.md`
+
+### Endpoints con RLS
+
+- `GET /prestamos` - Lista préstamos (RLS aplicado)
+- `GET /solicitudes` - Lista solicitudes (RLS aplicado)
+- `POST /solicitudes` - Crea solicitud (cliente_id del JWT)
+- `GET /usuarios/yo` - Información del usuario (RLS aplicado)
 
 ## 🆘 Soporte
 

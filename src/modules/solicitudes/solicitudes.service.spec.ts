@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SolicitudesService } from './solicitudes.service';
 import { PrismaService } from '@shared/prisma.service';
+
 import { CreateSolicitudDto } from './dtos/create-solicitud.dto';
+import { SolicitudesService } from './solicitudes.service';
 
 describe('SolicitudesService', () => {
   let service: SolicitudesService;

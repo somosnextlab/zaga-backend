@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ClientesService } from './clientes.service';
 import { PrismaService } from '@shared/prisma.service';
+
+import { ClientesService } from './clientes.service';
 import { CreateClienteDto } from './dtos/create-cliente.dto';
 
 describe('ClientesService', () => {

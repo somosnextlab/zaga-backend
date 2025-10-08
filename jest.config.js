@@ -15,5 +15,6 @@ module.exports = {
     '^@shared/(.*)$': '<rootDir>/shared/$1',
     '^@config/(.*)$': '<rootDir>/config/$1',
     '^@adapters/(.*)$': '<rootDir>/adapters/$1',
+    '^@supabase/(.*)$': '<rootDir>/supabase/$1',
   },
 };

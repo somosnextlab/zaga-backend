@@ -1,5 +1,5 @@
 // Setup global para tests
-import { mockRedis, mockQueue, mockWorker, resetRedisMocks } from './shared/redis.mock';
+import { mockQueue, mockRedis, mockWorker, resetRedisMocks } from './shared/redis.mock';
 
 // Configurar variables de entorno para tests
 process.env.NODE_ENV = 'test';

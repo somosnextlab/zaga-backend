@@ -8,6 +8,22 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
+export interface SupabaseUser {
+  user_id: string;
+  email: string;
+  rol: string;
+  persona_id?: string;
+  cliente_id?: string;
+  app_metadata?: {
+    cliente_id?: string;
+    role?: string;
+  };
+  user_metadata?: {
+    rol?: string;
+    persona_id?: string;
+  };
+}
+
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {
   private jwksClient: ReturnType<typeof createRemoteJWKSet>;
@@ -31,7 +47,13 @@ export class SupabaseJwtGuard implements CanActivate {
         email: 'dev@example.com',
         rol: 'admin',
         persona_id: 'dev-persona-id',
-      };
+        cliente_id: 'dev-cliente-id',
+        app_metadata: {
+          cliente_id: 'dev-cliente-id',
+          role: 'admin',
+        },
+      } as SupabaseUser;
+      request.userToken = 'dev-token';
       return true;
     }
 
@@ -46,16 +68,19 @@ export class SupabaseJwtGuard implements CanActivate {
       });
 
       // Extraer información del usuario del payload
+      const userPayload = payload as Record<string, unknown>;
       request.user = {
         user_id: payload.sub,
         email: payload.email,
-        rol:
-          (payload as { user_metadata?: { rol?: string; persona_id?: string } })
-            .user_metadata?.rol || 'cliente',
-        persona_id: (
-          payload as { user_metadata?: { rol?: string; persona_id?: string } }
-        ).user_metadata?.persona_id,
-      };
+        rol: userPayload.user_metadata?.rol || userPayload.app_metadata?.role || 'cliente',
+        persona_id: userPayload.user_metadata?.persona_id,
+        cliente_id: userPayload.app_metadata?.cliente_id,
+        app_metadata: userPayload.app_metadata,
+        user_metadata: userPayload.user_metadata,
+      } as SupabaseUser;
+      
+      // Adjuntar el token para uso posterior en servicios Supabase
+      request.userToken = token;
 
       return true;
     } catch (error) {

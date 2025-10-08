@@ -21,7 +21,8 @@
       "@modules/*": ["src/modules/*"],
       "@shared/*": ["src/shared/*"],
       "@config/*": ["src/config/*"],
-      "@adapters/*": ["src/adapters/*"]
+      "@adapters/*": ["src/adapters/*"],
+      "@supabase/*": ["src/supabase/*"]
     }
   },
   "include": ["src/**/*", "test/**/*"],
