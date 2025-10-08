@@ -24,6 +24,19 @@ export interface SupabaseUser {
   };
 }
 
+interface SupabaseJwtPayload {
+  sub: string;
+  email: string;
+  user_metadata?: {
+    rol?: string;
+    persona_id?: string;
+  };
+  app_metadata?: {
+    cliente_id?: string;
+    role?: string;
+  };
+}
+
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {
   private jwksClient: ReturnType<typeof createRemoteJWKSet>;
@@ -68,10 +81,10 @@ export class SupabaseJwtGuard implements CanActivate {
       });
 
       // Extraer información del usuario del payload
-      const userPayload = payload as Record<string, unknown>;
+      const userPayload = payload as unknown as SupabaseJwtPayload;
       request.user = {
-        user_id: payload.sub,
-        email: payload.email,
+        user_id: userPayload.sub,
+        email: userPayload.email,
         rol: userPayload.user_metadata?.rol || userPayload.app_metadata?.role || 'cliente',
         persona_id: userPayload.user_metadata?.persona_id,
         cliente_id: userPayload.app_metadata?.cliente_id,

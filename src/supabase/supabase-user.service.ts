@@ -1,13 +1,13 @@
 import { Injectable, Scope } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@shared/logger';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable({ scope: Scope.REQUEST })
 export class SupabaseUserService {
   private readonly logger = new Logger(SupabaseUserService.name);
-  private financieraClient: unknown | null = null;
-  private seguridadClient: unknown | null = null;
+  private financieraClient: SupabaseClient<any, any, any, any, any> | null = null;
+  private seguridadClient: SupabaseClient<any, any, any, any, any> | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -15,7 +15,7 @@ export class SupabaseUserService {
    * Inicializa el cliente Supabase para el esquema 'financiera' con el token del usuario
    * Esto permite que RLS funcione correctamente con el contexto del usuario autenticado
    */
-  initFinancieraWithToken(token: string): unknown {
+  initFinancieraWithToken(token: string): SupabaseClient<any, any, any, any, any> {
     if (this.financieraClient) {
       return this.financieraClient;
     }
@@ -46,7 +46,7 @@ export class SupabaseUserService {
    * Inicializa el cliente Supabase para el esquema 'seguridad' con el token del usuario
    * Esto permite que RLS funcione correctamente con el contexto del usuario autenticado
    */
-  initSeguridadWithToken(token: string): unknown {
+  initSeguridadWithToken(token: string): SupabaseClient<any, any, any, any, any> {
     if (this.seguridadClient) {
       return this.seguridadClient;
     }
@@ -76,7 +76,7 @@ export class SupabaseUserService {
   /**
    * Obtiene el cliente financiera ya inicializado
    */
-  getFinancieraClient(): unknown {
+  getFinancieraClient(): SupabaseClient<any, any, any, any, any> {
     if (!this.financieraClient) {
       throw new Error('Cliente financiera no inicializado. Llama a initFinancieraWithToken() primero.');
     }
@@ -86,7 +86,7 @@ export class SupabaseUserService {
   /**
    * Obtiene el cliente seguridad ya inicializado
    */
-  getSeguridadClient(): unknown {
+  getSeguridadClient(): SupabaseClient<any, any, any, any, any> {
     if (!this.seguridadClient) {
       throw new Error('Cliente seguridad no inicializado. Llama a initSeguridadWithToken() primero.');
     }
