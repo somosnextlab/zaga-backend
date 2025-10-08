@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { Roles } from '@config/roles.decorator';
 import { RolesGuard } from '@config/roles.guard';
 import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
+import { Body, Controller, Get, Post, Req,UseGuards } from '@nestjs/common';
+
 import { CreatePerfilDto } from './dtos/create-perfil.dto';
 import { UsuariosService } from './usuarios.service';
 

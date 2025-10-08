@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { CreatePerfilDto } from './dtos/create-perfil.dto';
 import { UsuariosController } from './usuarios.controller';
 import { UsuariosService } from './usuarios.service';
-import { CreatePerfilDto } from './dtos/create-perfil.dto';
 
 describe('UsuariosController', () => {
   let controller: UsuariosController;

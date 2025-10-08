@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UsuariosService } from './usuarios.service';
 import { PrismaService } from '@shared/prisma.service';
+
 import { CreatePerfilDto } from './dtos/create-perfil.dto';
+import { UsuariosService } from './usuarios.service';
 
 describe('UsuariosService', () => {
   let service: UsuariosService;
