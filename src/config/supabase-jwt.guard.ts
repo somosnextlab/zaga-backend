@@ -27,10 +27,10 @@ export class SupabaseJwtGuard implements CanActivate {
     const supabaseUrl = this.configService.get<string>('SUPABASE_PROJECT_URL');
     if (!supabaseUrl || supabaseUrl === 'https://example.supabase.co') {
       request.user = {
-        user_id: 'dev-user',
+        user_id: '550e8400-e29b-41d4-a716-446655440000', // UUID válido para desarrollo
         email: 'dev@example.com',
-        rol: 'admin', // Rol válido para desarrollo
-        persona_id: 'dev-persona-id',
+        rol: 'cliente', // Rol válido para desarrollo
+        persona_id: '550e8400-e29b-41d4-a716-446655440001', // UUID válido para desarrollo
       };
       return true;
     }

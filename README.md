@@ -54,10 +54,10 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 ### Roles Disponibles
 
-- **admin**: Acceso completo
-- **analista**: Gestión de solicitudes y evaluaciones
-- **cobranzas**: Gestión de pagos
+- **admin**: Acceso completo al sistema
 - **cliente**: Solo sus propios datos (RLS aplicado)
+
+> **Nota**: Se simplificó el sistema de roles eliminando `analista` y `cobranzas` para mayor simplicidad y mantenibilidad.
 
 ## 🏗️ Arquitectura
 
@@ -104,9 +104,17 @@ SUPABASE_SERVICE_ROLE_KEY=...
 - `GET /prestamos` - Listar préstamos (RLS aplicado)
 - `GET /prestamos/:id` - Obtener préstamo (RLS aplicado)
 
-### Usuarios (RLS)
+### Usuarios (RLS) - **MEJORADO** 🔥
 
-- `GET /usuarios/yo` - Información del usuario (RLS aplicado)
+- `GET /usuarios` - Listar usuarios paginados (admin)
+- `GET /usuarios/yo` - Mi perfil (admin, cliente)
+- `GET /usuarios/:id` - Usuario específico (admin)
+- `PUT /usuarios/yo` - Actualizar mi perfil (admin, cliente)
+- `DELETE /usuarios/:id` - Desactivar usuario (admin)
+- `POST /usuarios/crear-perfil` - Crear perfil con verificación de email
+- `POST /usuarios/verificar-email` - Verificar email con token
+- `POST /usuarios/reenviar-verificacion` - Reenviar verificación
+- `PUT /usuarios/:id/cambiar-email` - Cambiar email (admin)
 
 ### Verificación de Identidad
 
@@ -121,29 +129,21 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 ### Clientes
 
-- Crear solicitudes de préstamo
-- Ver sus propias solicitudes y préstamos
-- Subir documentos de identidad
-- Agregar garantes a sus solicitudes
-
-### Analistas
-
-- Gestionar solicitudes de préstamos
-- Iniciar evaluaciones crediticias
-- Consultar fuentes externas (BCRA)
-- Ver todos los clientes y solicitudes
-
-### Cobranzas
-
-- Consultar pagos y préstamos
-- Ver documentos de identidad
-- Seguimiento de cronogramas de pago
+- ✅ Crear y actualizar su perfil personal
+- ✅ Verificar su email de registro
+- ✅ Crear solicitudes de préstamo
+- ✅ Ver sus propias solicitudes y préstamos
+- ✅ Subir documentos de identidad
+- ✅ Agregar garantes a sus solicitudes
 
 ### Administradores
 
-- Acceso completo a todos los módulos
-- Gestión de usuarios y roles
-- Auditoría completa del sistema
+- ✅ Acceso completo a todos los módulos
+- ✅ Gestión completa de usuarios (listar, ver, desactivar)
+- ✅ Cambiar emails de usuarios (con verificación)
+- ✅ Auditoría completa del sistema
+- ✅ Gestión de solicitudes y evaluaciones
+- ✅ Consultar fuentes externas (BCRA)
 
 ## 🔄 Sistema de Colas (BullMQ)
 
@@ -210,11 +210,78 @@ docker run -p 3000:3000 --env-file .env zaga-backend
 - **Políticas granulares** por rol y cliente
 - **Prevención de manipulación** de cliente_id (server-side)
 
+### Sistema de Verificación de Email 🔐
+
+- **Verificación obligatoria** de email al crear perfil
+- **Tokens seguros** con expiración de 24 horas
+- **Email no modificable** por usuarios (solo admins)
+- **Reenvío de verificación** para emails no verificados
+- **Auditoría completa** de cambios de email
+
+### Validaciones Robustas ✅
+
+- **Edad mínima**: 18 años para préstamos
+- **Teléfono argentino**: Formato +549XXXXXXXX
+- **Documentos únicos**: Prevención de duplicados
+- **Validación automática**: DTOs con class-validator
+- **Transformación de datos**: Automática con ValidationPipe
+
 ### Auditoría
 
 - **Registro completo** de todas las acciones
 - **Metadatos**: Usuario, IP, User-Agent, timestamp
 - **Trazabilidad** en entidades críticas
+- **Soft delete**: Mantiene historial de usuarios
+
+## 🚀 Mejoras Recientes (v2.0)
+
+### Sistema de Usuarios Completamente Renovado
+
+- ✅ **Paginación inteligente** en listado de usuarios
+- ✅ **Validaciones robustas** con class-validator
+- ✅ **Sistema de verificación de email** con tokens seguros
+- ✅ **Soft delete** para mantener historial
+- ✅ **Validaciones específicas para Argentina** (teléfono, edad)
+- ✅ **Endpoints RESTful** completos (CRUD)
+
+### Seguridad Mejorada
+
+- ✅ **Email no modificable** por usuarios regulares
+- ✅ **Verificación obligatoria** de email
+- ✅ **Tokens criptográficos** con expiración
+- ✅ **Prevención de duplicados** en documentos
+- ✅ **Validación de edad mínima** (18 años)
+
+### Arquitectura Optimizada
+
+- ✅ **ValidationPipe global** para validación automática
+- ✅ **DTOs tipados** con documentación Swagger
+- ✅ **Servicios modulares** para mejor mantenibilidad
+- ✅ **Manejo de errores** consistente con códigos HTTP apropiados
+
+## 📚 Documentación
+
+### **Documentos Principales:**
+- [`ARQUITECTURA_TABLAS_USUARIOS.md`](docs/ARQUITECTURA_TABLAS_USUARIOS.md) - Arquitectura completa del sistema de usuarios
+- [`FLUJO_VERIFICACION_EMAIL.md`](docs/FLUJO_VERIFICACION_EMAIL.md) - **NUEVO** - Flujo seguro de verificación de email
+- [`REGLAS_SISTEMA_USUARIOS.md`](docs/REGLAS_SISTEMA_USUARIOS.md) - Reglas y validaciones del sistema
+- [`CONFIGURACION_BASE_DATOS.md`](docs/CONFIGURACION_BASE_DATOS.md) - Configuración de base de datos
+- [`MIGRACION_EMAIL_PRODUCCION.md`](docs/MIGRACION_EMAIL_PRODUCCION.md) - Migración a producción
+
+### **Scripts de Utilidad:**
+```bash
+# Verificar configuración de SendGrid
+node scripts/check-sendgrid-config.js
+
+# Probar nuevo flujo de verificación
+node scripts/test-new-user-flow.js
+
+# Limpiar datos de prueba
+node scripts/cleanup-test-data.js
+
+# Limpiar todo el sistema
+node scripts/cleanup-all-users.js
+```
 
 ## 📈 Escalabilidad
 

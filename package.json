@@ -29,11 +29,13 @@
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/swagger": "^7.4.2",
     "@prisma/client": "^5.7.1",
+    "@sendgrid/mail": "^8.1.6",
     "jose": "^5.2.0",
     "prisma": "^5.7.1",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^13.0.0"
   },
   "lint-staged": {
     "*.{ts,js}": [

@@ -15,6 +15,11 @@ describe('UsuariosController', () => {
     findAll: jest.fn(),
     findMe: jest.fn(),
     crearPerfil: jest.fn(),
+    verificarEmail: jest.fn(),
+    reenviarVerificacion: jest.fn(),
+    updateMe: jest.fn(),
+    deactivateUser: jest.fn(),
+    cambiarEmail: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -42,7 +47,7 @@ describe('UsuariosController', () => {
   });
 
   describe('findAll', () => {
-    it('debería retornar todos los usuarios', async () => {
+    it('debería retornar todos los usuarios con paginación', async () => {
       // Arrange
       const mockUsuarios = [
         {
@@ -50,6 +55,7 @@ describe('UsuariosController', () => {
           persona_id: 'persona-1',
           rol: 'admin',
           estado: 'activo',
+          email_verificado: true,
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -58,25 +64,30 @@ describe('UsuariosController', () => {
           persona_id: 'persona-2',
           rol: 'cliente',
           estado: 'activo',
+          email_verificado: false,
           created_at: new Date(),
           updated_at: new Date(),
         },
       ];
 
       const expectedResponse = {
-        success: true,
         data: mockUsuarios,
-        count: 2,
+        pagination: {
+          page: 1,
+          limit: 10,
+          total: 2,
+          totalPages: 1,
+        },
       };
 
       mockUsuariosService.findAll.mockResolvedValue(expectedResponse);
 
       // Act
-      const result = await controller.findAll();
+      const result = await controller.findAll(1, 10);
 
       // Assert
       expect(result).toEqual(expectedResponse);
-      expect(service.findAll).toHaveBeenCalledTimes(1);
+      expect(service.findAll).toHaveBeenCalledWith(1, 10);
     });
 
     it('debería manejar errores al obtener usuarios', async () => {
@@ -85,9 +96,7 @@ describe('UsuariosController', () => {
       mockUsuariosService.findAll.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(controller.findAll()).rejects.toThrow(
-        'Error de base de datos',
-      );
+      await expect(controller.findAll()).rejects.toThrow('Error de base de datos');
       expect(service.findAll).toHaveBeenCalledTimes(1);
     });
   });
@@ -174,9 +183,9 @@ describe('UsuariosController', () => {
     });
   });
 
-  describe('crearPerfil', () => {
-    it('debería crear un perfil exitosamente', async () => {
-      // Arrange
+  describe('crearPerfil - Flujo de Negocio Seguro', () => {
+    it('debería crear perfil y enviar email de verificación', async () => {
+      // Arrange - Flujo de negocio: Crear perfil → Enviar email → NO crear cliente
       const createPerfilDto: CreatePerfilDto = {
         tipo_doc: 'DNI',
         numero_doc: '12345678',
@@ -189,12 +198,14 @@ describe('UsuariosController', () => {
 
       const expectedResponse = {
         success: true,
-        message: 'Perfil creado exitosamente',
+        message: 'Perfil creado exitosamente. Se ha enviado un email de verificación. Debes verificar tu email para completar el registro.',
         data: {
           persona_id: 'persona-123',
           nombre: 'Juan',
           apellido: 'Pérez',
+          email_verificado: false,
         },
+        token: 'verification-token-123', // En desarrollo
       };
 
       const mockRequest = {
@@ -208,13 +219,11 @@ describe('UsuariosController', () => {
       // Act
       const result = await controller.crearPerfil(createPerfilDto, mockRequest);
 
-      // Assert
+      // Assert - Validar flujo de negocio
       expect(result).toEqual(expectedResponse);
-      expect(service.crearPerfil).toHaveBeenCalledWith(
-        createPerfilDto,
-        'user-123',
-      );
-      expect(service.crearPerfil).toHaveBeenCalledTimes(1);
+      expect(service.crearPerfil).toHaveBeenCalledWith(createPerfilDto, 'user-123');
+      expect(result.data.email_verificado).toBe(false); // No verificado aún
+      expect(result.token).toBeDefined(); // Token para verificación
     });
 
     it('debería retornar error cuando el usuario ya tiene perfil', async () => {
@@ -245,10 +254,7 @@ describe('UsuariosController', () => {
 
       // Assert
       expect(result).toEqual(expectedResponse);
-      expect(service.crearPerfil).toHaveBeenCalledWith(
-        createPerfilDto,
-        'user-con-perfil',
-      );
+      expect(service.crearPerfil).toHaveBeenCalledWith(createPerfilDto, 'user-con-perfil');
     });
 
     it('debería manejar errores al crear perfil', async () => {
@@ -258,6 +264,7 @@ describe('UsuariosController', () => {
         numero_doc: '12345678',
         nombre: 'Juan',
         apellido: 'Pérez',
+        email: 'juan@example.com',
       };
 
       const error = new Error('Error de base de datos');
@@ -270,13 +277,95 @@ describe('UsuariosController', () => {
       mockUsuariosService.crearPerfil.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(
-        controller.crearPerfil(createPerfilDto, mockRequest),
-      ).rejects.toThrow('Error de base de datos');
-      expect(service.crearPerfil).toHaveBeenCalledWith(
-        createPerfilDto,
-        'user-123',
+      await expect(controller.crearPerfil(createPerfilDto, mockRequest)).rejects.toThrow(
+        'Error de base de datos',
       );
+      expect(service.crearPerfil).toHaveBeenCalledWith(createPerfilDto, 'user-123');
+    });
+  });
+
+  describe('verificarEmail - Flujo de Negocio Seguro', () => {
+    it('debería verificar email y crear cliente automáticamente', async () => {
+      // Arrange - Flujo de negocio: Verificar email → Crear cliente
+      const verificarEmailDto = {
+        token: 'valid-token-123',
+      };
+
+      const expectedResponse = {
+        success: true,
+        message: 'Email verificado exitosamente. Tu cuenta está ahora completamente activa.',
+        data: {
+          email_verificado: true,
+          cliente_creado: true,
+        },
+      };
+
+      mockUsuariosService.verificarEmail.mockResolvedValue(expectedResponse);
+
+      // Act
+      const result = await controller.verificarEmail(verificarEmailDto);
+
+      // Assert - Validar flujo de negocio
+      expect(result).toEqual(expectedResponse);
+      expect(service.verificarEmail).toHaveBeenCalledWith('valid-token-123');
+      expect(result.data.email_verificado).toBe(true);
+      expect(result.data.cliente_creado).toBe(true);
+    });
+
+    it('debería manejar errores al verificar email', async () => {
+      // Arrange
+      const verificarEmailDto = {
+        token: 'invalid-token',
+      };
+
+      const error = new Error('Token inválido o expirado');
+      mockUsuariosService.verificarEmail.mockRejectedValue(error);
+
+      // Act & Assert
+      await expect(controller.verificarEmail(verificarEmailDto)).rejects.toThrow(
+        'Token inválido o expirado',
+      );
+      expect(service.verificarEmail).toHaveBeenCalledWith('invalid-token');
+    });
+  });
+
+  describe('reenviarVerificacion - Flujo de Negocio', () => {
+    it('debería reenviar email de verificación exitosamente', async () => {
+      // Arrange
+      const reenviarVerificacionDto = {
+        email: 'juan@example.com',
+      };
+
+      const expectedResponse = {
+        success: true,
+        message: 'Email de verificación reenviado',
+        token: 'new-verification-token', // En desarrollo
+      };
+
+      mockUsuariosService.reenviarVerificacion.mockResolvedValue(expectedResponse);
+
+      // Act
+      const result = await controller.reenviarVerificacion(reenviarVerificacionDto);
+
+      // Assert
+      expect(result).toEqual(expectedResponse);
+      expect(service.reenviarVerificacion).toHaveBeenCalledWith('juan@example.com');
+    });
+
+    it('debería manejar errores al reenviar verificación', async () => {
+      // Arrange
+      const reenviarVerificacionDto = {
+        email: 'noexiste@example.com',
+      };
+
+      const error = new Error('Email no encontrado');
+      mockUsuariosService.reenviarVerificacion.mockRejectedValue(error);
+
+      // Act & Assert
+      await expect(controller.reenviarVerificacion(reenviarVerificacionDto)).rejects.toThrow(
+        'Email no encontrado',
+      );
+      expect(service.reenviarVerificacion).toHaveBeenCalledWith('noexiste@example.com');
     });
   });
 });

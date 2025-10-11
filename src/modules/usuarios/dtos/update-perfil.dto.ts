@@ -12,59 +12,35 @@ import {
 
 import { IsEdadMinima } from '../validators/edad-minima.validator';
 
-export class CreatePerfilDto {
-  @ApiProperty({
-    description: 'Tipo de documento de identidad',
-    example: 'DNI',
-    enum: ['DNI', 'PASAPORTE', 'CEDULA', 'OTRO'],
-  })
-  @IsString()
-  @Matches(/^(DNI|PASAPORTE|CEDULA|OTRO)$/, {
-    message: 'tipo_doc debe ser uno de: DNI, PASAPORTE, CEDULA, OTRO',
-  })
-  tipo_doc: string;
-
-  @ApiProperty({
-    description: 'Número de documento de identidad',
-    example: '12345678',
-    minLength: 6,
-    maxLength: 20,
-  })
-  @IsString()
-  @MinLength(6, { message: 'numero_doc debe tener al menos 6 caracteres' })
-  @MaxLength(20, { message: 'numero_doc no puede tener más de 20 caracteres' })
-  numero_doc: string;
-
+export class UpdatePerfilDto {
   @ApiProperty({
     description: 'Nombre del usuario',
     example: 'Juan',
     minLength: 2,
     maxLength: 50,
+    required: false,
   })
+  @IsOptional()
   @IsString()
   @MinLength(2, { message: 'nombre debe tener al menos 2 caracteres' })
   @MaxLength(50, { message: 'nombre no puede tener más de 50 caracteres' })
-  nombre: string;
+  nombre?: string;
 
   @ApiProperty({
     description: 'Apellido del usuario',
     example: 'Pérez',
     minLength: 2,
     maxLength: 50,
-  })
-  @IsString()
-  @MinLength(2, { message: 'apellido debe tener al menos 2 caracteres' })
-  @MaxLength(50, { message: 'apellido no puede tener más de 50 caracteres' })
-  apellido: string;
-
-  @ApiProperty({
-    description: 'Email del usuario',
-    example: 'juan@example.com',
     required: false,
   })
   @IsOptional()
-  @IsEmail({}, { message: 'email debe ser una dirección de correo válida' })
-  email?: string;
+  @IsString()
+  @MinLength(2, { message: 'apellido debe tener al menos 2 caracteres' })
+  @MaxLength(50, { message: 'apellido no puede tener más de 50 caracteres' })
+  apellido?: string;
+
+  // Email no se puede actualizar por seguridad
+  // Para cambiar email, contactar al administrador
 
   @ApiProperty({
     description: 'Teléfono del usuario (formato argentino)',
