@@ -1,3 +1,4 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
@@ -5,6 +6,18 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Configuración global de validación
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Elimina propiedades que no están en el DTO
+      forbidNonWhitelisted: true, // Lanza error si hay propiedades no permitidas
+      transform: true, // Transforma automáticamente los tipos
+      transformOptions: {
+        enableImplicitConversion: true, // Convierte tipos implícitamente
+      },
+    }),
+  );
 
   // Configuración CORS para dominios específicos del frontend
   app.enableCors({
