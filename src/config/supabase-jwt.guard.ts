@@ -29,6 +29,7 @@ export class SupabaseJwtGuard implements CanActivate {
       request.user = {
         user_id: '550e8400-e29b-41d4-a716-446655440000', // UUID válido para desarrollo
         email: 'dev@example.com',
+        email_verified: true, // ✅ Siempre true en dev
         rol: 'cliente', // Rol válido para desarrollo
         persona_id: '550e8400-e29b-41d4-a716-446655440001', // UUID válido para desarrollo
       };
@@ -59,6 +60,7 @@ export class SupabaseJwtGuard implements CanActivate {
       request.user = {
         user_id: payload.sub,
         email: payload.email,
+        email_verified: payload.email_verified || false, // ✅ Del JWT de Supabase
         rol: finalRole,
         persona_id: userMetadata?.persona_id,
       };

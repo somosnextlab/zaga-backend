@@ -5,11 +5,13 @@
 ### **📊 Esquemas Creados**
 
 #### **🔐 Esquema `seguridad`**
+
 - **Propósito**: Gestión de usuarios y autenticación
 - **Tablas**: 1 tabla
   - `usuarios` - Usuarios del sistema con roles
 
 #### **💰 Esquema `financiera`**
+
 - **Propósito**: Gestión de datos financieros y de préstamos
 - **Tablas**: 12 tablas
   - `personas` - Datos personales
@@ -30,6 +32,7 @@
 #### **Tablas Principales para Fase 1**
 
 ##### **1. `seguridad.usuarios`**
+
 ```sql
 user_id     UUID PRIMARY KEY    -- ID del usuario en Supabase
 persona_id  UUID NULL           -- Referencia a financiera.personas
@@ -40,6 +43,7 @@ updated_at  TIMESTAMPTZ DEFAULT NOW()
 ```
 
 ##### **2. `financiera.personas`**
+
 ```sql
 id          UUID PRIMARY KEY DEFAULT gen_random_uuid()
 tipo_doc    VARCHAR NOT NULL           -- DNI, CUIL, etc.
@@ -52,112 +56,190 @@ fecha_nac   DATE NULL                  -- Fecha de nacimiento
 created_at  TIMESTAMPTZ DEFAULT NOW()
 updated_at  TIMESTAMPTZ DEFAULT NOW()
 
-UNIQUE(tipo_doc, numero_doc)
+UNIQUE(tipo_doc, numero_doc)           -- DNI único por tipo
 ```
 
 ##### **3. `financiera.clientes`**
+
 ```sql
 id          UUID PRIMARY KEY DEFAULT gen_random_uuid()
-persona_id  UUID NOT NULL REFERENCES financiera.personas(id)
-estado      VARCHAR DEFAULT 'activo'   -- activo/inactivo
+persona_id  UUID NOT NULL              -- Referencia a financiera.personas
+estado      VARCHAR DEFAULT 'activo'   -- activo/inactivo/suspendido
 created_at  TIMESTAMPTZ DEFAULT NOW()
 updated_at  TIMESTAMPTZ DEFAULT NOW()
+
+FOREIGN KEY (persona_id) REFERENCES financiera.personas(id)
 ```
 
-### **🎯 Flujo de Datos para Fase 1**
+## 🔄 **Flujo de Datos Actualizado**
 
-#### **Registro de Usuario**
-1. **Supabase Auth** crea usuario → `user_id` generado
-2. **Frontend** llama `POST /usuarios/crear-perfil`
-3. **Backend** crea registro en `financiera.personas`
-4. **Backend** actualiza `seguridad.usuarios` con `persona_id`
-5. **Backend** crea registro en `financiera.clientes`
+### **1. Registro de Usuario**
 
-#### **Consulta de Usuario**
-1. **Frontend** llama `GET /usuarios/yo` con JWT
-2. **Backend** busca en `seguridad.usuarios` por `user_id`
-3. **Backend** si tiene `persona_id`, busca en `financiera.personas`
-4. **Backend** retorna datos completos del usuario
+1. **Usuario se registra** en Supabase Auth
+2. **Supabase envía** email de verificación
+3. **Usuario verifica** email en Supabase
+4. **Frontend obtiene** JWT con `email_verified: true`
 
-### **🔧 Comandos de Verificación**
+### **2. Creación de Perfil**
 
-#### **Verificar Estructura**
+1. **Backend valida** JWT con Supabase JWKS
+2. **Se crea usuario** en `seguridad.usuarios`
+3. **Se crea persona** en `financiera.personas`
+4. **Se crea cliente** en `financiera.clientes` (automáticamente)
+
+### **3. Usuario Operativo**
+
+- **Usuario puede operar** inmediatamente
+- **No requiere verificación** adicional
+- **Cliente creado** automáticamente
+
+## 🛡️ **Seguridad Implementada**
+
+### **Row Level Security (RLS)**
+
+- ✅ **Políticas activas** en todas las tablas
+- ✅ **Acceso basado en JWT** de Supabase
+- ✅ **Prevención de escalación** de privilegios
+- ✅ **Aislamiento de datos** por usuario
+
+### **Validaciones de Negocio**
+
+- ✅ **DNI único** por tipo de documento
+- ✅ **Email único** en el sistema
+- ✅ **Edad mínima** de 18 años
+- ✅ **Teléfono argentino** válido
+
+## 📊 **Estado Actual de la Base de Datos**
+
+### **Tablas Limpias**
+
+- ✅ **Sin campos obsoletos** (`email_verificado`, `email_verificado_at`)
+- ✅ **Sin tablas obsoletas** (`tokens_verificacion`)
+- ✅ **Schema sincronizado** con Prisma
+- ✅ **Relaciones optimizadas**
+
+### **Datos de Prueba**
+
+- ✅ **Usuario de desarrollo** creado
+- ✅ **Perfil completo** con datos válidos
+- ✅ **Cliente activo** listo para operar
+- ✅ **Datos consistentes** entre tablas
+
+## 🔧 **Configuración Requerida**
+
+### **Variables de Entorno**
+
+```env
+# Base de datos
+DATABASE_URL=postgresql://user:password@host:port/database
+
+# Supabase
+SUPABASE_PROJECT_URL=https://<project-id>.supabase.co
+SUPABASE_JWKS_URL=https://<project-id>.supabase.co/auth/v1/keys
+SUPABASE_ANON_KEY=your_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+```
+
+### **Configuración de Supabase**
+
+1. **Habilitar email verification** en Authentication settings
+2. **Configurar redirect URLs** para verificación
+3. **Configurar JWT settings** con expiración apropiada
+4. **Crear usuario admin** manualmente en Dashboard
+
+## 🚀 **Comandos de Mantenimiento**
+
+### **Generar Cliente Prisma**
+
 ```bash
-npm run verify:db
-# Verifica esquemas, tablas y datos
+npx prisma generate
 ```
 
-#### **Abrir Prisma Studio**
-```bash
-npm run prisma:studio
-# Interfaz gráfica para ver datos
-```
+### **Sincronizar Schema**
 
-#### **Sincronizar Schema**
 ```bash
 npx prisma db push
-# Sincroniza schema con base de datos
 ```
 
-#### **Generar Cliente Prisma**
+### **Verificar Conexión**
+
 ```bash
-npm run prisma:generate
-# Genera cliente TypeScript
+npm run verify:db
 ```
 
-### **📋 Verificación Realizada**
+### **Abrir Prisma Studio**
 
-#### **✅ Esquemas**
-- ✅ `seguridad` - Creado correctamente
-- ✅ `financiera` - Creado correctamente
+```bash
+npm run prisma:studio
+```
 
-#### **✅ Tablas**
-- ✅ `seguridad.usuarios` - 1 tabla
-- ✅ `financiera.*` - 12 tablas
+## 📈 **Métricas de Rendimiento**
 
-#### **✅ Datos**
-- ✅ Tablas vacías (listas para usar)
-- ✅ Relaciones configuradas correctamente
-- ✅ Índices y constraints aplicados
+### **Conexiones**
 
-### **🚀 Próximos Pasos**
+- ✅ **Pool de conexiones** configurado (13 conexiones)
+- ✅ **Conexión estable** verificada
+- ✅ **Latencia baja** en consultas
 
-#### **Para Probar la Fase 1**
-1. **Crear usuario de prueba** en Supabase
-2. **Obtener JWT** del usuario
-3. **Probar endpoints** con autenticación
-4. **Verificar datos** en Prisma Studio
+### **Consultas Optimizadas**
 
-#### **Para Fases Posteriores**
-- **Fase 2**: Gestión avanzada de clientes
-- **Fase 3**: Solicitudes de préstamos
-- **Fase 4**: Evaluaciones y préstamos
-- **Fase 5**: Sistema de pagos
+- ✅ **Índices únicos** en campos críticos
+- ✅ **Relaciones eficientes** entre tablas
+- ✅ **Consultas paginadas** para listados
 
-### **💡 Notas Importantes**
+## 🔍 **Monitoreo y Logs**
 
-#### **Seguridad**
-- ✅ **RLS (Row Level Security)** configurado en Supabase
-- ✅ **Esquemas separados** para mejor organización
-- ✅ **UUIDs** para todas las claves primarias
+### **Logs de Prisma**
 
-#### **Escalabilidad**
-- ✅ **Índices** en campos únicos
-- ✅ **Timestamps** para auditoría
-- ✅ **Estados** para control de flujo
+- ✅ **Consultas SQL** registradas en desarrollo
+- ✅ **Tiempo de ejecución** monitoreado
+- ✅ **Errores de conexión** capturados
 
-#### **Mantenimiento**
-- ✅ **Prisma ORM** para consultas type-safe
-- ✅ **Migraciones** automáticas con `db push`
-- ✅ **Studio** para administración visual
+### **Logs de Aplicación**
 
-## 🎉 **Conclusión**
+- ✅ **Creación de usuarios** registrada
+- ✅ **Errores de validación** capturados
+- ✅ **Operaciones de base de datos** auditadas
 
-**La base de datos está perfectamente configurada** y sincronizada con el backend:
+## 🚨 **Troubleshooting**
 
-- ✅ **Esquemas creados** correctamente
-- ✅ **Tablas creadas** con todas las relaciones
-- ✅ **Backend conectado** y funcionando
-- ✅ **Lista para Fase 1** y fases posteriores
+### **Problemas Comunes**
 
-**El sistema está listo para ser usado en producción** con la estructura de datos completa implementada.
+#### **Error de Conexión**
+
+```bash
+# Verificar variables de entorno
+echo $DATABASE_URL
+
+# Probar conexión
+npx prisma db pull --print
+```
+
+#### **Schema Desincronizado**
+
+```bash
+# Regenerar cliente
+npx prisma generate
+
+# Sincronizar schema
+npx prisma db push
+```
+
+#### **Error de RLS**
+
+```bash
+# Verificar políticas
+npm run verify:rls
+```
+
+## 📚 **Documentación Relacionada**
+
+- [`FLUJO_AUTENTICACION_SUPABASE.md`](FLUJO_AUTENTICACION_SUPABASE.md) - Flujo de autenticación
+- [`ARQUITECTURA_TABLAS_USUARIOS.md`](ARQUITECTURA_TABLAS_USUARIOS.md) - Arquitectura de usuarios
+- [`REGLAS_SISTEMA_USUARIOS.md`](REGLAS_SISTEMA_USUARIOS.md) - Reglas del sistema
+
+---
+
+**Documento actualizado:** 2025-01-10  
+**Versión:** 2.0  
+**Autor:** Sistema Zaga - NextLab

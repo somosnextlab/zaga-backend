@@ -6,7 +6,7 @@ Backend API para el sistema de gestión de préstamos Zaga, construido con NestJ
 
 - **NestJS 10** + **TypeScript** + **Prisma ORM**
 - **PostgreSQL** (Supabase) + **Redis** + **BullMQ**
-- **Autenticación JWT** con **RLS (Row Level Security)**
+- **Autenticación Supabase Auth** con **JWT** y **RLS (Row Level Security)**
 - **Swagger/OpenAPI** + **Docker** + **Railway**
 
 ## 🛠️ Instalación Rápida
@@ -33,52 +33,46 @@ npm run start:dev
 
 ```env
 DATABASE_URL=postgresql://...
-REDIS_URL=redis://...
-SUPABASE_PROJECT_URL=https://...
+SUPABASE_PROJECT_URL=https://<project-id>.supabase.co
+SUPABASE_JWKS_URL=https://<project-id>.supabase.co/auth/v1/keys
 SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
 ## 📚 API Documentation
 
-- **Swagger UI**: http://localhost:3000/docs
+- **Swagger UI**: http://localhost:3000/api/docs
 - **Health Check**: http://localhost:3000/salud
 
-## 🔐 Autenticación
+## 🔐 Autenticación con Supabase
 
-### Sistema JWT con Supabase + RLS
+### Flujo de Autenticación Simplificado
 
-1. **Frontend** envía JWT en `Authorization: Bearer <token>`
-2. **SupabaseJwtGuard** verifica token con JWKS
-3. **RLS** aplica políticas automáticamente basadas en `auth.jwt()`
+1. **Usuario se registra** en frontend con Supabase Auth (`signUp()`)
+2. **Supabase envía email** de verificación automáticamente
+3. **Usuario verifica email** haciendo click en link de Supabase
+4. **Frontend obtiene JWT** con `email_verified: true`
+5. **Backend valida JWT** con JWKS y crea perfil del usuario
+6. **Usuario puede operar** inmediatamente (cliente creado automáticamente)
 
 ### Roles Disponibles
 
-- **admin**: Acceso completo al sistema
-- **cliente**: Solo sus propios datos (RLS aplicado)
-
-> **Nota**: Se simplificó el sistema de roles eliminando `analista` y `cobranzas` para mayor simplicidad y mantenibilidad.
+- **admin**: Creado manualmente en Supabase Dashboard
+- **cliente**: Se registra mediante la app (Supabase Auth)
 
 ## 🏗️ Arquitectura
 
 ### Módulos Principales
 
-- **`clientes/`** - Gestión de clientes
-- **`solicitudes/`** - Solicitudes de préstamos (RLS)
-- **`prestamos/`** - Préstamos aprobados (RLS)
-- **`pagos/`** - Gestión de pagos
-- **`evaluaciones/`** - Evaluaciones crediticias
-- **`usuarios/`** - Información de usuarios (RLS)
-- **`verificacion-identidad/`** - Documentos de identidad
-- **`fuentes-externas/`** - Integración BCRA/AFIP
-- **`jobs/`** - Procesamiento asíncrono BullMQ
+- **`usuarios/`** - Gestión de usuarios y perfiles
+- **`salud/`** - Health checks del sistema
+- **`financiera/`** - Módulos financieros (próximamente)
 
 ### Servicios Compartidos
 
 - **PrismaService** - ORM global
-- **AuditService** - Trazabilidad completa
-- **Logger** - Sistema de logging con Pino
-- **RedisProvider** - Cache distribuido
+- **Logger** - Sistema de logging
+- **SupabaseJwtGuard** - Validación JWT con Supabase
 
 ## 🔄 Endpoints Principales
 
@@ -86,72 +80,30 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 - `GET /salud` - Estado de la aplicación
 
-### Clientes
-
-- `GET /clientes` - Listar clientes (admin, analista)
-- `POST /clientes` - Crear cliente (admin, analista)
-- `GET /clientes/:id` - Obtener cliente (admin, analista)
-
-### Solicitudes (RLS)
-
-- `GET /solicitudes` - Listar solicitudes (RLS aplicado)
-- `POST /solicitudes` - Crear solicitud (cliente_id del JWT)
-- `POST /solicitudes/:id/evaluar` - Iniciar evaluación (admin, analista)
-- `POST /solicitudes/:id/garantes` - Agregar garante
-
-### Préstamos (RLS)
-
-- `GET /prestamos` - Listar préstamos (RLS aplicado)
-- `GET /prestamos/:id` - Obtener préstamo (RLS aplicado)
-
-### Usuarios (RLS) - **MEJORADO** 🔥
+### Usuarios
 
 - `GET /usuarios` - Listar usuarios paginados (admin)
 - `GET /usuarios/yo` - Mi perfil (admin, cliente)
-- `GET /usuarios/:id` - Usuario específico (admin)
 - `PUT /usuarios/yo` - Actualizar mi perfil (admin, cliente)
+- `POST /usuarios/crear-perfil` - Crear perfil (cliente autenticado)
+- `GET /usuarios/:id` - Usuario específico (admin)
 - `DELETE /usuarios/:id` - Desactivar usuario (admin)
-- `POST /usuarios/crear-perfil` - Crear perfil con verificación de email
-- `POST /usuarios/verificar-email` - Verificar email con token
-- `POST /usuarios/reenviar-verificacion` - Reenviar verificación
 - `PUT /usuarios/:id/cambiar-email` - Cambiar email (admin)
-
-### Verificación de Identidad
-
-- `POST /verificacion-identidad/:personaId/documentos` - Subir documento
-- `GET /verificacion-identidad/:personaId/documentos` - Listar documentos
-
-### Fuentes Externas
-
-- `GET /bcra/:personaId/situacion` - Consultar BCRA (admin, staff)
 
 ## ⚙️ Funcionalidades por Rol
 
 ### Clientes
 
-- ✅ Crear y actualizar su perfil personal
-- ✅ Verificar su email de registro
-- ✅ Crear solicitudes de préstamo
-- ✅ Ver sus propias solicitudes y préstamos
-- ✅ Subir documentos de identidad
-- ✅ Agregar garantes a sus solicitudes
+- ✅ Crear perfil personal (una sola vez)
+- ✅ Actualizar datos personales
+- ✅ Ver su perfil completo
+- ✅ Email verificado automáticamente por Supabase
 
 ### Administradores
 
 - ✅ Acceso completo a todos los módulos
-- ✅ Gestión completa de usuarios (listar, ver, desactivar)
-- ✅ Cambiar emails de usuarios (con verificación)
-- ✅ Auditoría completa del sistema
-- ✅ Gestión de solicitudes y evaluaciones
-- ✅ Consultar fuentes externas (BCRA)
-
-## 🔄 Sistema de Colas (BullMQ)
-
-### Procesamiento Asíncrono
-
-- **Cola de evaluación**: `evaluacion`
-- **Jobs**: `consulta_fuente:BCRA`, `consolidar_evaluacion`
-- **Integración BCRA**: Consulta situación crediticia en background
+- ✅ Gestión completa de usuarios
+- ✅ Cambiar emails de usuarios (requiere actualización manual en Supabase)
 
 ## 🧪 Testing
 
@@ -167,7 +119,6 @@ npm run test:e2e      # Tests end-to-end
 ```bash
 # Desarrollo
 npm run start:dev     # Modo desarrollo con hot reload
-npm run start:debug   # Modo debug
 
 # Producción
 npm run build         # Compilar TypeScript
@@ -175,7 +126,6 @@ npm run start         # Ejecutar compilado
 
 # Base de datos
 npm run prisma:generate    # Generar cliente Prisma
-npm run prisma:migrate:deploy  # Aplicar migraciones
 npm run prisma:studio      # Abrir Prisma Studio
 
 # Calidad de código
@@ -204,91 +154,57 @@ docker run -p 3000:3000 --env-file .env zaga-backend
 
 ## 🛡️ Seguridad
 
-### RLS (Row Level Security)
+### Autenticación con Supabase
 
-- **Seguridad a nivel de fila** automática con Supabase
-- **Políticas granulares** por rol y cliente
-- **Prevención de manipulación** de cliente_id (server-side)
+- **JWT con JWKS** para validación robusta
+- **Email verificado** antes de crear perfil
+- **RLS automático** basado en JWT
+- **Tokens seguros** con expiración
 
-### Sistema de Verificación de Email 🔐
-
-- **Verificación obligatoria** de email al crear perfil
-- **Tokens seguros** con expiración de 24 horas
-- **Email no modificable** por usuarios (solo admins)
-- **Reenvío de verificación** para emails no verificados
-- **Auditoría completa** de cambios de email
-
-### Validaciones Robustas ✅
+### Validaciones Robustas
 
 - **Edad mínima**: 18 años para préstamos
 - **Teléfono argentino**: Formato +549XXXXXXXX
 - **Documentos únicos**: Prevención de duplicados
 - **Validación automática**: DTOs con class-validator
-- **Transformación de datos**: Automática con ValidationPipe
 
 ### Auditoría
 
 - **Registro completo** de todas las acciones
 - **Metadatos**: Usuario, IP, User-Agent, timestamp
-- **Trazabilidad** en entidades críticas
 - **Soft delete**: Mantiene historial de usuarios
 
 ## 🚀 Mejoras Recientes (v2.0)
 
-### Sistema de Usuarios Completamente Renovado
+### Sistema de Autenticación Renovado
 
-- ✅ **Paginación inteligente** en listado de usuarios
-- ✅ **Validaciones robustas** con class-validator
-- ✅ **Sistema de verificación de email** con tokens seguros
-- ✅ **Soft delete** para mantener historial
-- ✅ **Validaciones específicas para Argentina** (teléfono, edad)
-- ✅ **Endpoints RESTful** completos (CRUD)
-
-### Seguridad Mejorada
-
-- ✅ **Email no modificable** por usuarios regulares
-- ✅ **Verificación obligatoria** de email
-- ✅ **Tokens criptográficos** con expiración
-- ✅ **Prevención de duplicados** en documentos
-- ✅ **Validación de edad mínima** (18 años)
+- ✅ **Integración completa con Supabase Auth**
+- ✅ **Eliminación de verificación de email propia**
+- ✅ **Flujo simplificado** de registro y login
+- ✅ **Cliente creado automáticamente** tras verificación
 
 ### Arquitectura Optimizada
 
-- ✅ **ValidationPipe global** para validación automática
-- ✅ **DTOs tipados** con documentación Swagger
-- ✅ **Servicios modulares** para mejor mantenibilidad
-- ✅ **Manejo de errores** consistente con códigos HTTP apropiados
+- ✅ **Código más limpio** sin servicios obsoletos
+- ✅ **Menor superficie de ataque**
+- ✅ **Mejor rendimiento** con menos dependencias
+- ✅ **Mantenimiento simplificado**
 
 ## 📚 Documentación
 
-### **Documentos Principales:**
-- [`ARQUITECTURA_TABLAS_USUARIOS.md`](docs/ARQUITECTURA_TABLAS_USUARIOS.md) - Arquitectura completa del sistema de usuarios
-- [`FLUJO_VERIFICACION_EMAIL.md`](docs/FLUJO_VERIFICACION_EMAIL.md) - **NUEVO** - Flujo seguro de verificación de email
-- [`REGLAS_SISTEMA_USUARIOS.md`](docs/REGLAS_SISTEMA_USUARIOS.md) - Reglas y validaciones del sistema
+### Documentos Principales:
+
+- [`FLUJO_AUTENTICACION_SUPABASE.md`](docs/FLUJO_AUTENTICACION_SUPABASE.md) - Flujo completo de autenticación
+- [`ARQUITECTURA_TABLAS_USUARIOS.md`](docs/ARQUITECTURA_TABLAS_USUARIOS.md) - Arquitectura del sistema de usuarios
+- [`REGLAS_SISTEMA_USUARIOS.md`](docs/REGLAS_SISTEMA_USUARIOS.md) - Reglas y validaciones
 - [`CONFIGURACION_BASE_DATOS.md`](docs/CONFIGURACION_BASE_DATOS.md) - Configuración de base de datos
-- [`MIGRACION_EMAIL_PRODUCCION.md`](docs/MIGRACION_EMAIL_PRODUCCION.md) - Migración a producción
-
-### **Scripts de Utilidad:**
-```bash
-# Verificar configuración de SendGrid
-node scripts/check-sendgrid-config.js
-
-# Probar nuevo flujo de verificación
-node scripts/test-new-user-flow.js
-
-# Limpiar datos de prueba
-node scripts/cleanup-test-data.js
-
-# Limpiar todo el sistema
-node scripts/cleanup-all-users.js
-```
 
 ## 📈 Escalabilidad
 
 - **Arquitectura modular** para fácil mantenimiento
-- **Procesamiento asíncrono** con BullMQ
-- **Cache distribuido** con Redis
+- **Autenticación externa** con Supabase
 - **Logging estructurado** para monitoreo
+- **Base de datos optimizada** sin campos obsoletos
 
 ## 🤝 Contribución
 
@@ -302,7 +218,6 @@ node scripts/cleanup-all-users.js
 
 - Sigue los principios **SOLID**
 - Usa **TypeScript** con tipado estricto
-- Aplica **BEM** si ayuda a la claridad
 - Sigue las recomendaciones de **ESLint**
 
 ## 📄 Licencia
@@ -311,4 +226,4 @@ Este proyecto es privado y confidencial.
 
 ## 🆘 Soporte
 
-Para soporte técnico, contacta al equipo de desarrollo.
+Para soporte técnico, contacta al equipo de desarrollo de NextLab.

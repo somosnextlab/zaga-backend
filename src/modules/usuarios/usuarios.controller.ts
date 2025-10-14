@@ -25,10 +25,6 @@ import {
 import { CambiarEmailDto } from './dtos/cambiar-email.dto';
 import { CreatePerfilDto } from './dtos/create-perfil.dto';
 import { UpdatePerfilDto } from './dtos/update-perfil.dto';
-import {
-  ReenviarVerificacionDto,
-  VerificarEmailDto,
-} from './dtos/verificar-email.dto';
 import { UsuariosService } from './usuarios.service';
 
 interface AuthenticatedRequest {
@@ -229,56 +225,6 @@ export class UsuariosController {
     return this.usuariosService.deactivateUser(id);
   }
 
-  @Post('verificar-email')
-  @Roles('admin', 'cliente')
-  @ApiOperation({
-    summary: 'Verificar email',
-    description:
-      'Endpoint para verificar el email del usuario con el token enviado',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Email verificado exitosamente',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-        message: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Token inválido o expirado' })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
-  async verificarEmail(@Body() verificarEmailDto: VerificarEmailDto) {
-    return this.usuariosService.verificarEmail(verificarEmailDto.token);
-  }
-
-  @Post('reenviar-verificacion')
-  @ApiOperation({
-    summary: 'Reenviar verificación de email',
-    description: 'Endpoint para reenviar el email de verificación',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Email de verificación reenviado',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-        message: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Email no encontrado' })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
-  async reenviarVerificacion(
-    @Body() reenviarVerificacionDto: ReenviarVerificacionDto,
-  ) {
-    return this.usuariosService.reenviarVerificacion(
-      reenviarVerificacionDto.email,
-    );
-  }
-
   @Put(':id/cambiar-email')
   @Roles('admin')
   @ApiOperation({
@@ -316,7 +262,7 @@ export class UsuariosController {
   @ApiOperation({
     summary: 'Crear perfil de usuario',
     description:
-      'Endpoint para crear un perfil de usuario con información adicional',
+      'Endpoint para crear un perfil de usuario autenticado con Supabase. Crea usuario + persona + cliente inmediatamente.',
   })
   @ApiResponse({
     status: 201,
