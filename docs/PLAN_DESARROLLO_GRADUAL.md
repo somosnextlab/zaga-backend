@@ -1,363 +1,218 @@
 # 🚀 Plan de Desarrollo Gradual - Zaga Backend
 
-## 📊 Análisis del Proyecto Actual
+## 📊 Estado Actual del Proyecto
 
-### ✅ **Fortalezas del Backend Existente**
-- **Arquitectura sólida**: NestJS 10 + TypeScript + Prisma ORM
-- **Seguridad robusta**: JWT con Supabase + RLS (Row Level Security)
-- **Escalabilidad**: Redis, BullMQ para procesamiento asíncrono
-- **Auditoría completa**: Sistema de trazabilidad con metadatos
-- **Modularidad**: 9 módulos bien estructurados
-- **Base de datos compleja**: 12 tablas con relaciones financieras
-- **Documentación**: Swagger/OpenAPI integrado
-- **Testing**: Jest configurado para unitarios y e2e
+### ✅ **Implementado (Fase 1 - Completada)**
 
-### ⚠️ **Complejidad Actual**
-- **9 módulos** (clientes, solicitudes, préstamos, pagos, evaluaciones, etc.)
-- **12 tablas** en la base de datos
-- **Sistema de roles complejo** (admin, analista, cobranzas, cliente)
-- **Integración BCRA/AFIP** para consultas crediticias
-- **Sistema de colas** para procesamiento asíncrono
+#### **Sistema de Autenticación**
+- ✅ **Integración Supabase Auth** - JWT con JWKS
+- ✅ **Verificación de email** automática por Supabase
+- ✅ **Roles simplificados** - admin y cliente únicamente
+- ✅ **RLS automático** - Row Level Security con Supabase
 
-### 🎯 **Cambio Propuesto: Simplificación de Roles**
-**Eliminar roles innecesarios:**
-- ❌ `analista` - Funcionalidad se integra en `admin`
-- ❌ `cobranzas` - Funcionalidad se integra en `admin`
-- ✅ `admin` - Acceso completo al sistema
-- ✅ `cliente` - Solo sus propios datos (RLS aplicado)
+#### **Módulos Funcionales**
+- ✅ **UsuariosModule** - Gestión completa de usuarios y perfiles
+- ✅ **SaludModule** - Health checks del sistema
+- ✅ **AuthModule** - Configuración de autenticación
+- ✅ **PrismaModule** - ORM y conexión a base de datos
 
-## 🛠️ Plan de Desarrollo Gradual
+#### **Base de Datos Optimizada**
+- ✅ **Schema limpio** - Sin campos obsoletos
+- ✅ **Tablas principales** - usuarios, personas, clientes
+- ✅ **Relaciones optimizadas** - 1:1 entre entidades
+- ✅ **Validaciones robustas** - DNI único, email único
 
-### **Fase 1: MVP de Autenticación (Semanas 1-2)**
+#### **Funcionalidades Core**
+- ✅ **Crear perfil** - Flujo completo con Supabase
+- ✅ **Actualizar perfil** - Datos personales
+- ✅ **Obtener perfil** - Información completa del usuario
+- ✅ **Gestión de usuarios** - CRUD completo para admins
 
-#### **Objetivo**
-Implementar solo la autenticación básica con Supabase y un dashboard mínimo.
+### 🎯 **Próximas Fases**
 
-#### **Módulos Necesarios**
+## **Fase 2: Módulos Financieros (Semanas 3-4)**
+
+### **Objetivo**
+Implementar los módulos financieros básicos para el negocio de préstamos.
+
+### **Módulos a Implementar**
 ```typescript
-// app.module.ts - Solo estos módulos:
-- ConfigModule (ya existe)
-- LoggerModule (ya existe) 
-- AuthModule (ya existe)
-- PrismaModule (ya existe)
-- RedisModule (ya existe)
-- SaludModule (ya existe)
-- UsuariosModule (simplificado)
+// Nuevos módulos a agregar:
+- SolicitudesModule     // Solicitudes de préstamos
+- PrestamosModule       // Préstamos aprobados
+- PagosModule          // Gestión de pagos
+- EvaluacionesModule   // Evaluaciones crediticias
 ```
 
-#### **Base de Datos Mínima**
+### **Base de Datos a Activar**
 ```sql
--- Solo estas tablas necesarias:
-- seguridad.usuarios (user_id, persona_id, rol, estado)
-- financiera.personas (datos básicos del usuario)
-- financiera.auditoria (logs básicos)
-```
-
-#### **Endpoints Básicos**
-```bash
-GET  /salud                    # Health check
-GET  /usuarios                 # Listar usuarios (admin) - Dashboard admin
-GET  /usuarios/yo             # Perfil del usuario autenticado
-POST /usuarios/crear-perfil   # Crear perfil al registrarse (cliente)
-```
-
-#### **Flujo de Usuario en Fase 1**
-```mermaid
-graph TD
-    A[Usuario se registra en Frontend] --> B[POST /usuarios/crear-perfil]
-    B --> C[Usuario se loguea con Supabase]
-    C --> D{¿Es Admin o Cliente?}
-    D -->|Admin| E[GET /usuarios - Ver todos los clientes]
-    D -->|Cliente| F[GET /usuarios/yo - Ver su perfil]
-    E --> G[Dashboard Admin]
-    F --> H[Dashboard Cliente]
-```
-
-#### **Tareas Específicas**
-- [ ] Simplificar `roles.guard.ts` (solo admin/cliente)
-- [ ] Crear `UsuariosModule` básico
-- [ ] Implementar endpoint `GET /usuarios` (solo admin)
-- [ ] Implementar endpoint `GET /usuarios/yo` (cliente/admin)
-- [ ] Implementar endpoint `POST /usuarios/crear-perfil` (registro)
-- [ ] Configurar RLS básico en Supabase
-- [ ] Crear migración de base de datos simplificada
-
-### **Fase 2: Gestión de Clientes (Semanas 3-4)**
-
-#### **Objetivo**
-Permitir que los clientes gestionen su información básica.
-
-#### **Módulos Agregados**
-```typescript
-- ClientesModule (simplificado)
-```
-
-#### **Base de Datos**
-```sql
--- Agregar:
-- financiera.clientes
-- financiera.documentos_identidad (básico)
-```
-
-#### **Endpoints**
-```bash
-GET    /clientes/yo           # Mis datos como cliente
-PUT    /clientes/yo           # Actualizar mis datos
-POST   /clientes/documentos   # Subir documento de identidad
-GET    /clientes/documentos   # Ver mis documentos
-```
-
-#### **Tareas Específicas**
-- [ ] Implementar `ClientesController` básico
-- [ ] Crear DTOs para actualización de perfil
-- [ ] Implementar subida de documentos
-- [ ] Configurar políticas RLS para clientes
-
-### **Fase 3: Solicitudes de Préstamos (Semanas 5-6)**
-
-#### **Objetivo**
-Permitir que los clientes soliciten préstamos y los admins los gestionen.
-
-#### **Módulos Agregados**
-```typescript
-- SolicitudesModule
-- GarantesModule (básico)
-```
-
-#### **Base de Datos**
-```sql
--- Agregar:
+-- Tablas ya creadas, activar funcionalidad:
 - financiera.solicitudes
-- financiera.garantes
-- financiera.solicitud_garantes
-```
-
-#### **Endpoints Cliente**
-```bash
-POST   /solicitudes           # Crear solicitud
-GET    /solicitudes           # Ver mis solicitudes
-GET    /solicitudes/:id       # Ver detalle de solicitud
-POST   /solicitudes/:id/garantes # Agregar garante
-```
-
-#### **Endpoints Admin**
-```bash
-GET    /admin/solicitudes     # Ver todas las solicitudes
-PUT    /admin/solicitudes/:id # Actualizar estado
-GET    /admin/solicitudes/:id # Ver detalle completo
-```
-
-### **Fase 4: Evaluaciones y Préstamos (Semanas 7-8)**
-
-#### **Objetivo**
-Implementar el proceso de evaluación y aprobación de préstamos.
-
-#### **Módulos Agregados**
-```typescript
-- EvaluacionesModule
-- PrestamosModule
-```
-
-#### **Base de Datos**
-```sql
--- Agregar:
-- financiera.evaluaciones
 - financiera.prestamos
+- financiera.pagos
+- financiera.evaluaciones
 - financiera.cronogramas
 ```
 
-#### **Endpoints Admin**
-```bash
-POST   /admin/solicitudes/:id/evaluar    # Iniciar evaluación
-PUT    /admin/evaluaciones/:id           # Actualizar evaluación
-POST   /admin/solicitudes/:id/aprobar    # Aprobar préstamo
-GET    /admin/prestamos                  # Ver todos los préstamos
-```
+### **Endpoints Principales**
+- `POST /solicitudes` - Crear solicitud de préstamo
+- `GET /solicitudes` - Listar solicitudes (RLS)
+- `POST /solicitudes/:id/evaluar` - Evaluar solicitud
+- `GET /prestamos` - Listar préstamos (RLS)
+- `POST /pagos` - Registrar pago
 
-#### **Endpoints Cliente**
-```bash
-GET    /prestamos                        # Ver mis préstamos
-GET    /prestamos/:id                    # Ver detalle de préstamo
-GET    /prestamos/:id/cronograma         # Ver cronograma de pagos
-```
+## **Fase 3: Integraciones Externas (Semanas 5-6)**
 
-### **Fase 5: Sistema de Pagos (Semanas 9-10)**
+### **Objetivo**
+Integrar con fuentes externas para evaluación crediticia.
 
-#### **Objetivo**
-Implementar el sistema de pagos y seguimiento.
+### **Integraciones**
+- ✅ **BCRA** - Consulta situación crediticia
+- ✅ **AFIP** - Verificación de datos fiscales
+- ✅ **Fuentes externas** - Otras APIs de scoring
 
-#### **Módulos Agregados**
+### **Módulos a Implementar**
 ```typescript
-- PagosModule
+- FuentesExternasModule  // Integración BCRA/AFIP
+- JobsModule            // Procesamiento asíncrono
 ```
 
-#### **Base de Datos**
-```sql
--- Agregar:
-- financiera.pagos
-```
+## **Fase 4: Funcionalidades Avanzadas (Semanas 7-8)**
 
-#### **Endpoints**
-```bash
-# Cliente
-GET    /pagos                           # Ver mis pagos
-POST   /pagos                           # Registrar pago
+### **Objetivo**
+Implementar funcionalidades avanzadas del sistema.
 
-# Admin
-GET    /admin/pagos                     # Ver todos los pagos
-PUT    /admin/pagos/:id                 # Actualizar estado de pago
-```
+### **Funcionalidades**
+- ✅ **Sistema de colas** - BullMQ para procesamiento asíncrono
+- ✅ **Notificaciones** - Email y SMS
+- ✅ **Reportes** - Dashboard y analytics
+- ✅ **Auditoría avanzada** - Logs detallados
 
-### **Fase 6: Funcionalidades Avanzadas (Semanas 11-12)**
-
-#### **Objetivo**
-Agregar funcionalidades avanzadas según necesidad.
-
-#### **Módulos Opcionales**
+### **Módulos a Implementar**
 ```typescript
-- FuentesExternasModule (BCRA/AFIP)
-- JobsModule (procesamiento asíncrono)
-- VerificacionIdentidadModule (avanzado)
+- NotificacionesModule  // Email y SMS
+- ReportesModule       // Dashboard y analytics
+- AuditoriaModule      // Logs avanzados
 ```
 
-## 🔧 **Modificaciones Necesarias en el Código Actual**
+## 🛠️ **Arquitectura por Fases**
 
-### **1. Simplificar Sistema de Roles**
-
-#### **Archivo: `src/config/roles.decorator.ts`**
-```typescript
-// Cambiar de:
-export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
-
-// A:
-export const Roles = (...roles: ('admin' | 'cliente')[]) => SetMetadata('roles', roles);
+### **Fase 1 (Actual) - MVP**
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Supabase      │    │   Backend       │    │   Frontend      │
+│   Auth          │◄──►│   NestJS        │◄──►│   React/Next    │
+│   (JWT)         │    │   + Prisma      │    │   + Supabase    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-#### **Archivo: `src/config/roles.guard.ts`**
-```typescript
-// Simplificar validación para solo admin/cliente
-const validRoles = ['admin', 'cliente'];
+### **Fase 2 - Financiero**
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Supabase      │    │   Backend       │    │   Frontend      │
+│   Auth          │◄──►│   NestJS        │◄──►│   React/Next    │
+│   (JWT)         │    │   + Prisma      │    │   + Supabase    │
+└─────────────────┘    │   + BullMQ      │    └─────────────────┘
+                       └─────────────────┘
 ```
 
-### **2. Actualizar Base de Datos**
-
-#### **Archivo: `prisma/schema.prisma`**
-```prisma
-// Simplificar tabla de usuarios
-model seguridad_usuarios {
-  user_id     String   @id @db.Uuid
-  persona_id  String?  @db.Uuid
-  rol         String   @default("cliente") // Solo "admin" o "cliente"
-  estado      String   @default("activo")
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @updatedAt @db.Timestamptz(6)
-
-  @@map("seguridad.usuarios")
-}
+### **Fase 3 - Integraciones**
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Supabase      │    │   Backend       │    │   Frontend      │
+│   Auth          │◄──►│   NestJS        │◄──►│   React/Next    │
+│   (JWT)         │    │   + Prisma      │    │   + Supabase    │
+└─────────────────┘    │   + BullMQ      │    └─────────────────┘
+                       │   + BCRA/AFIP   │
+                       └─────────────────┘
 ```
 
-### **3. Simplificar App Module**
+## 📊 **Métricas de Progreso**
 
-#### **Archivo: `src/app.module.ts`**
-```typescript
-@Module({
-  imports: [
-    // Configuración básica
-    ConfigModule.forRoot({...}),
-    LoggerModule.forRootAsync({...}),
-    
-    // Servicios compartidos
-    AuthModule,
-    PrismaModule,
-    RedisModule,
-    
-    // Módulos básicos
-    SaludModule,
-    UsuariosModule, // Nuevo módulo simplificado
-    
-    // Módulos adicionales se agregan gradualmente
-    // ClientesModule,    // Fase 2
-    // SolicitudesModule, // Fase 3
-    // etc...
-  ],
-})
-export class AppModule {}
-```
+### **Fase 1 - Completada ✅**
+- ✅ **Autenticación** - 100% funcional
+- ✅ **Usuarios** - 100% funcional
+- ✅ **Base de datos** - 100% optimizada
+- ✅ **Documentación** - 100% actualizada
 
-## 📋 **Checklist de Implementación**
+### **Fase 2 - Pendiente**
+- ⏳ **Solicitudes** - 0% implementado
+- ⏳ **Préstamos** - 0% implementado
+- ⏳ **Pagos** - 0% implementado
+- ⏳ **Evaluaciones** - 0% implementado
 
-### **Preparación (Día 1)**
-- [ ] Crear rama `feature/simplified-roles`
-- [ ] Actualizar documentación de roles
-- [ ] Crear migración para simplificar roles
-- [ ] Actualizar tests existentes
+### **Fase 3 - Pendiente**
+- ⏳ **BCRA** - 0% implementado
+- ⏳ **AFIP** - 0% implementado
+- ⏳ **Fuentes externas** - 0% implementado
 
-### **Fase 1 - MVP (Semanas 1-2)**
-- [ ] Simplificar `roles.guard.ts`
-- [ ] Crear `UsuariosModule` básico
-- [ ] Implementar endpoint `/usuarios/yo`
-- [ ] Configurar RLS en Supabase
-- [ ] Crear tests básicos
-- [ ] Documentar API con Swagger
+### **Fase 4 - Pendiente**
+- ⏳ **Notificaciones** - 0% implementado
+- ⏳ **Reportes** - 0% implementado
+- ⏳ **Auditoría avanzada** - 0% implementado
 
-### **Fase 2 - Clientes (Semanas 3-4)**
-- [ ] Implementar `ClientesModule`
-- [ ] Crear DTOs para perfil de cliente
-- [ ] Implementar subida de documentos
-- [ ] Configurar políticas RLS
-- [ ] Tests de integración
+## 🎯 **Criterios de Éxito**
 
-### **Fase 3 - Solicitudes (Semanas 5-6)**
-- [ ] Implementar `SolicitudesModule`
-- [ ] Crear `GarantesModule` básico
-- [ ] Implementar endpoints de cliente
-- [ ] Implementar endpoints de admin
-- [ ] Tests end-to-end
+### **Fase 1 - Completada ✅**
+- ✅ Usuario puede registrarse y crear perfil
+- ✅ Admin puede gestionar usuarios
+- ✅ Sistema de autenticación robusto
+- ✅ Base de datos optimizada
 
-### **Fase 4 - Préstamos (Semanas 7-8)**
-- [ ] Implementar `EvaluacionesModule`
-- [ ] Implementar `PrestamosModule`
-- [ ] Crear sistema de cronogramas
-- [ ] Implementar aprobación de préstamos
-- [ ] Tests de flujo completo
+### **Fase 2 - Objetivos**
+- 🎯 Cliente puede crear solicitud de préstamo
+- 🎯 Admin puede evaluar solicitudes
+- 🎯 Sistema de préstamos funcional
+- 🎯 Gestión de pagos implementada
 
-### **Fase 5 - Pagos (Semanas 9-10)**
-- [ ] Implementar `PagosModule`
-- [ ] Crear sistema de seguimiento
-- [ ] Implementar notificaciones básicas
-- [ ] Tests de pagos
+### **Fase 3 - Objetivos**
+- 🎯 Integración BCRA funcional
+- 🎯 Evaluación automática implementada
+- 🎯 Fuentes externas conectadas
+- 🎯 Sistema de scoring operativo
 
-### **Fase 6 - Avanzado (Semanas 11-12)**
-- [ ] Evaluar necesidad de módulos avanzados
-- [ ] Implementar según prioridades
-- [ ] Optimización y performance
-- [ ] Documentación final
+### **Fase 4 - Objetivos**
+- 🎯 Notificaciones automáticas
+- 🎯 Dashboard de reportes
+- 🎯 Auditoría completa
+- 🎯 Sistema de monitoreo
 
-## 🎯 **Ventajas del Plan Gradual**
+## 🚀 **Próximos Pasos Inmediatos**
 
-### **Para el Aprendizaje**
-- ✅ **Progresión natural**: Cada fase construye sobre la anterior
-- ✅ **Comprensión profunda**: Entiendes cada pieza antes de agregar complejidad
-- ✅ **Debugging más fácil**: Problemas más localizados y manejables
+### **1. Preparar Fase 2**
+- [ ] Revisar tablas financieras existentes
+- [ ] Diseñar DTOs para solicitudes
+- [ ] Planificar endpoints de préstamos
+- [ ] Configurar validaciones de negocio
 
-### **Para el Desarrollo**
-- ✅ **Desarrollo más rápido**: Menos código = menos bugs
-- ✅ **Feedback temprano**: Puedes probar funcionalidades básicas rápidamente
-- ✅ **Flexibilidad**: Puedes ajustar el plan según necesidades reales
+### **2. Configurar Desarrollo**
+- [ ] Crear rama `feature/fase-2-financiero`
+- [ ] Configurar entorno de testing
+- [ ] Preparar datos de prueba
+- [ ] Documentar APIs a implementar
 
-### **Para el Negocio**
-- ✅ **Menor costo inicial**: Menos recursos de infraestructura
-- ✅ **Time-to-market**: Funcionalidades básicas disponibles antes
-- ✅ **Escalabilidad real**: Agregas funcionalidades según demanda real
+### **3. Implementar Módulos**
+- [ ] SolicitudesModule
+- [ ] PrestamosModule
+- [ ] PagosModule
+- [ ] EvaluacionesModule
 
-## 🚀 **Próximos Pasos**
+## 📚 **Documentación por Fase**
 
-1. **Crear rama de desarrollo**: `git checkout -b feature/simplified-roles`
-2. **Simplificar sistema de roles** según especificaciones
-3. **Implementar Fase 1** (MVP de autenticación)
-4. **Crear frontend básico** para probar autenticación
-5. **Iterar** según el plan gradual
+### **Fase 1 - Completada**
+- ✅ `FLUJO_AUTENTICACION_SUPABASE.md`
+- ✅ `ARQUITECTURA_TABLAS_USUARIOS.md`
+- ✅ `REGLAS_SISTEMA_USUARIOS.md`
+- ✅ `CONFIGURACION_BASE_DATOS.md`
+
+### **Fase 2 - Pendiente**
+- ⏳ `ARQUITECTURA_MODULOS_FINANCIEROS.md`
+- ⏳ `FLUJO_SOLICITUDES_PRESTAMOS.md`
+- ⏳ `REGLAS_EVALUACION_CREDITICIA.md`
+- ⏳ `CONFIGURACION_PAGOS.md`
 
 ---
 
-**Nota**: Este plan mantiene la arquitectura sólida del proyecto actual pero simplifica la complejidad inicial, permitiendo un desarrollo más manejable y un aprendizaje progresivo.
+**Documento actualizado:** 2025-01-10  
+**Versión:** 2.0  
+**Autor:** Sistema Zaga - NextLab

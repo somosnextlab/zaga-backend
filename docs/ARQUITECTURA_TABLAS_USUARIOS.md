@@ -2,36 +2,35 @@
 
 ## 📋 **Resumen Ejecutivo**
 
-El sistema de usuarios de Zaga está diseñado con una arquitectura modular que separa las responsabilidades de **autenticación**, **datos personales** y **relación comercial**. Esta separación garantiza seguridad, flexibilidad y cumplimiento legal.
+El sistema de usuarios de Zaga está diseñado con una arquitectura modular que separa las responsabilidades de **autenticación externa** (Supabase), **datos personales** y **relación comercial**. Esta separación garantiza seguridad, flexibilidad y cumplimiento legal.
 
 ## 🏗️ **Arquitectura General**
 
 ```
 ┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│  seguridad.usuarios │◄──►│ financiera.personas │◄──►│ financiera.clientes │
-│   (Autenticación)   │    │  (Datos Personales) │    │ (Relación Comercial)│
-└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+│  Supabase Auth      │    │  seguridad.usuarios │◄──►│ financiera.personas │◄──►│ financiera.clientes │
+│  (Autenticación)    │    │   (Control Local)   │    │  (Datos Personales) │    │ (Relación Comercial)│
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
 ```
 
 ### **Relaciones:**
 
 - **1:1** `seguridad.usuarios` ↔ `financiera.personas`
 - **1:1** `financiera.personas` ↔ `financiera.clientes`
+- **Supabase Auth** → `seguridad.usuarios` (user_id)
 
 ## 📊 **Descripción Detallada de Tablas**
 
-### **1. `seguridad.usuarios` - Sistema de Acceso**
+### **1. `seguridad.usuarios` - Control Local de Usuarios**
 
-**Propósito:** Gestionar la autenticación, autorización y estado de acceso al sistema.
+**Propósito:** Gestionar el control local de usuarios, roles y estado de acceso al sistema.
 
 ```sql
 CREATE TABLE seguridad.usuarios (
-  user_id UUID PRIMARY KEY,           -- Identificador único del usuario
+  user_id UUID PRIMARY KEY,           -- Identificador único del usuario (de Supabase)
   persona_id UUID UNIQUE,             -- FK a financiera.personas
   rol VARCHAR(20) NOT NULL,           -- 'admin' | 'cliente'
   estado VARCHAR(20) NOT NULL,        -- 'activo' | 'inactivo'
-  email_verificado BOOLEAN DEFAULT FALSE,
-  email_verificado_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -39,15 +38,15 @@ CREATE TABLE seguridad.usuarios (
 
 **Responsabilidades:**
 
-- ✅ **Autenticación** - Quién puede acceder al sistema
+- ✅ **Control local** - Gestión de roles y estado
 - ✅ **Autorización** - Qué permisos tiene (admin/cliente)
 - ✅ **Estado de cuenta** - Activo/inactivo
-- ✅ **Verificación de email** - Seguridad y validación
+- ✅ **Integración con Supabase** - user_id de Supabase Auth
 - ✅ **Auditoría** - Registro de creación y modificaciones
 
 **Campos Clave:**
 
-- `user_id`: Identificador único (UUID)
+- `user_id`: Identificador único de Supabase Auth
 - `persona_id`: Enlace a datos personales
 - `rol`: Determina permisos en el sistema
 - `estado`: Control de acceso (activo/inactivo)
@@ -101,257 +100,118 @@ CREATE TABLE financiera.clientes (
   persona_id UUID UNIQUE NOT NULL,    -- FK a financiera.personas
   estado VARCHAR(20) NOT NULL,        -- 'activo' | 'inactivo' | 'suspendido'
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-
-  FOREIGN KEY (persona_id) REFERENCES financiera.personas(id)
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 ```
 
 **Responsabilidades:**
 
-- ✅ **Relación comercial** - Cliente de la empresa Zaga
-- ✅ **Estado comercial** - Puede ser diferente al estado de usuario
-- ✅ **Historial financiero** - Base para préstamos, pagos, transacciones
-- ✅ **Separación de responsabilidades** - Usuario vs Cliente
-- ✅ **Gestión comercial** - Control de clientes activos/suspendidos
+- ✅ **Relación comercial** - Estado de cliente con la empresa
+- ✅ **Control de acceso** - Quién puede solicitar préstamos
+- ✅ **Estado comercial** - Activo, inactivo, suspendido
+- ✅ **Auditoría comercial** - Registro de cambios de estado
 
 **Campos Clave:**
 
 - `persona_id`: Enlace a datos personales
-- `estado`: Estado comercial (independiente del estado de usuario)
+- `estado`: Estado comercial del cliente
 
-## 🔄 **Flujo de Creación de Usuario (Nuevo Flujo Seguro)**
+## 🔄 **Flujo de Creación de Usuario**
 
-### **🛡️ Principios de Seguridad:**
-- ✅ **Email verificado** antes de crear datos financieros
-- ✅ **Cliente creado** solo después de verificación
-- ✅ **Datos personales** se crean inmediatamente (para identificación)
-- ✅ **Datos financieros** se crean solo con email confirmado
+### **1. Registro en Supabase Auth**
 
-### **Paso 1: Crear Usuario de Seguridad**
+- Usuario se registra en frontend con Supabase
+- Supabase envía email de verificación
+- Usuario verifica email haciendo click en link
 
-```javascript
-// Crear en seguridad.usuarios
-const usuario = await prisma.seguridad_usuarios.create({
-  data: {
-    user_id: 'uuid-generado',
-    rol: 'cliente',
-    estado: 'activo',
-    email_verificado: false,
-  },
-});
+### **2. Creación de Perfil en Backend**
+
+- Frontend obtiene JWT con `email_verified: true`
+- Backend valida JWT con Supabase JWKS
+- Se crea registro en `seguridad.usuarios`
+- Se crea registro en `financiera.personas`
+- Se crea registro en `financiera.clientes` (inmediatamente)
+
+### **3. Usuario Operativo**
+
+- Usuario puede usar la plataforma inmediatamente
+- No requiere verificación adicional
+- Cliente creado automáticamente
+
+## 🛡️ **Seguridad y Validaciones**
+
+### **Validaciones de Negocio**
+
+- ✅ **DNI único** - No se puede duplicar documento
+- ✅ **Email único** - No se puede duplicar email
+- ✅ **Edad mínima** - 18 años para operar
+- ✅ **Teléfono argentino** - Formato +549XXXXXXXX
+- ✅ **Un perfil por usuario** - Prevención de duplicados
+
+### **Seguridad de Datos**
+
+- ✅ **Autenticación externa** - Supabase maneja login/registro
+- ✅ **JWT con JWKS** - Validación robusta de tokens
+- ✅ **RLS automático** - Row Level Security con Supabase
+- ✅ **Email verificado** - Solo usuarios verificados pueden crear perfil
+
+## 📈 **Estados del Usuario**
+
+| Estado              | Supabase Auth     | seguridad.usuarios | financiera.personas    | financiera.clientes | Puede Operar |
+| ------------------- | ----------------- | ------------------ | ---------------------- | ------------------- | ------------ |
+| **Registrado**      | ✅ email_verified | ❌                 | ❌                     | ❌                  | ❌           |
+| **Perfil Básico**   | ✅                | ✅                 | ✅ (nombre, DNI)       | ✅                  | ✅           |
+| **Perfil Completo** | ✅                | ✅                 | ✅ (+ fecha_nac, docs) | ✅                  | ✅           |
+
+## 🔧 **Configuración Requerida**
+
+### **Variables de Entorno:**
+
+```env
+# Supabase (REQUERIDO)
+SUPABASE_PROJECT_URL=https://<project-id>.supabase.co
+SUPABASE_JWKS_URL=https://<project-id>.supabase.co/auth/v1/keys
+SUPABASE_ANON_KEY=your_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+
+# Base de datos
+DATABASE_URL=postgresql://...
 ```
 
-### **Paso 2: Crear Persona (Sin Cliente Aún)**
+### **Configuración de Supabase:**
 
-```javascript
-// Crear en financiera.personas
-const persona = await prisma.financiera_personas.create({
-  data: {
-    tipo_doc: 'DNI',
-    numero_doc: '12345678',
-    nombre: 'Juan',
-    apellido: 'Pérez',
-    email: 'juan@email.com',
-    telefono: '+54911234567',
-    fecha_nac: '1990-01-01',
-  },
-});
+1. **Habilitar email verification** en Authentication settings
+2. **Configurar redirect URLs** para verificación
+3. **Configurar JWT settings** con expiración apropiada
 
-// Asociar usuario con persona
-await prisma.seguridad_usuarios.update({
-  where: { user_id: usuario.user_id },
-  data: { persona_id: persona.id },
-});
-```
+## 📊 **Beneficios de la Arquitectura**
 
-### **Paso 3: Enviar Email de Verificación**
+### **1. Simplicidad**
 
-```javascript
-// Crear token de verificación
-const token = await emailVerificationService.createVerificationToken(
-  usuario.user_id,
-  'email_verification'
-);
+- ✅ Un solo sistema de autenticación (Supabase)
+- ✅ Flujo más directo y comprensible
+- ✅ Menos código que mantener
 
-// Enviar email (OBLIGATORIO - si falla, lanza error)
-await emailService.sendVerificationEmail(persona.email, token);
-```
+### **2. Seguridad**
 
-### **Paso 4: Verificar Email y Crear Cliente**
+- ✅ Verificación robusta por Supabase
+- ✅ JWT con JWKS para validación
+- ✅ No duplicación de lógica de autenticación
 
-```javascript
-// Solo después de verificar email
-const userId = await emailVerificationService.verifyToken(token, 'email_verification');
-await emailVerificationService.markEmailAsVerified(userId);
+### **3. Escalabilidad**
 
-// AHORA SÍ crear cliente
-const cliente = await prisma.financiera_clientes.create({
-  data: {
-    persona_id: persona.id,
-    estado: 'activo',
-  },
-});
-```
+- ✅ Supabase maneja la escalabilidad de auth
+- ✅ Backend se enfoca en lógica de negocio
+- ✅ Fácil integración con otros servicios
 
-### **🔄 Diagrama del Flujo:**
+### **4. Mantenibilidad**
 
-```mermaid
-graph TD
-    A[Usuario crea perfil] --> B[Crear seguridad.usuarios]
-    B --> C[Crear financiera.personas]
-    C --> D[Enviar email de verificación]
-    D --> E{Email enviado?}
-    E -->|Sí| F[Perfil creado - Pendiente verificación]
-    E -->|No| G[Error - Reintentar]
-    F --> H[Usuario verifica email]
-    H --> I[Crear financiera.clientes]
-    I --> J[Usuario completamente activo]
-```
-
-## 🎯 **Ventajas de esta Arquitectura**
-
-### **1. Separación de Responsabilidades**
-
-- **Seguridad** → Control de acceso
-- **Personas** → Datos legales/personales
-- **Clientes** → Relación comercial
-
-### **2. Flexibilidad**
-
-- **Múltiples roles** por persona
-- **Estados independientes** (usuario vs cliente)
-- **Futuras funcionalidades** sin afectar seguridad
-
-### **3. Cumplimiento Legal**
-
-- **Datos personales** separados de **datos de acceso**
-- **Auditoría** independiente por área
-- **GDPR/Protección de datos** más fácil
-
-### **4. Escalabilidad**
-
-- **Múltiples tipos de usuarios** (empleados, proveedores, etc.)
-- **Integración** con otros sistemas
-- **Crecimiento** del negocio
-
-## 📋 **Casos de Uso Comunes**
-
-### **Caso 1: Usuario Nuevo**
-
-```
-1. Crear usuario (seguridad.usuarios)
-2. Crear persona (financiera.personas)
-3. Asociar usuario-persona
-4. Crear cliente (financiera.clientes)
-```
-
-### **Caso 2: Suspender Cliente**
-
-```
-1. Actualizar estado en financiera.clientes
-2. Usuario mantiene acceso (seguridad.usuarios)
-3. Persona mantiene datos (financiera.personas)
-```
-
-### **Caso 3: Cambiar Rol de Usuario**
-
-```
-1. Actualizar rol en seguridad.usuarios
-2. Persona y cliente no cambian
-3. Permisos se actualizan automáticamente
-```
-
-## 🔒 **Consideraciones de Seguridad**
-
-### **Validaciones Implementadas:**
-
-- ✅ **Email único** en `financiera.personas`
-- ✅ **DNI único** por tipo de documento
-- ✅ **Relación 1:1** entre usuario y persona
-- ✅ **Verificación de email** obligatoria
-- ✅ **Soft delete** para usuarios
-
-### **Reglas de Negocio:**
-
-- ✅ **1 user_id = 1 persona_id**
-- ✅ **1 email = 1 cuenta**
-- ✅ **DNI único** por persona
-- ✅ **Email verificado** para usar la plataforma
-
-## 📊 **Ejemplo Práctico**
-
-```javascript
-// Usuario: María González
-seguridad.usuarios: {
-  user_id: "123e4567-e89b-12d3-a456-426614174000",
-  persona_id: "456e7890-e89b-12d3-a456-426614174001",
-  rol: "cliente",
-  estado: "activo",
-  email_verificado: true,
-  email_verificado_at: "2025-01-10T15:30:00Z"
-}
-
-financiera.personas: {
-  id: "456e7890-e89b-12d3-a456-426614174001",
-  tipo_doc: "DNI",
-  numero_doc: "87654321",
-  nombre: "María",
-  apellido: "González",
-  email: "maria@email.com",
-  telefono: "+54911234567",
-  fecha_nac: "1985-05-15"
-}
-
-financiera.clientes: {
-  id: "789e0123-e89b-12d3-a456-426614174002",
-  persona_id: "456e7890-e89b-12d3-a456-426614174001",
-  estado: "activo"
-}
-```
-
-## 🛠️ **Herramientas de Desarrollo**
-
-### **Scripts Disponibles:**
-
-- `cleanup-test-data.js` - Limpia usuario de desarrollo
-- `node scripts/cleanup-all-users.js` - Limpia todos los usuarios del sistema
-- `check-sendgrid-config.js` - Verifica configuración de SendGrid
-- `test-new-user-flow.js` - Prueba el flujo completo de verificación
-- `check-all-tables.js` - Verifica estado de tablas
-
-### **Endpoints API (Nuevo Flujo):**
-
-- `POST /usuarios/crear-perfil` - Crear perfil (sin cliente, pendiente verificación)
-- `POST /usuarios/verificar-email` - Verificar email y crear cliente
-- `POST /usuarios/reenviar-verificacion` - Reenviar email de verificación
-- `GET /usuarios/yo` - Obtener perfil del usuario
-- `PUT /usuarios/yo` - Actualizar perfil
-- `DELETE /usuarios/:id` - Desactivar usuario
-
-## 📝 **Notas Importantes (Nuevo Flujo)**
-
-1. **En desarrollo:** Usar scripts de limpieza entre pruebas
-2. **En producción:** Cada usuario real tendrá user_id único
-3. **Email:** Debe ser único en toda la plataforma
-4. **DNI:** Debe ser único por tipo de documento
-5. **Verificación:** Email DEBE ser verificado para crear cliente
-6. **Seguridad:** Cliente solo se crea después de verificar email
-7. **Error handling:** Si falla el email, el usuario debe reintentar
-8. **Auditoría:** Todas las tablas tienen timestamps de creación/modificación
-
-## 🔗 **Relaciones con Otros Sistemas**
-
-### **Futuras Integraciones:**
-
-- **Sistema de Préstamos** → `financiera.clientes`
-- **Sistema de Pagos** → `financiera.personas`
-- **Sistema de Notificaciones** → `financiera.personas.email`
-- **Sistema de Auditoría** → `seguridad.usuarios`
-- **Sistema de Reportes** → Todas las tablas
+- ✅ Menos servicios que mantener
+- ✅ Lógica de auth centralizada
+- ✅ Fácil testing y debugging
 
 ---
 
-**Documento creado:** 2025-01-10  
-**Versión:** 1.0  
+**Documento actualizado:** 2025-01-10  
+**Versión:** 2.0  
 **Autor:** Sistema Zaga - NextLab

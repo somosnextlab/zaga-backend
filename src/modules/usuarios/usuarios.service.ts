@@ -1,27 +1,20 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EmailService } from '@shared/email.service';
 import { Logger } from '@shared/logger';
 import { PrismaService } from '@shared/prisma.service';
 
 import { CambiarEmailDto } from './dtos/cambiar-email.dto';
 import { CreatePerfilDto } from './dtos/create-perfil.dto';
 import { UpdatePerfilDto } from './dtos/update-perfil.dto';
-import { EmailVerificationService } from './services/email-verification.service';
 
 @Injectable()
 export class UsuariosService {
   private readonly logger = new Logger(UsuariosService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly emailVerificationService: EmailVerificationService,
-    private readonly emailService: EmailService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll(page: number = 1, limit: number = 10) {
     this.logger.log(`Obteniendo usuarios - página: ${page}, límite: ${limit}`);
@@ -237,7 +230,7 @@ export class UsuariosService {
         where: { user_id: userId },
       });
 
-      // Si el usuario no existe, crearlo
+      // Si el usuario no existe, crearlo (Supabase ya verificó el email)
       if (!usuarioExistente) {
         this.logger.log(`Usuario no existe, creándolo: ${userId}`);
         usuarioExistente = await this.prisma.seguridad_usuarios.create({
@@ -245,16 +238,12 @@ export class UsuariosService {
             user_id: userId,
             rol: 'cliente',
             estado: 'activo',
-            email_verificado: false,
           },
         });
       }
 
       if (usuarioExistente.persona_id) {
-        return {
-          success: false,
-          message: 'El usuario ya tiene un perfil creado',
-        };
+        throw new ConflictException('El usuario ya tiene un perfil creado');
       }
 
       // Verificar si ya existe una persona con el mismo documento
@@ -284,7 +273,7 @@ export class UsuariosService {
         );
       }
 
-      // Crear persona (SIN crear cliente aún)
+      // Crear persona
       const persona = await this.prisma.financiera_personas.create({
         data: {
           tipo_doc: createPerfilDto.tipo_doc,
@@ -305,49 +294,26 @@ export class UsuariosService {
         data: { persona_id: persona.id },
       });
 
-      // Crear token de verificación de email si hay email
-      let tokenVerificacion = null;
-      if (createPerfilDto.email) {
-        tokenVerificacion =
-          await this.emailVerificationService.createVerificationToken(
-            userId,
-            'email_verification',
-          );
+      // ✅ CREAR CLIENTE INMEDIATAMENTE (sin esperar verificación)
+      await this.prisma.financiera_clientes.create({
+        data: {
+          persona_id: persona.id,
+          estado: 'activo',
+        },
+      });
 
-        // Enviar email de verificación
-        try {
-          await this.emailService.sendVerificationEmail(
-            createPerfilDto.email,
-            tokenVerificacion,
-          );
-          this.logger.log(
-            `Email de verificación enviado a: ${createPerfilDto.email}`,
-          );
-        } catch (error) {
-          this.logger.error('Error al enviar email de verificación:', error);
-          // Si falla el envío del email, lanzamos error para que el usuario sepa
-          throw new Error('Error al enviar email de verificación. Por favor, intenta nuevamente.');
-        }
-      }
-
-      this.logger.log(`Perfil creado exitosamente para usuario: ${userId} (pendiente de verificación)`);
+      this.logger.log(
+        `Perfil y cliente creados exitosamente para usuario: ${userId}`,
+      );
 
       return {
         success: true,
-        message: createPerfilDto.email
-          ? 'Perfil creado exitosamente. Se ha enviado un email de verificación. Debes verificar tu email para completar el registro.'
-          : 'Perfil creado exitosamente',
+        message: 'Perfil creado exitosamente. Ya puedes usar la plataforma.',
         data: {
           persona_id: persona.id,
           nombre: persona.nombre,
           apellido: persona.apellido,
-          email_verificado: false,
         },
-        // En desarrollo, devolver el token para testing
-        token:
-          process.env.NODE_ENV === 'development'
-            ? tokenVerificacion
-            : undefined,
       };
     } catch (error) {
       this.logger.error('Error al crear perfil:', error);
@@ -358,19 +324,10 @@ export class UsuariosService {
     }
   }
 
-  async verificarEmail(token: string) {
-    this.logger.log(`Verificando email con token: ${token}`);
+  async cambiarEmail(userId: string, cambiarEmailDto: CambiarEmailDto) {
+    this.logger.log(`Cambiando email para usuario: ${userId}`);
 
     try {
-      const userId = await this.emailVerificationService.verifyToken(
-        token,
-        'email_verification',
-      );
-      
-      // Marcar email como verificado
-      await this.emailVerificationService.markEmailAsVerified(userId);
-
-      // Obtener usuario para crear el cliente
       const usuario = await this.prisma.seguridad_usuarios.findUnique({
         where: { user_id: userId },
       });
@@ -379,119 +336,7 @@ export class UsuariosService {
         throw new NotFoundException('Usuario o perfil no encontrado');
       }
 
-      // Verificar si ya existe un cliente para esta persona
-      const clienteExistente = await this.prisma.financiera_clientes.findFirst({
-        where: { persona_id: usuario.persona_id },
-      });
-
-      // Solo crear cliente si no existe
-      if (!clienteExistente) {
-        await this.prisma.financiera_clientes.create({
-          data: {
-            persona_id: usuario.persona_id,
-            estado: 'activo',
-          },
-        });
-        this.logger.log(`Cliente creado para persona: ${usuario.persona_id}`);
-      }
-
-      this.logger.log(`Email verificado exitosamente para usuario: ${userId}`);
-
-      return {
-        success: true,
-        message: 'Email verificado exitosamente. Tu cuenta está ahora completamente activa.',
-        data: {
-          email_verificado: true,
-          cliente_creado: !clienteExistente,
-        },
-      };
-    } catch (error) {
-      this.logger.error('Error al verificar email:', error);
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new Error('Error al verificar email');
-    }
-  }
-
-  async reenviarVerificacion(email: string) {
-    this.logger.log(`Reenviando verificación para email: ${email}`);
-
-    try {
-      // Buscar usuario por email
-      const persona = await this.prisma.financiera_personas.findFirst({
-        where: { email },
-      });
-
-      if (!persona) {
-        throw new NotFoundException('Email no encontrado');
-      }
-
-      // Buscar usuario asociado a esta persona
-      const usuario = await this.prisma.seguridad_usuarios.findFirst({
-        where: { persona_id: persona.id },
-      });
-
-      if (!usuario) {
-        throw new NotFoundException('Usuario no encontrado para este email');
-      }
-
-      // Verificar si ya está verificado
-      if (usuario.email_verificado) {
-        return {
-          success: false,
-          message: 'El email ya está verificado',
-        };
-      }
-
-      // Crear nuevo token de verificación
-      const token = await this.emailVerificationService.createVerificationToken(
-        usuario.user_id,
-        'email_verification',
-      );
-
-      // Enviar email de verificación
-      try {
-        await this.emailService.sendVerificationEmail(email, token);
-        this.logger.log(`Email de verificación reenviado a: ${email}`);
-      } catch (error) {
-        this.logger.error('Error al reenviar email de verificación:', error);
-        throw new Error('Error al reenviar email de verificación');
-      }
-
-      return {
-        success: true,
-        message: 'Email de verificación reenviado',
-        // En producción, no devolver el token
-        token: process.env.NODE_ENV === 'development' ? token : undefined,
-      };
-    } catch (error) {
-      this.logger.error('Error al reenviar verificación:', error);
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new Error('Error al reenviar verificación');
-    }
-  }
-
-  async cambiarEmail(userId: string, cambiarEmailDto: CambiarEmailDto) {
-    this.logger.log(`Cambiando email para usuario: ${userId}`);
-
-    try {
-      // Verificar que el usuario existe
-      const usuario = await this.prisma.seguridad_usuarios.findUnique({
-        where: { user_id: userId },
-      });
-
-      if (!usuario) {
-        throw new NotFoundException('Usuario no encontrado');
-      }
-
-      if (!usuario.persona_id) {
-        throw new NotFoundException('El usuario no tiene un perfil creado');
-      }
-
-      // Verificar que el nuevo email no esté en uso
+      // Verificar email único
       const emailExistente = await this.prisma.financiera_personas.findFirst({
         where: {
           email: cambiarEmailDto.email,
@@ -500,7 +345,7 @@ export class UsuariosService {
       });
 
       if (emailExistente) {
-        throw new ConflictException('El email ya está en uso por otro usuario');
+        throw new ConflictException('El email ya está en uso');
       }
 
       // Actualizar email
@@ -509,52 +354,20 @@ export class UsuariosService {
         data: { email: cambiarEmailDto.email },
       });
 
-      // Marcar como no verificado hasta que se verifique el nuevo email
-      await this.prisma.seguridad_usuarios.update({
-        where: { user_id: userId },
-        data: {
-          email_verificado: false,
-          email_verificado_at: null,
-        },
-      });
-
-      // Crear token de verificación para el nuevo email
-      const token = await this.emailVerificationService.createVerificationToken(
-        userId,
-        'email_verification',
+      // ⚠️ IMPORTANTE: El admin debe actualizar también en Supabase manualmente
+      this.logger.warn(
+        `Email cambiado en BD. RECORDAR actualizar en Supabase Auth manualmente.`,
       );
-
-      // Enviar email de verificación al nuevo email
-      try {
-        await this.emailService.sendEmailChangeNotification(
-          cambiarEmailDto.email,
-          token,
-        );
-        this.logger.log(`Email de cambio enviado a: ${cambiarEmailDto.email}`);
-      } catch (error) {
-        this.logger.error('Error al enviar email de cambio:', error);
-        // No lanzamos error para no interrumpir el cambio de email
-      }
-
-      this.logger.log(`Email cambiado exitosamente para usuario: ${userId}`);
 
       return {
         success: true,
         message:
-          'Email cambiado exitosamente. Se ha enviado un email de verificación al nuevo correo.',
+          'Email actualizado. El usuario debe actualizar su email en Supabase Auth.',
         motivo: cambiarEmailDto.motivo,
-        // En producción, no devolver el token
-        token: process.env.NODE_ENV === 'development' ? token : undefined,
       };
     } catch (error) {
       this.logger.error('Error al cambiar email:', error);
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ConflictException
-      ) {
-        throw error;
-      }
-      throw new Error('Error al cambiar email');
+      throw error;
     }
   }
 }
