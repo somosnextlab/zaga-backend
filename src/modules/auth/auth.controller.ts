@@ -1,14 +1,14 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Response } from 'express';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { JwksClientService } from '@adapters/jwks.client';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Request, Response } from 'express';
+import { jwtVerify } from 'jose';
 
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { LoginDto } from './dto/login.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -61,7 +61,7 @@ export class AuthController {
     status: 200,
     description: 'Información de debug del JWT',
   })
-  async debugJWT(@Req() req: any, @Res() res: Response) {
+  async debugJWT(@Req() req: Request, @Res() res: Response) {
     try {
       const authHeader = req.headers.authorization;
       const token = authHeader?.replace('Bearer ', '');
