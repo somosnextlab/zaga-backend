@@ -29,7 +29,7 @@ export class RolesGuard implements CanActivate {
     }
 
     // Validar que el rol del usuario sea válido
-    const validRoles: UserRole[] = ['admin', 'cliente'];
+    const validRoles: UserRole[] = ['admin', 'usuario', 'cliente'];
     if (!validRoles.includes(user.rol as UserRole)) {
       throw new ForbiddenException(
         `Rol '${user.rol}' no es válido. Roles permitidos: ${validRoles.join(', ')}`,

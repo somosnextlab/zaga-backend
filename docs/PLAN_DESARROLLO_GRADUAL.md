@@ -1,218 +1,196 @@
-# 🚀 Plan de Desarrollo Gradual - Zaga Backend
+# Plan de Desarrollo Gradual - Zaga
 
-## 📊 Estado Actual del Proyecto
+## 📋 **Resumen**
 
-### ✅ **Implementado (Fase 1 - Completada)**
+Plan de desarrollo por fases para el sistema de préstamos Zaga, priorizando funcionalidades core y escalando gradualmente.
 
-#### **Sistema de Autenticación**
-- ✅ **Integración Supabase Auth** - JWT con JWKS
-- ✅ **Verificación de email** automática por Supabase
-- ✅ **Roles simplificados** - admin y cliente únicamente
-- ✅ **RLS automático** - Row Level Security con Supabase
+## 🎯 **Fase 1: Core del Sistema (Completada)**
 
-#### **Módulos Funcionales**
-- ✅ **UsuariosModule** - Gestión completa de usuarios y perfiles
-- ✅ **SaludModule** - Health checks del sistema
-- ✅ **AuthModule** - Configuración de autenticación
-- ✅ **PrismaModule** - ORM y conexión a base de datos
+### **✅ Autenticación y Usuarios**
+- [x] Integración con Supabase Auth
+- [x] Sistema de 3 roles (admin/usuario/cliente)
+- [x] Endpoints de usuarios y clientes
+- [x] Validación JWT con clave secreta
+- [x] Documentación completa
 
-#### **Base de Datos Optimizada**
-- ✅ **Schema limpio** - Sin campos obsoletos
-- ✅ **Tablas principales** - usuarios, personas, clientes
-- ✅ **Relaciones optimizadas** - 1:1 entre entidades
-- ✅ **Validaciones robustas** - DNI único, email único
+### **✅ Base de Datos**
+- [x] Esquema PostgreSQL con Prisma
+- [x] Tablas de seguridad y financiera
+- [x] Relaciones y validaciones
+- [x] Datos de prueba
 
-#### **Funcionalidades Core**
-- ✅ **Crear perfil** - Flujo completo con Supabase
-- ✅ **Actualizar perfil** - Datos personales
-- ✅ **Obtener perfil** - Información completa del usuario
-- ✅ **Gestión de usuarios** - CRUD completo para admins
+### **✅ Infraestructura**
+- [x] Despliegue en Railway
+- [x] Variables de entorno configuradas
+- [x] CI/CD con GitHub
+- [x] Swagger UI funcional
 
-### 🎯 **Próximas Fases**
+## 🚀 **Fase 2: Módulo de Préstamos (En Progreso)**
 
-## **Fase 2: Módulos Financieros (Semanas 3-4)**
+### **📋 Funcionalidades Planificadas**
+- [ ] **Solicitudes de préstamo**
+  - Crear solicitud (cliente)
+  - Evaluar solicitud (admin)
+  - Aprobar/rechazar (admin)
+  - Historial de solicitudes
 
-### **Objetivo**
-Implementar los módulos financieros básicos para el negocio de préstamos.
+- [ ] **Gestión de préstamos**
+  - Crear préstamo aprobado
+  - Calcular cuotas
+  - Seguimiento de pagos
+  - Estados del préstamo
 
-### **Módulos a Implementar**
-```typescript
-// Nuevos módulos a agregar:
-- SolicitudesModule     // Solicitudes de préstamos
-- PrestamosModule       // Préstamos aprobados
-- PagosModule          // Gestión de pagos
-- EvaluacionesModule   // Evaluaciones crediticias
-```
+- [ ] **Documentos**
+  - Subir documentos (cliente)
+  - Validar documentos (admin)
+  - Almacenamiento seguro
+  - Integración con storage
 
-### **Base de Datos a Activar**
-```sql
--- Tablas ya creadas, activar funcionalidad:
-- financiera.solicitudes
-- financiera.prestamos
-- financiera.pagos
-- financiera.evaluaciones
-- financiera.cronogramas
-```
+## 🏗️ **Fase 3: Módulo Financiero**
 
-### **Endpoints Principales**
-- `POST /solicitudes` - Crear solicitud de préstamo
-- `GET /solicitudes` - Listar solicitudes (RLS)
-- `POST /solicitudes/:id/evaluar` - Evaluar solicitud
-- `GET /prestamos` - Listar préstamos (RLS)
-- `POST /pagos` - Registrar pago
+### **📋 Funcionalidades Planificadas**
+- [ ] **Cálculos financieros**
+  - Tasas de interés
+  - Cálculo de cuotas
+  - Amortización
+  - Intereses moratorios
 
-## **Fase 3: Integraciones Externas (Semanas 5-6)**
+- [ ] **Pagos**
+  - Registro de pagos
+  - Métodos de pago
+  - Comprobantes
+  - Conciliación bancaria
 
-### **Objetivo**
-Integrar con fuentes externas para evaluación crediticia.
+- [ ] **Reportes**
+  - Estados de cuenta
+  - Historial de pagos
+  - Reportes administrativos
+  - Exportación de datos
 
-### **Integraciones**
-- ✅ **BCRA** - Consulta situación crediticia
-- ✅ **AFIP** - Verificación de datos fiscales
-- ✅ **Fuentes externas** - Otras APIs de scoring
+## 🔗 **Fase 4: Integraciones Externas**
 
-### **Módulos a Implementar**
-```typescript
-- FuentesExternasModule  // Integración BCRA/AFIP
-- JobsModule            // Procesamiento asíncrono
-```
+### **📋 Integraciones Planificadas**
+- [ ] **APIs Gubernamentales**
+  - BCRA (tasas de referencia)
+  - AFIP (validación de CUIT/CUIL)
+  - ANSES (verificación de datos)
 
-## **Fase 4: Funcionalidades Avanzadas (Semanas 7-8)**
+- [ ] **Servicios de Pago**
+  - Mercado Pago
+  - Transferencias bancarias
+  - Pago Fácil
+  - Rapi Pago
 
-### **Objetivo**
-Implementar funcionalidades avanzadas del sistema.
+- [ ] **Comunicaciones**
+  - SendGrid (emails)
+  - Twilio (SMS)
+  - WhatsApp Business
+  - Notificaciones push
 
-### **Funcionalidades**
-- ✅ **Sistema de colas** - BullMQ para procesamiento asíncrono
-- ✅ **Notificaciones** - Email y SMS
-- ✅ **Reportes** - Dashboard y analytics
-- ✅ **Auditoría avanzada** - Logs detallados
+## 📊 **Fase 5: Analytics y BI**
 
-### **Módulos a Implementar**
-```typescript
-- NotificacionesModule  // Email y SMS
-- ReportesModule       // Dashboard y analytics
-- AuditoriaModule      // Logs avanzados
-```
+### **📋 Funcionalidades Planificadas**
+- [ ] **Dashboard administrativo**
+  - Métricas de préstamos
+  - Análisis de riesgo
+  - KPIs del negocio
+  - Alertas automáticas
 
-## 🛠️ **Arquitectura por Fases**
+- [ ] **Reportes avanzados**
+  - Análisis de cartera
+  - Predicción de morosidad
+  - Segmentación de clientes
+  - Tendencias del mercado
 
-### **Fase 1 (Actual) - MVP**
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Supabase      │    │   Backend       │    │   Frontend      │
-│   Auth          │◄──►│   NestJS        │◄──►│   React/Next    │
-│   (JWT)         │    │   + Prisma      │    │   + Supabase    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
+## 🛡️ **Fase 6: Seguridad Avanzada**
 
-### **Fase 2 - Financiero**
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Supabase      │    │   Backend       │    │   Frontend      │
-│   Auth          │◄──►│   NestJS        │◄──►│   React/Next    │
-│   (JWT)         │    │   + Prisma      │    │   + Supabase    │
-└─────────────────┘    │   + BullMQ      │    └─────────────────┘
-                       └─────────────────┘
-```
+### **📋 Funcionalidades Planificadas**
+- [ ] **Auditoría**
+  - Logs de auditoría
+  - Trazabilidad de cambios
+  - Reportes de seguridad
+  - Cumplimiento normativo
 
-### **Fase 3 - Integraciones**
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Supabase      │    │   Backend       │    │   Frontend      │
-│   Auth          │◄──►│   NestJS        │◄──►│   React/Next    │
-│   (JWT)         │    │   + Prisma      │    │   + Supabase    │
-└─────────────────┘    │   + BullMQ      │    └─────────────────┘
-                       │   + BCRA/AFIP   │
-                       └─────────────────┘
-```
+- [ ] **Monitoreo**
+  - Alertas de seguridad
+  - Detección de anomalías
+  - Monitoreo de performance
+  - Health checks
 
-## 📊 **Métricas de Progreso**
+## 📈 **Cronograma Estimado**
 
-### **Fase 1 - Completada ✅**
-- ✅ **Autenticación** - 100% funcional
-- ✅ **Usuarios** - 100% funcional
-- ✅ **Base de datos** - 100% optimizada
-- ✅ **Documentación** - 100% actualizada
+### **Q1 2025**
+- ✅ Fase 1: Core del Sistema
+- 🚀 Fase 2: Módulo de Préstamos (50%)
 
-### **Fase 2 - Pendiente**
-- ⏳ **Solicitudes** - 0% implementado
-- ⏳ **Préstamos** - 0% implementado
-- ⏳ **Pagos** - 0% implementado
-- ⏳ **Evaluaciones** - 0% implementado
+### **Q2 2025**
+- 🚀 Fase 2: Módulo de Préstamos (100%)
+- 🚀 Fase 3: Módulo Financiero (25%)
 
-### **Fase 3 - Pendiente**
-- ⏳ **BCRA** - 0% implementado
-- ⏳ **AFIP** - 0% implementado
-- ⏳ **Fuentes externas** - 0% implementado
+### **Q3 2025**
+- 🚀 Fase 3: Módulo Financiero (75%)
+- 🚀 Fase 4: Integraciones Externas (25%)
 
-### **Fase 4 - Pendiente**
-- ⏳ **Notificaciones** - 0% implementado
-- ⏳ **Reportes** - 0% implementado
-- ⏳ **Auditoría avanzada** - 0% implementado
+### **Q4 2025**
+- 🚀 Fase 4: Integraciones Externas (100%)
+- 🚀 Fase 5: Analytics y BI (50%)
 
 ## 🎯 **Criterios de Éxito**
 
-### **Fase 1 - Completada ✅**
-- ✅ Usuario puede registrarse y crear perfil
-- ✅ Admin puede gestionar usuarios
-- ✅ Sistema de autenticación robusto
-- ✅ Base de datos optimizada
+### **Fase 2 - Préstamos**
+- [ ] Cliente puede solicitar préstamo
+- [ ] Admin puede evaluar y aprobar
+- [ ] Sistema calcula cuotas correctamente
+- [ ] Historial completo de solicitudes
 
-### **Fase 2 - Objetivos**
-- 🎯 Cliente puede crear solicitud de préstamo
-- 🎯 Admin puede evaluar solicitudes
-- 🎯 Sistema de préstamos funcional
-- 🎯 Gestión de pagos implementada
+### **Fase 3 - Financiero**
+- [ ] Pagos registrados correctamente
+- [ ] Cálculos financieros precisos
+- [ ] Reportes generados automáticamente
+- [ ] Integración con métodos de pago
 
-### **Fase 3 - Objetivos**
-- 🎯 Integración BCRA funcional
-- 🎯 Evaluación automática implementada
-- 🎯 Fuentes externas conectadas
-- 🎯 Sistema de scoring operativo
+### **Fase 4 - Integraciones**
+- [ ] APIs gubernamentales funcionando
+- [ ] Pagos procesados correctamente
+- [ ] Comunicaciones enviadas
+- [ ] Datos sincronizados
 
-### **Fase 4 - Objetivos**
-- 🎯 Notificaciones automáticas
-- 🎯 Dashboard de reportes
-- 🎯 Auditoría completa
-- 🎯 Sistema de monitoreo
+## 🔧 **Tecnologías por Fase**
 
-## 🚀 **Próximos Pasos Inmediatos**
+### **Fase 2 - Préstamos**
+- NestJS (backend)
+- Prisma (ORM)
+- PostgreSQL (base de datos)
+- Swagger (documentación)
 
-### **1. Preparar Fase 2**
-- [ ] Revisar tablas financieras existentes
-- [ ] Diseñar DTOs para solicitudes
-- [ ] Planificar endpoints de préstamos
-- [ ] Configurar validaciones de negocio
+### **Fase 3 - Financiero**
+- Node.js (cálculos)
+- Redis (cache)
+- Bull (colas de trabajo)
+- PDFKit (reportes)
 
-### **2. Configurar Desarrollo**
-- [ ] Crear rama `feature/fase-2-financiero`
-- [ ] Configurar entorno de testing
-- [ ] Preparar datos de prueba
-- [ ] Documentar APIs a implementar
+### **Fase 4 - Integraciones**
+- Axios (HTTP client)
+- Node-cron (tareas programadas)
+- Webhooks (notificaciones)
+- Rate limiting (protección APIs)
 
-### **3. Implementar Módulos**
-- [ ] SolicitudesModule
-- [ ] PrestamosModule
-- [ ] PagosModule
-- [ ] EvaluacionesModule
+## 📝 **Notas de Implementación**
 
-## 📚 **Documentación por Fase**
+### **Principios de Desarrollo**
+- **KISS**: Mantener simplicidad
+- **SOLID**: Principios de diseño
+- **DRY**: No repetir código
+- **YAGNI**: No sobre-ingeniería
 
-### **Fase 1 - Completada**
-- ✅ `FLUJO_AUTENTICACION_SUPABASE.md`
-- ✅ `ARQUITECTURA_TABLAS_USUARIOS.md`
-- ✅ `REGLAS_SISTEMA_USUARIOS.md`
-- ✅ `CONFIGURACION_BASE_DATOS.md`
-
-### **Fase 2 - Pendiente**
-- ⏳ `ARQUITECTURA_MODULOS_FINANCIEROS.md`
-- ⏳ `FLUJO_SOLICITUDES_PRESTAMOS.md`
-- ⏳ `REGLAS_EVALUACION_CREDITICIA.md`
-- ⏳ `CONFIGURACION_PAGOS.md`
+### **Estándares de Calidad**
+- **TypeScript**: Tipado estricto
+- **Testing**: Cobertura > 80%
+- **Documentación**: Swagger actualizado
+- **CI/CD**: Deploy automático
 
 ---
 
-**Documento actualizado:** 2025-01-10  
-**Versión:** 2.0  
+**Documento actualizado:** 2025-01-15  
+**Versión:** 3.0  
 **Autor:** Sistema Zaga - NextLab

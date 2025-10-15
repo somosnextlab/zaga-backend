@@ -1,245 +1,215 @@
-# 🗄️ Configuración de Base de Datos - Zaga Backend
+# Configuración de Base de Datos - Zaga
 
-## ✅ **Estado: Base de Datos Sincronizada Correctamente**
+## 📋 **Resumen**
 
-### **📊 Esquemas Creados**
+Configuración de PostgreSQL con Prisma ORM, incluyendo esquemas, migraciones y datos de prueba para el sistema de préstamos Zaga.
 
-#### **🔐 Esquema `seguridad`**
+## 🗄️ **Base de Datos**
 
-- **Propósito**: Gestión de usuarios y autenticación
-- **Tablas**: 1 tabla
-  - `usuarios` - Usuarios del sistema con roles
+### **PostgreSQL 14+**
+- **Host**: Railway PostgreSQL (producción)
+- **Local**: Docker PostgreSQL (desarrollo)
+- **Pool**: 13 conexiones máximo
+- **SSL**: Habilitado en producción
 
-#### **💰 Esquema `financiera`**
+### **Esquemas**
+- `seguridad` - Control de acceso y usuarios
+- `financiera` - Datos comerciales y préstamos
 
-- **Propósito**: Gestión de datos financieros y de préstamos
-- **Tablas**: 12 tablas
-  - `personas` - Datos personales
-  - `clientes` - Clientes del sistema
-  - `garantes` - Garantes de préstamos
-  - `solicitudes` - Solicitudes de préstamos
-  - `solicitud_garantes` - Relación solicitudes-garantes
-  - `documentos_identidad` - Documentos de identidad
-  - `evaluaciones` - Evaluaciones crediticias
-  - `prestamos` - Préstamos aprobados
-  - `cronogramas` - Cronogramas de pago
-  - `pagos` - Pagos realizados
-  - `fuentes_externas` - Fuentes de datos externas
-  - `auditoria` - Log de auditoría
+## 🏗️ **Estructura de Tablas**
 
-### **🔗 Estructura de Relaciones**
-
-#### **Tablas Principales para Fase 1**
-
-##### **1. `seguridad.usuarios`**
-
+### **Seguridad**
 ```sql
-user_id     UUID PRIMARY KEY    -- ID del usuario en Supabase
-persona_id  UUID NULL           -- Referencia a financiera.personas
-rol         VARCHAR DEFAULT 'cliente'  -- admin o cliente
-estado      VARCHAR DEFAULT 'activo'   -- activo/inactivo
-created_at  TIMESTAMPTZ DEFAULT NOW()
-updated_at  TIMESTAMPTZ DEFAULT NOW()
+seguridad.usuarios
+├── user_id (UUID, PK) - ID de Supabase
+├── persona_id (UUID, FK) - Referencia a personas
+├── rol (VARCHAR) - admin | usuario | cliente
+├── estado (VARCHAR) - activo | inactivo
+└── timestamps
 ```
 
-##### **2. `financiera.personas`**
-
+### **Financiera**
 ```sql
-id          UUID PRIMARY KEY DEFAULT gen_random_uuid()
-tipo_doc    VARCHAR NOT NULL           -- DNI, CUIL, etc.
-numero_doc  VARCHAR NOT NULL           -- Número de documento
-nombre      VARCHAR NOT NULL           -- Nombre
-apellido    VARCHAR NOT NULL           -- Apellido
-email       VARCHAR NULL               -- Email
-telefono    VARCHAR NULL               -- Teléfono
-fecha_nac   DATE NULL                  -- Fecha de nacimiento
-created_at  TIMESTAMPTZ DEFAULT NOW()
-updated_at  TIMESTAMPTZ DEFAULT NOW()
+financiera.personas
+├── id (UUID, PK)
+├── tipo_doc (VARCHAR) - DNI | PASAPORTE | CUIL
+├── numero_doc (VARCHAR) - Número de documento
+├── nombre, apellido (VARCHAR)
+├── email, telefono (VARCHAR)
+├── fecha_nac (DATE)
+└── timestamps
 
-UNIQUE(tipo_doc, numero_doc)           -- DNI único por tipo
+financiera.clientes
+├── id (UUID, PK)
+├── persona_id (UUID, FK) - Referencia a personas
+├── estado (VARCHAR) - activo | inactivo | suspendido
+└── timestamps
 ```
 
-##### **3. `financiera.clientes`**
+## 🔧 **Configuración Prisma**
 
-```sql
-id          UUID PRIMARY KEY DEFAULT gen_random_uuid()
-persona_id  UUID NOT NULL              -- Referencia a financiera.personas
-estado      VARCHAR DEFAULT 'activo'   -- activo/inactivo/suspendido
-created_at  TIMESTAMPTZ DEFAULT NOW()
-updated_at  TIMESTAMPTZ DEFAULT NOW()
+### **Schema Principal**
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
 
-FOREIGN KEY (persona_id) REFERENCES financiera.personas(id)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 ```
-
-## 🔄 **Flujo de Datos Actualizado**
-
-### **1. Registro de Usuario**
-
-1. **Usuario se registra** en Supabase Auth
-2. **Supabase envía** email de verificación
-3. **Usuario verifica** email en Supabase
-4. **Frontend obtiene** JWT con `email_verified: true`
-
-### **2. Creación de Perfil**
-
-1. **Backend valida** JWT con Supabase JWKS
-2. **Se crea usuario** en `seguridad.usuarios`
-3. **Se crea persona** en `financiera.personas`
-4. **Se crea cliente** en `financiera.clientes` (automáticamente)
-
-### **3. Usuario Operativo**
-
-- **Usuario puede operar** inmediatamente
-- **No requiere verificación** adicional
-- **Cliente creado** automáticamente
-
-## 🛡️ **Seguridad Implementada**
-
-### **Row Level Security (RLS)**
-
-- ✅ **Políticas activas** en todas las tablas
-- ✅ **Acceso basado en JWT** de Supabase
-- ✅ **Prevención de escalación** de privilegios
-- ✅ **Aislamiento de datos** por usuario
-
-### **Validaciones de Negocio**
-
-- ✅ **DNI único** por tipo de documento
-- ✅ **Email único** en el sistema
-- ✅ **Edad mínima** de 18 años
-- ✅ **Teléfono argentino** válido
-
-## 📊 **Estado Actual de la Base de Datos**
-
-### **Tablas Limpias**
-
-- ✅ **Sin campos obsoletos** (`email_verificado`, `email_verificado_at`)
-- ✅ **Sin tablas obsoletas** (`tokens_verificacion`)
-- ✅ **Schema sincronizado** con Prisma
-- ✅ **Relaciones optimizadas**
-
-### **Datos de Prueba**
-
-- ✅ **Usuario de desarrollo** creado
-- ✅ **Perfil completo** con datos válidos
-- ✅ **Cliente activo** listo para operar
-- ✅ **Datos consistentes** entre tablas
-
-## 🔧 **Configuración Requerida**
 
 ### **Variables de Entorno**
-
 ```env
-# Base de datos
-DATABASE_URL=postgresql://user:password@host:port/database
+# Producción
+DATABASE_URL=postgresql://user:pass@host:port/db?pgbouncer=true&connection_limit=1
 
-# Supabase
-SUPABASE_PROJECT_URL=https://<project-id>.supabase.co
-SUPABASE_JWKS_URL=https://<project-id>.supabase.co/auth/v1/keys
-SUPABASE_ANON_KEY=your_anon_key_here
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+# Desarrollo
+DATABASE_URL=postgresql://postgres:password@localhost:5432/zaga_dev
 ```
 
-### **Configuración de Supabase**
+## 🚀 **Comandos de Base de Datos**
 
-1. **Habilitar email verification** en Authentication settings
-2. **Configurar redirect URLs** para verificación
-3. **Configurar JWT settings** con expiración apropiada
-4. **Crear usuario admin** manualmente en Dashboard
-
-## 🚀 **Comandos de Mantenimiento**
-
-### **Generar Cliente Prisma**
-
+### **Desarrollo**
 ```bash
+# Generar cliente Prisma
+npm run prisma:generate
+
+# Aplicar cambios al schema
+npm run prisma:push
+
+# Abrir Prisma Studio
+npm run prisma:studio
+
+# Reset de base de datos
+npm run prisma:reset
+```
+
+### **Producción**
+```bash
+# Generar cliente
 npx prisma generate
-```
 
-### **Sincronizar Schema**
-
-```bash
+# Aplicar migraciones
 npx prisma db push
 ```
 
-### **Verificar Conexión**
+## 📊 **Datos de Prueba**
 
-```bash
-npm run verify:db
+### **Usuario Admin**
+```sql
+INSERT INTO seguridad.usuarios VALUES (
+  '550e8400-e29b-41d4-a716-446655440000',
+  '8ca53b02-86a4-4aeb-be9f-21b8692d7504',
+  'admin',
+  'activo',
+  NOW(),
+  NOW()
+);
 ```
 
-### **Abrir Prisma Studio**
-
-```bash
-npm run prisma:studio
+### **Persona de Prueba**
+```sql
+INSERT INTO financiera.personas VALUES (
+  '8ca53b02-86a4-4aeb-be9f-21b8692d7504',
+  'DNI',
+  '12345678',
+  'Juan',
+  'Pérez',
+  'admin@zaga.com',
+  '+54911234567',
+  '1990-01-01',
+  NOW(),
+  NOW()
+);
 ```
 
-## 📈 **Métricas de Rendimiento**
+## 🛡️ **Seguridad**
 
-### **Conexiones**
+### **Row Level Security (RLS)**
+- **Habilitado** en todas las tablas
+- **Políticas** basadas en JWT de Supabase
+- **Acceso** controlado por roles
 
-- ✅ **Pool de conexiones** configurado (13 conexiones)
-- ✅ **Conexión estable** verificada
-- ✅ **Latencia baja** en consultas
+### **Índices**
+```sql
+-- Índices únicos
+CREATE UNIQUE INDEX ON financiera.personas (tipo_doc, numero_doc);
+CREATE UNIQUE INDEX ON financiera.personas (email);
+CREATE UNIQUE INDEX ON seguridad.usuarios (persona_id);
+```
 
-### **Consultas Optimizadas**
+### **Validaciones**
+- ✅ **DNI único** por tipo de documento
+- ✅ **Email único** en personas
+- ✅ **Un perfil por usuario** en seguridad
+- ✅ **Edad mínima** 18 años para clientes
 
-- ✅ **Índices únicos** en campos críticos
-- ✅ **Relaciones eficientes** entre tablas
-- ✅ **Consultas paginadas** para listados
-
-## 🔍 **Monitoreo y Logs**
+## 🔍 **Monitoreo**
 
 ### **Logs de Prisma**
+```env
+# Desarrollo
+DATABASE_URL="postgresql://..."
+LOG_LEVEL="query"
 
-- ✅ **Consultas SQL** registradas en desarrollo
-- ✅ **Tiempo de ejecución** monitoreado
-- ✅ **Errores de conexión** capturados
+# Producción
+DATABASE_URL="postgresql://..."
+LOG_LEVEL="error"
+```
 
-### **Logs de Aplicación**
-
-- ✅ **Creación de usuarios** registrada
-- ✅ **Errores de validación** capturados
-- ✅ **Operaciones de base de datos** auditadas
+### **Métricas**
+- **Conexiones activas**: Monitoreadas
+- **Tiempo de consulta**: Logged en desarrollo
+- **Errores de conexión**: Capturados
 
 ## 🚨 **Troubleshooting**
 
 ### **Problemas Comunes**
 
 #### **Error de Conexión**
-
 ```bash
-# Verificar variables de entorno
+# Verificar variables
 echo $DATABASE_URL
 
 # Probar conexión
 npx prisma db pull --print
 ```
 
-#### **Schema Desincronizado**
-
+#### **Schema Desactualizado**
 ```bash
-# Regenerar cliente
-npx prisma generate
-
 # Sincronizar schema
 npx prisma db push
+
+# Regenerar cliente
+npx prisma generate
 ```
 
-#### **Error de RLS**
-
+#### **Datos Inconsistentes**
 ```bash
-# Verificar políticas
-npm run verify:rls
+# Reset completo
+npx prisma migrate reset
+
+# Aplicar migraciones
+npx prisma migrate deploy
 ```
 
-## 📚 **Documentación Relacionada**
+## 📈 **Rendimiento**
 
-- [`FLUJO_AUTENTICACION_SUPABASE.md`](FLUJO_AUTENTICACION_SUPABASE.md) - Flujo de autenticación
-- [`ARQUITECTURA_TABLAS_USUARIOS.md`](ARQUITECTURA_TABLAS_USUARIOS.md) - Arquitectura de usuarios
-- [`REGLAS_SISTEMA_USUARIOS.md`](REGLAS_SISTEMA_USUARIOS.md) - Reglas del sistema
+### **Optimizaciones**
+- ✅ **Pool de conexiones** configurado
+- ✅ **Índices únicos** en campos críticos
+- ✅ **Consultas paginadas** para listados
+- ✅ **Relaciones eficientes** entre tablas
+
+### **Métricas Objetivo**
+- **Tiempo de respuesta**: < 100ms
+- **Conexiones concurrentes**: 13 máximo
+- **Disponibilidad**: 99.9%
 
 ---
 
-**Documento actualizado:** 2025-01-10  
-**Versión:** 2.0  
+**Documento actualizado:** 2025-01-15  
+**Versión:** 3.0  
 **Autor:** Sistema Zaga - NextLab

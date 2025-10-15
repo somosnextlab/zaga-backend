@@ -1,229 +1,138 @@
-# Zaga Backend
+# Zaga Backend API
 
-Backend API para el sistema de gestión de préstamos Zaga, construido con NestJS, TypeScript y Prisma.
+API REST para el sistema de préstamos Zaga, desarrollada con NestJS y PostgreSQL.
 
-## 🚀 Stack Tecnológico
+## 🚀 **Inicio Rápido**
 
-- **NestJS 10** + **TypeScript** + **Prisma ORM**
-- **PostgreSQL** (Supabase) + **Redis** + **BullMQ**
-- **Autenticación Supabase Auth** con **JWT** y **RLS (Row Level Security)**
-- **Swagger/OpenAPI** + **Docker** + **Railway**
+### **Prerrequisitos**
+- Node.js 18+
+- PostgreSQL 14+
+- Supabase account
 
-## 🛠️ Instalación Rápida
-
+### **Instalación**
 ```bash
-# 1. Clonar e instalar
-git clone <repository-url>
-cd zaga-backend
 npm install
-
-# 2. Configurar variables de entorno
 cp env.example .env
-# Editar .env con tus valores
-
-# 3. Configurar base de datos
-npx prisma generate
-npx prisma db push
-
-# 4. Ejecutar
+# Configurar variables de entorno
+npm run build
 npm run start:dev
 ```
 
-### Variables de Entorno Principales
-
+### **Variables de Entorno**
 ```env
-DATABASE_URL=postgresql://...
-SUPABASE_PROJECT_URL=https://<project-id>.supabase.co
-SUPABASE_JWKS_URL=https://<project-id>.supabase.co/auth/v1/keys
-SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+DATABASE_URL=postgresql://user:pass@host:port/db
+SUPABASE_PROJECT_URL=https://your-project.supabase.co
+SUPABASE_JWT_SECRET=your_jwt_secret
+SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-## 📚 API Documentation
+## 🏗️ **Arquitectura**
 
-- **Swagger UI**: http://localhost:3000/api/docs
-- **Health Check**: http://localhost:3000/salud
+### **Roles del Sistema**
+- **`admin`**: Gestión completa del sistema
+- **`usuario`**: Usuario registrado con perfil básico
+- **`cliente`**: Usuario con datos completos para préstamos
 
-## 🔐 Autenticación con Supabase
-
-### Flujo de Autenticación Simplificado
-
-1. **Usuario se registra** en frontend con Supabase Auth (`signUp()`)
-2. **Supabase envía email** de verificación automáticamente
-3. **Usuario verifica email** haciendo click en link de Supabase
-4. **Frontend obtiene JWT** con `email_verified: true`
-5. **Backend valida JWT** con JWKS y crea perfil del usuario
-6. **Usuario puede operar** inmediatamente (cliente creado automáticamente)
-
-### Roles Disponibles
-
-- **admin**: Creado manualmente en Supabase Dashboard
-- **cliente**: Se registra mediante la app (Supabase Auth)
-
-## 🏗️ Arquitectura
-
-### Módulos Principales
-
-- **`usuarios/`** - Gestión de usuarios y perfiles
-- **`salud/`** - Health checks del sistema
-- **`financiera/`** - Módulos financieros (próximamente)
-
-### Servicios Compartidos
-
-- **PrismaService** - ORM global
-- **Logger** - Sistema de logging
-- **SupabaseJwtGuard** - Validación JWT con Supabase
-
-## 🔄 Endpoints Principales
-
-### Salud
-
-- `GET /salud` - Estado de la aplicación
-
-### Usuarios
-
-- `GET /usuarios` - Listar usuarios paginados (admin)
-- `GET /usuarios/yo` - Mi perfil (admin, cliente)
-- `PUT /usuarios/yo` - Actualizar mi perfil (admin, cliente)
-- `POST /usuarios/crear-perfil` - Crear perfil (cliente autenticado)
-- `GET /usuarios/:id` - Usuario específico (admin)
-- `DELETE /usuarios/:id` - Desactivar usuario (admin)
-- `PUT /usuarios/:id/cambiar-email` - Cambiar email (admin)
-
-## ⚙️ Funcionalidades por Rol
-
-### Clientes
-
-- ✅ Crear perfil personal (una sola vez)
-- ✅ Actualizar datos personales
-- ✅ Ver su perfil completo
-- ✅ Email verificado automáticamente por Supabase
-
-### Administradores
-
-- ✅ Acceso completo a todos los módulos
-- ✅ Gestión completa de usuarios
-- ✅ Cambiar emails de usuarios (requiere actualización manual en Supabase)
-
-## 🧪 Testing
-
-```bash
-npm run test          # Tests unitarios
-npm run test:watch    # Tests en modo watch
-npm run test:cov      # Coverage
-npm run test:e2e      # Tests end-to-end
+### **Flujo de Usuario**
+```
+Registro → usuario → Carga datos → cliente
 ```
 
-## 📝 Scripts Principales
+### **Tablas Principales**
+- `seguridad.usuarios` - Control de acceso y roles
+- `financiera.personas` - Datos personales
+- `financiera.clientes` - Relación comercial
+
+## 📋 **Endpoints Principales**
+
+### **Autenticación**
+- `POST /auth/login` - Login con email/password
+- `GET /auth/health` - Estado del servicio
+
+### **Usuarios**
+- `GET /usuarios` - Lista usuarios (admin)
+- `GET /usuarios/:id` - Usuario específico (admin, usuario)
+- `POST /usuarios/registro-inicial` - Registro inicial (usuario)
+- `POST /usuarios/crear-perfil` - Crear perfil completo (usuario)
+- `DELETE /usuarios/:id` - Desactivar usuario (admin, usuario)
+
+### **Clientes**
+- `GET /clientes` - Lista clientes (admin, cliente)
+- `GET /clientes/:id` - Cliente específico (admin, cliente)
+- `DELETE /clientes/:id` - Desactivar cliente (admin)
+
+## 🔧 **Comandos**
 
 ```bash
 # Desarrollo
-npm run start:dev     # Modo desarrollo con hot reload
+npm run start:dev
 
 # Producción
-npm run build         # Compilar TypeScript
-npm run start         # Ejecutar compilado
+npm run build
+npm run start:prod
 
 # Base de datos
-npm run prisma:generate    # Generar cliente Prisma
-npm run prisma:studio      # Abrir Prisma Studio
+npm run prisma:generate
+npm run prisma:push
+npm run prisma:studio
 
-# Calidad de código
-npm run lint          # ESLint con auto-fix
-npm run format        # Prettier
+# Testing
+npm run test
+npm run test:e2e
 ```
 
-## 🚀 Despliegue
+## 🛡️ **Seguridad**
 
-### Railway (Recomendado)
+- **Autenticación**: Supabase Auth con JWT
+- **Autorización**: Roles granulares (admin/usuario/cliente)
+- **Validación**: DTOs con class-validator
+- **Base de datos**: Row Level Security (RLS)
 
-1. Conecta tu repositorio a Railway
-2. Configura las variables de entorno
-3. Railway detectará automáticamente el `Dockerfile`
+## 📊 **Swagger**
 
-### Docker
-
-```bash
-# Desarrollo
-docker-compose -f docker-compose.dev.yml up
-
-# Producción
-docker build -t zaga-backend .
-docker run -p 3000:3000 --env-file .env zaga-backend
+Documentación interactiva disponible en:
+```
+http://localhost:3000/api
 ```
 
-## 🛡️ Seguridad
+## 🚀 **Despliegue**
 
-### Autenticación con Supabase
+### **Railway**
+1. Conectar repositorio GitHub
+2. Configurar variables de entorno
+3. Deploy automático en push
 
-- **JWT con JWKS** para validación robusta
-- **Email verificado** antes de crear perfil
-- **RLS automático** basado en JWT
-- **Tokens seguros** con expiración
+### **Variables de Producción**
+- `NODE_ENV=production`
+- `DATABASE_URL` (Railway PostgreSQL)
+- Variables de Supabase configuradas
 
-### Validaciones Robustas
+## 📝 **Desarrollo**
 
-- **Edad mínima**: 18 años para préstamos
-- **Teléfono argentino**: Formato +549XXXXXXXX
-- **Documentos únicos**: Prevención de duplicados
-- **Validación automática**: DTOs con class-validator
+### **Estructura del Proyecto**
+```
+src/
+├── config/          # Configuración de auth y roles
+├── modules/         # Módulos de la aplicación
+│   ├── auth/        # Autenticación
+│   ├── usuarios/    # Gestión de usuarios
+│   └── clientes/    # Gestión de clientes
+└── shared/          # Servicios compartidos
+```
 
-### Auditoría
+### **Principios de Desarrollo**
+- **SOLID**: Principios de diseño orientado a objetos
+- **KISS**: Mantener simplicidad
+- **DRY**: No repetir código
+- **TypeScript**: Tipado estricto
 
-- **Registro completo** de todas las acciones
-- **Metadatos**: Usuario, IP, User-Agent, timestamp
-- **Soft delete**: Mantiene historial de usuarios
+## 🔗 **Enlaces Útiles**
 
-## 🚀 Mejoras Recientes (v2.0)
+- [Documentación NestJS](https://docs.nestjs.com/)
+- [Prisma Documentation](https://www.prisma.io/docs/)
+- [Supabase Auth](https://supabase.com/docs/guides/auth)
 
-### Sistema de Autenticación Renovado
+---
 
-- ✅ **Integración completa con Supabase Auth**
-- ✅ **Eliminación de verificación de email propia**
-- ✅ **Flujo simplificado** de registro y login
-- ✅ **Cliente creado automáticamente** tras verificación
-
-### Arquitectura Optimizada
-
-- ✅ **Código más limpio** sin servicios obsoletos
-- ✅ **Menor superficie de ataque**
-- ✅ **Mejor rendimiento** con menos dependencias
-- ✅ **Mantenimiento simplificado**
-
-## 📚 Documentación
-
-### Documentos Principales:
-
-- [`FLUJO_AUTENTICACION_SUPABASE.md`](docs/FLUJO_AUTENTICACION_SUPABASE.md) - Flujo completo de autenticación
-- [`ARQUITECTURA_TABLAS_USUARIOS.md`](docs/ARQUITECTURA_TABLAS_USUARIOS.md) - Arquitectura del sistema de usuarios
-- [`REGLAS_SISTEMA_USUARIOS.md`](docs/REGLAS_SISTEMA_USUARIOS.md) - Reglas y validaciones
-- [`CONFIGURACION_BASE_DATOS.md`](docs/CONFIGURACION_BASE_DATOS.md) - Configuración de base de datos
-
-## 📈 Escalabilidad
-
-- **Arquitectura modular** para fácil mantenimiento
-- **Autenticación externa** con Supabase
-- **Logging estructurado** para monitoreo
-- **Base de datos optimizada** sin campos obsoletos
-
-## 🤝 Contribución
-
-1. Fork el proyecto
-2. Crea una rama (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-### Estándares
-
-- Sigue los principios **SOLID**
-- Usa **TypeScript** con tipado estricto
-- Sigue las recomendaciones de **ESLint**
-
-## 📄 Licencia
-
-Este proyecto es privado y confidencial.
-
-## 🆘 Soporte
-
-Para soporte técnico, contacta al equipo de desarrollo de NextLab.
+**Desarrollado por NextLab** | **Versión 2.0** | **2025**

@@ -233,7 +233,7 @@ describe('UsuariosService', () => {
       const mockUsuario = {
         user_id: userId,
         persona_id: null,
-        rol: 'cliente',
+        rol: 'usuario',
         estado: 'activo',
       };
 
@@ -322,7 +322,7 @@ describe('UsuariosService', () => {
       const mockUsuario = {
         user_id: userId,
         persona_id: null,
-        rol: 'cliente',
+        rol: 'usuario',
         estado: 'activo',
       };
 
@@ -364,7 +364,7 @@ describe('UsuariosService', () => {
       const mockUsuario = {
         user_id: userId,
         persona_id: null,
-        rol: 'cliente',
+        rol: 'usuario',
         estado: 'activo',
       };
 
@@ -417,7 +417,7 @@ describe('UsuariosService', () => {
       ).rejects.toThrow(ConflictException);
       await expect(
         service.crearPerfil(createPerfilDto, userId),
-      ).rejects.toThrow('El usuario ya tiene un perfil creado');
+      ).rejects.toThrow('El usuario ya tiene un perfil completo creado');
       expect(
         mockPrismaService.financiera_personas.create,
       ).not.toHaveBeenCalled();

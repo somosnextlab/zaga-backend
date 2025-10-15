@@ -1,207 +1,187 @@
 # Reglas del Sistema de Usuarios - Zaga
 
-## 📋 **Reglas Establecidas**
+## 📋 **Resumen**
 
-### **1. Relación Usuario-Persona (1:1)**
-- ✅ **1 user_id = 1 persona_id**
-- ✅ **Un usuario** = Una persona física
-- ✅ **Un perfil** por usuario
-- ❌ **No cambiar** - Es la arquitectura correcta
+Reglas de negocio y validaciones para el sistema de usuarios con 3 roles granulares: admin, usuario y cliente.
 
-### **2. Email Único (1:1)**
-- ✅ **1 email = 1 cuenta**
-- ✅ **Email único** por usuario
-- ✅ **No permitir** múltiples cuentas con mismo email
-- ✅ **Evitar confusión** y problemas de seguridad
+## 🎯 **Roles del Sistema**
 
-### **3. DNI Único (1:1)**
-- ✅ **DNI único** por persona física
-- ✅ **No permitir** mismo DNI en diferentes cuentas
-- ✅ **Cumplimiento legal** argentino
-- ✅ **Identidad única** garantizada
+### **`admin`**
+- **Creación**: Manual en Supabase Dashboard
+- **Permisos**: Acceso completo al sistema
+- **Operaciones**: Gestión de usuarios, clientes y configuración
 
-### **4. Autenticación con Supabase**
-- ✅ **Email verificado** antes de crear perfil
-- ✅ **JWT válido** requerido para operaciones
-- ✅ **Un solo sistema** de autenticación
-- ✅ **Cliente creado** inmediatamente tras verificación
+### **`usuario`**
+- **Creación**: Automática al registrarse
+- **Permisos**: Perfil básico y consultas limitadas
+- **Operaciones**: Ver/editar su perfil, consultar usuarios
 
-## 🛠️ **Validaciones Implementadas**
+### **`cliente`**
+- **Creación**: Automática al cargar datos completos
+- **Permisos**: Funcionalidades financieras completas
+- **Operaciones**: Solicitar préstamos, ver historial
 
-### **En `crearPerfil()`:**
-```typescript
-// 1. Verificar si usuario ya tiene perfil
-if (usuarioExistente.persona_id) {
-  throw new ConflictException('El usuario ya tiene un perfil creado');
-}
+## 🔄 **Flujo de Progresión**
 
-// 2. Verificar DNI único
-const personaExistente = await this.prisma.financiera_personas.findFirst({
-  where: { tipo_doc: createPerfilDto.tipo_doc, numero_doc: createPerfilDto.numero_doc }
-});
-if (personaExistente) {
-  throw new ConflictException(`Ya existe una persona con ${createPerfilDto.tipo_doc} número ${createPerfilDto.numero_doc}`);
-}
-
-// 3. Verificar email único
-const emailExistente = await this.prisma.financiera_personas.findFirst({
-  where: { email: createPerfilDto.email }
-});
-if (emailExistente) {
-  throw new ConflictException(`Ya existe una cuenta con el email ${createPerfilDto.email}`);
-}
+### **1. Registro**
+```
+Usuario se registra → Supabase Auth → email_verified: true
 ```
 
-## 🧪 **Para Desarrollo**
+### **2. Creación de Perfil**
+```
+JWT válido → Backend → Crear usuario + persona + cliente
+```
 
-### **Modo Desarrollo (Sin Supabase)**
-- ✅ **Bypass de autenticación** cuando no hay configuración
-- ✅ **Usuario mock** creado automáticamente
-- ✅ **Email verificado** siempre true en desarrollo
-- ✅ **Testing simplificado** sin tokens reales
+### **3. Progresión de Rol**
+```
+usuario (básico) → Carga datos → cliente (completo)
+```
 
-### **Modo Producción (Con Supabase)**
-- ✅ **JWT válido** requerido
-- ✅ **Validación JWKS** con Supabase
-- ✅ **Email verificado** del JWT
-- ✅ **Roles** extraídos del JWT
+## 🛡️ **Reglas de Validación**
 
-## 🔐 **Reglas de Seguridad**
+### **Datos Personales**
+- ✅ **DNI único** por tipo de documento
+- ✅ **Email único** en todo el sistema
+- ✅ **Edad mínima** 18 años para clientes
+- ✅ **Teléfono argentino** formato +549XXXXXXXX
+- ✅ **Un perfil por usuario** prevención de duplicados
 
-### **1. Email No Modificable por Usuarios**
-- ❌ **Usuarios NO pueden** cambiar su email
-- ✅ **Solo administradores** pueden cambiar emails
-- ⚠️ **Requiere actualización manual** en Supabase
-- ✅ **Auditoría completa** de cambios
-
-### **2. Verificación de Email Obligatoria**
+### **Autenticación**
 - ✅ **Email verificado** antes de crear perfil
-- ✅ **Supabase maneja** la verificación
-- ✅ **No duplicación** de lógica de verificación
-- ✅ **Seguridad robusta** garantizada
+- ✅ **JWT válido** con clave secreta de Supabase
+- ✅ **Token no expirado** verificación temporal
+- ✅ **Rol válido** admin/usuario/cliente
 
-### **3. Roles y Permisos**
-- ✅ **admin**: Acceso completo al sistema
-- ✅ **cliente**: Solo sus propios datos
-- ✅ **RLS automático** basado en JWT
-- ✅ **Prevención de escalación** de privilegios
+### **Autorización**
+- ✅ **Permisos granulares** por rol
+- ✅ **Acceso restringido** a funcionalidades
+- ✅ **Validación de contexto** en cada endpoint
 
 ## 📊 **Estados del Usuario**
 
-### **Estado 1: Registrado en Supabase**
-- ✅ **Email verificado** en Supabase
-- ❌ **Sin perfil** en backend
-- ❌ **No puede operar** en la plataforma
+### **Estado en Base de Datos**
+```sql
+-- seguridad.usuarios
+estado: 'activo' | 'inactivo'
 
-### **Estado 2: Perfil Creado**
-- ✅ **Email verificado** en Supabase
-- ✅ **Usuario creado** en backend
-- ✅ **Persona creada** con datos básicos
-- ✅ **Cliente creado** automáticamente
-- ✅ **Puede operar** en la plataforma
-
-### **Estado 3: Perfil Completo**
-- ✅ **Todos los datos** personales completos
-- ✅ **Documentos** subidos (opcional)
-- ✅ **Acceso completo** a funcionalidades
-
-## 🚫 **Restricciones de Negocio**
-
-### **1. Un Perfil por Usuario**
-- ❌ **No permitir** múltiples perfiles
-- ✅ **Error 409** si ya existe perfil
-- ✅ **Prevención** de duplicados
-
-### **2. Documentos Únicos**
-- ❌ **No permitir** mismo DNI en diferentes cuentas
-- ❌ **No permitir** mismo email en diferentes cuentas
-- ✅ **Validación** en creación y actualización
-
-### **3. Edad Mínima**
-- ✅ **18 años mínimo** para operar
-- ✅ **Validación** en fecha de nacimiento
-- ✅ **Cumplimiento legal** argentino
-
-## 🔄 **Flujo de Validación**
-
-### **Crear Perfil:**
-1. ✅ **Verificar JWT** válido
-2. ✅ **Verificar email** verificado en JWT
-3. ✅ **Verificar usuario** no tiene perfil
-4. ✅ **Verificar DNI** único
-5. ✅ **Verificar email** único
-6. ✅ **Crear usuario** + persona + cliente
-
-### **Actualizar Perfil:**
-1. ✅ **Verificar JWT** válido
-2. ✅ **Verificar usuario** existe
-3. ✅ **Verificar perfil** existe
-4. ✅ **Validar campos** opcionales
-5. ✅ **Actualizar** datos personales
-
-## 📝 **Códigos de Error**
-
-### **400 - Bad Request**
-- Datos de entrada inválidos
-- Validación de campos fallida
-
-### **401 - Unauthorized**
-- JWT inválido o expirado
-- Token no proporcionado
-
-### **403 - Forbidden**
-- Sin permisos para la operación
-- Rol insuficiente
-
-### **409 - Conflict**
-- Usuario ya tiene perfil
-- DNI ya existe
-- Email ya existe
-
-### **404 - Not Found**
-- Usuario no encontrado
-- Perfil no existe
-
-## 🧪 **Testing**
-
-### **Casos de Prueba Obligatorios:**
-1. ✅ **Crear perfil** exitoso
-2. ✅ **Error 409** si perfil existe
-3. ✅ **Error 409** si DNI existe
-4. ✅ **Error 409** si email existe
-5. ✅ **Actualizar perfil** exitoso
-6. ✅ **Error 401** sin JWT
-7. ✅ **Error 403** con rol insuficiente
-
-### **Datos de Prueba:**
-```typescript
-const testUser = {
-  tipo_doc: 'DNI',
-  numero_doc: '12345678',
-  nombre: 'Juan',
-  apellido: 'Pérez',
-  email: 'juan@example.com',
-  telefono: '+54911234567',
-  fecha_nac: '1990-01-01'
-};
+-- financiera.clientes  
+estado: 'activo' | 'inactivo' | 'suspendido'
 ```
 
-## 🚀 **Mejoras Implementadas**
+### **Transiciones de Estado**
+- **`activo`** → **`inactivo`**: Desactivación por admin/usuario
+- **`inactivo`** → **`activo`**: Reactivación por admin
+- **`activo`** → **`suspendido`**: Suspensión por admin
 
-### **v2.0 - Integración Supabase**
-- ✅ **Eliminación** de verificación de email propia
-- ✅ **Simplificación** del flujo de autenticación
-- ✅ **Cliente creado** automáticamente
-- ✅ **Código más limpio** y mantenible
+## 🔒 **Reglas de Seguridad**
 
-### **Beneficios:**
-- ✅ **Menos código** que mantener
-- ✅ **Mayor seguridad** con Supabase
-- ✅ **Mejor rendimiento** sin duplicación
-- ✅ **Escalabilidad** mejorada
+### **Acceso a Datos**
+- **Admin**: Acceso completo a todos los datos
+- **Usuario**: Solo sus propios datos
+- **Cliente**: Sus datos + información de clientes
+
+### **Operaciones Permitidas**
+
+#### **Admin**
+- ✅ Crear, leer, actualizar, eliminar usuarios
+- ✅ Crear, leer, actualizar, eliminar clientes
+- ✅ Cambiar roles y estados
+- ✅ Acceso a reportes y analytics
+
+#### **Usuario**
+- ✅ Leer su propio perfil
+- ✅ Actualizar su propio perfil
+- ✅ Leer otros usuarios (consulta)
+- ✅ Desactivar su propia cuenta
+
+#### **Cliente**
+- ✅ Todo lo de usuario
+- ✅ Leer información de clientes
+- ✅ Solicitar préstamos
+- ✅ Ver historial de transacciones
+
+## 🚨 **Reglas de Negocio**
+
+### **Creación de Usuario**
+1. **Registro en Supabase** con email/password
+2. **Verificación de email** obligatoria
+3. **Creación automática** de perfil en backend
+4. **Rol inicial**: `usuario`
+
+### **Progresión a Cliente**
+1. **Usuario registrado** con perfil básico
+2. **Carga de datos completos** (DNI, nombre, etc.)
+3. **Actualización automática** de rol a `cliente`
+4. **Habilitación** de funcionalidades financieras
+
+### **Desactivación de Cuenta**
+1. **Usuario puede** desactivar su propia cuenta
+2. **Admin puede** desactivar cualquier cuenta
+3. **Soft delete** - datos preservados
+4. **Reactivación** solo por admin
+
+## 📋 **Validaciones de Endpoints**
+
+### **GET /usuarios**
+- **Rol requerido**: `admin`
+- **Validación**: Token válido + rol admin
+- **Respuesta**: Lista paginada de usuarios
+
+### **GET /usuarios/:id**
+- **Rol requerido**: `admin`, `usuario`
+- **Validación**: Token válido + rol correcto
+- **Respuesta**: Datos del usuario específico
+
+### **DELETE /usuarios/:id**
+- **Rol requerido**: `admin`, `usuario`
+- **Validación**: Token válido + rol correcto
+- **Acción**: Desactivar usuario (soft delete)
+
+### **GET /clientes**
+- **Rol requerido**: `admin`, `cliente`
+- **Validación**: Token válido + rol correcto
+- **Respuesta**: Lista paginada de clientes
+
+### **DELETE /clientes/:id**
+- **Rol requerido**: `admin`
+- **Validación**: Token válido + rol admin
+- **Acción**: Desactivar cliente (soft delete)
+
+## 🔄 **Flujo de Errores**
+
+### **401 Unauthorized**
+- Token inválido o expirado
+- **Acción**: Renovar token
+
+### **403 Forbidden**
+- Rol insuficiente para la operación
+- **Acción**: Verificar permisos
+
+### **404 Not Found**
+- Usuario/cliente no encontrado
+- **Acción**: Verificar ID
+
+### **409 Conflict**
+- DNI o email duplicado
+- **Acción**: Usar datos únicos
+
+## 📈 **Métricas y Monitoreo**
+
+### **KPIs del Sistema**
+- **Usuarios activos** por rol
+- **Tiempo de respuesta** de endpoints
+- **Errores de autenticación** por hora
+- **Conversión** usuario → cliente
+
+### **Alertas**
+- **Token expirado** frecuentemente
+- **Errores 403** por permisos
+- **Usuarios duplicados** detectados
+- **Fallos de validación** masivos
 
 ---
 
-**Documento actualizado:** 2025-01-10  
-**Versión:** 2.0  
+**Documento actualizado:** 2025-01-15  
+**Versión:** 3.0  
 **Autor:** Sistema Zaga - NextLab
