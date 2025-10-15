@@ -116,9 +116,9 @@ export class SupabaseJwtGuard implements CanActivate {
 
       // Extraer información del usuario del payload
       const userMetadata = (
-        payload as { user_metadata?: { rol?: string; persona_id?: string } }
+        payload as { user_metadata?: { role?: string; rol?: string; persona_id?: string } }
       ).user_metadata;
-      const userRole = userMetadata?.rol;
+      const userRole = userMetadata?.role || userMetadata?.rol;
 
       // Validar que el rol sea válido, si no, asignar 'cliente' por defecto
       const validRoles = ['admin', 'cliente'];
