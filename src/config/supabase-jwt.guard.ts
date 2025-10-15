@@ -41,6 +41,7 @@ export class SupabaseJwtGuard implements CanActivate {
 
     // En modo desarrollo, si no hay configuración de Supabase
     const supabaseUrl = this.configService.get<string>('SUPABASE_PROJECT_URL');
+    const supabaseAuthUrl = supabaseUrl ? `${supabaseUrl}/auth/v1` : 'https://example.supabase.co/auth/v1';
     const isDevelopment = !supabaseUrl || supabaseUrl === 'https://example.supabase.co';
     
     if (isDevelopment) {
@@ -100,14 +101,14 @@ export class SupabaseJwtGuard implements CanActivate {
         // Usar clave secreta de Supabase para validación HS256
         const secretKey = new TextEncoder().encode(supabaseSecret);
         const result = await jwtVerify(token, secretKey, {
-          issuer: supabaseUrl,
+          issuer: supabaseAuthUrl,
           audience: 'authenticated',
         });
         payload = result.payload;
       } else {
         // Fallback a JWKS si no hay clave secreta configurada
         const { payload: jwksPayload } = await jwtVerify(token, this.jwksClient, {
-          issuer: supabaseUrl,
+          issuer: supabaseAuthUrl,
           audience: 'authenticated',
         });
         payload = jwksPayload;
