@@ -76,6 +76,7 @@ export class AuthController {
       // Información del entorno
       const supabaseUrl = this.configService.get<string>('SUPABASE_PROJECT_URL');
       const jwksUrl = this.configService.get<string>('SUPABASE_JWKS_URL');
+      const supabaseJwtSecret = this.configService.get<string>('SUPABASE_JWT_SECRET');
       const nodeEnv = this.configService.get<string>('NODE_ENV');
 
       // Decodificar el token sin verificar
@@ -106,6 +107,7 @@ export class AuthController {
           NODE_ENV: nodeEnv,
           SUPABASE_PROJECT_URL: supabaseUrl,
           SUPABASE_JWKS_URL: jwksUrl,
+          SUPABASE_JWT_SECRET: supabaseJwtSecret ? '***CONFIGURED***' : 'NOT_SET',
           isDevelopment: !supabaseUrl || supabaseUrl === 'https://example.supabase.co'
         },
         token: {
