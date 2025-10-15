@@ -1,3 +1,4 @@
+import { Public } from '@config/roles.decorator';
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
@@ -5,10 +6,11 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 @Controller('salud')
 export class SaludController {
   @Get()
+  @Public()
   @ApiOperation({
     summary: 'Verificar estado del sistema',
     description:
-      'Endpoint para verificar que el sistema esté funcionando correctamente',
+      'Endpoint para verificar que el sistema esté funcionando correctamente. No requiere autenticación.',
   })
   @ApiResponse({
     status: 200,

@@ -1,4 +1,5 @@
-import { AuthModule } from '@config/auth.module';
+import { AuthModule as ConfigAuthModule } from '@config/auth.module';
+import { AuthModule } from '@modules/auth/auth.module';
 import { SaludModule } from '@modules/salud/salud.module';
 import { UsuariosModule } from '@modules/usuarios/usuarios.module';
 import { Module } from '@nestjs/common';
@@ -10,6 +11,7 @@ import { PrismaModule } from '@shared/prisma.service';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ConfigAuthModule,
     AuthModule,
     PrismaModule,
     SaludModule,

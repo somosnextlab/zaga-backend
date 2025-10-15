@@ -49,7 +49,8 @@ async function bootstrap() {
     .setTitle('Zaga API')
     .setDescription('API para el sistema de gestión de préstamos Zaga')
     .setVersion('1.0')
-    .addTag('salud', 'Endpoints de salud del sistema')
+    .addTag('salud', 'Endpoints de salud del sistema (sin autenticación)')
+    .addTag('auth', 'Autenticación y autorización')
     .addTag('usuarios', 'Gestión de usuarios y perfiles')
     .addBearerAuth(
       {
@@ -57,7 +58,8 @@ async function bootstrap() {
         scheme: 'bearer',
         bearerFormat: 'JWT',
         name: 'JWT',
-        description: 'Token JWT de autenticación',
+        description:
+          'Token JWT de autenticación obtenido del endpoint /auth/login',
         in: 'header',
       },
       'JWT-auth', // Este nombre debe coincidir con el usado en @ApiBearerAuth()

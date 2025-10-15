@@ -6,7 +6,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Reflector } from '@nestjs/core';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+
+import { IS_PUBLIC_KEY } from './roles.decorator';
 
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {
@@ -15,11 +18,22 @@ export class SupabaseJwtGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     private readonly jwksClientService: JwksClientService,
+    private readonly reflector: Reflector,
   ) {
     this.jwksClient = this.jwksClientService.getClient();
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Verificar si el endpoint es público
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
 
