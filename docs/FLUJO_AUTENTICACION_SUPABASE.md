@@ -1,13 +1,12 @@
 # Flujo de Autenticación con Supabase
 
-## 📋 **Resumen Ejecutivo**
+## 📋 **Resumen**
 
-El sistema de autenticación de Zaga utiliza **Supabase Auth** como única fuente de verdad para la verificación de email y autenticación de usuarios. El backend confía en la verificación realizada por Supabase y crea los perfiles de usuario inmediatamente.
+Sistema de autenticación basado en Supabase Auth con 3 roles granulares. Verificación de email externa y creación automática de perfiles en el backend.
 
 ## 🔄 **Flujo Completo**
 
-### **1. Registro de Usuario (Frontend + Supabase)**
-
+### **1. Registro de Usuario**
 ```typescript
 // Frontend
 const { data, error } = await supabase.auth.signUp({
@@ -17,14 +16,14 @@ const { data, error } = await supabase.auth.signUp({
     emailRedirectTo: 'https://zaga.com.ar/dashboard',
   },
 });
-
-// Supabase envía email de verificación automáticamente ✅
-// Usuario hace click en link de verificación
-// Email verificado por Supabase ✅
 ```
 
-### **2. Login y Obtención de JWT**
+**Resultado:**
+- ✅ Supabase envía email de verificación
+- ✅ Usuario hace click en link
+- ✅ Email verificado por Supabase
 
+### **2. Login y JWT**
 ```typescript
 // Frontend
 const { data, error } = await supabase.auth.signInWithPassword({
@@ -36,18 +35,14 @@ const { data, error } = await supabase.auth.signInWithPassword({
 // {
 //   sub: "user-uuid",
 //   email: "usuario@example.com",
-//   email_verified: true, // ✅ Verificado por Supabase
-//   user_metadata: { rol: "cliente" }
+//   email_verified: true,
+//   user_metadata: { role: "usuario" }
 // }
 ```
 
 ### **3. Crear Perfil (Backend)**
-
 ```typescript
 // POST /usuarios/crear-perfil (con JWT en Authorization header)
-// Backend extrae email_verified del JWT
-// Crea: usuario + persona + cliente inmediatamente
-
 const result = await fetch('/usuarios/crear-perfil', {
   method: 'POST',
   headers: {
@@ -66,210 +61,109 @@ const result = await fetch('/usuarios/crear-perfil', {
 });
 ```
 
-### **4. Respuesta del Backend**
+**Backend crea automáticamente:**
+- ✅ `seguridad.usuarios` (rol: 'usuario')
+- ✅ `financiera.personas` (datos personales)
+- ✅ `financiera.clientes` (relación comercial)
 
-```json
-{
-  "success": true,
-  "message": "Perfil creado exitosamente. Ya puedes usar la plataforma.",
-  "data": {
-    "persona_id": "uuid-persona",
-    "nombre": "Juan",
-    "apellido": "Pérez",
-    "email_verificado": true
-  }
-}
-```
+## 🎯 **Roles del Sistema**
 
-## 🎯 **Estados del Usuario**
+### **`admin`**
+- Gestión completa del sistema
+- Acceso a todos los endpoints
+- Creación manual en Supabase Dashboard
 
-| Estado              | Supabase Auth     | seguridad.usuarios | financiera.personas    | financiera.clientes | Puede Operar |
-| ------------------- | ----------------- | ------------------ | ---------------------- | ------------------- | ------------ |
-| **Registrado**      | ✅ email_verified | ❌                 | ❌                     | ❌                  | ❌           |
-| **Perfil Básico**   | ✅                | ✅                 | ✅ (nombre, DNI)       | ✅                  | ✅           |
-| **Perfil Completo** | ✅                | ✅                 | ✅ (+ fecha_nac, docs) | ✅                  | ✅           |
+### **`usuario`**
+- Usuario registrado con perfil básico
+- Puede consultar y editar su perfil
+- No puede solicitar préstamos
+
+### **`cliente`**
+- Usuario con datos completos
+- Puede solicitar préstamos
+- Acceso a funcionalidades financieras
 
 ## 🔧 **Configuración Requerida**
 
-### **Variables de Entorno:**
-
+### **Variables de Entorno**
 ```env
-# Supabase (REQUERIDO)
-SUPABASE_PROJECT_URL=https://<project-id>.supabase.co
-SUPABASE_JWKS_URL=https://<project-id>.supabase.co/auth/v1/keys
-SUPABASE_ANON_KEY=your_anon_key_here
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
-
-# SendGrid (solo para notificaciones transaccionales)
-SENDGRID_API_KEY=your_sendgrid_api_key_here
-FROM_EMAIL=noreply@zaga.com.ar
-FROM_NAME=Zaga
+SUPABASE_PROJECT_URL=https://your-project.supabase.co
+SUPABASE_JWT_SECRET=your_jwt_secret_key
+SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-### **Configuración de Supabase:**
-
+### **Configuración Supabase**
 1. **Habilitar email verification** en Authentication settings
 2. **Configurar redirect URLs** para verificación
 3. **Configurar JWT settings** con expiración apropiada
 
 ## 🛡️ **Seguridad**
 
-### **Fortalezas:**
-
-- ✅ **Verificación única** por Supabase (no duplicada)
-- ✅ **JWT con JWKS** para validación robusta
+### **Fortalezas**
+- ✅ **Verificación única** por Supabase
+- ✅ **JWT con clave secreta** para validación
+- ✅ **Roles granulares** para control fino
 - ✅ **Email verificado** antes de crear perfil
-- ✅ **RLS automático** basado en JWT
-- ✅ **Tokens seguros** con expiración
 
-### **Consideraciones:**
+### **Validaciones**
+- ✅ **JWT válido** - Verificado con clave secreta
+- ✅ **Email verificado** - `email_verified: true`
+- ✅ **Rol válido** - admin/usuario/cliente
+- ✅ **Token no expirado** - Verificación temporal
 
-- ⚠️ **Cambio de email** requiere actualización manual en Supabase
-- ⚠️ **Admin creado manualmente** en Supabase Dashboard
-- ⚠️ **Dependencia de Supabase** para autenticación
+## 📊 **Estados del Usuario**
 
-## 📊 **Flujo de Datos**
+| Estado | Supabase | usuarios | personas | clientes | Operaciones |
+|--------|----------|----------|----------|----------|-------------|
+| **Registrado** | ✅ | ❌ | ❌ | ❌ | Solo login |
+| **Usuario** | ✅ | ✅ | ✅ | ✅ | Perfil básico |
+| **Cliente** | ✅ | ✅ | ✅ | ✅ | Préstamos |
 
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant FE as Frontend
-    participant SB as Supabase Auth
-    participant API as Zaga Backend
-    participant DB as PostgreSQL
+## 🚨 **Manejo de Errores**
 
-    U->>FE: Registrarse
-    FE->>SB: signUp(email, password)
-    SB->>U: Email verificación
-    U->>SB: Click link verificación
-    SB-->>FE: JWT con email_verified: true
+### **Errores Comunes**
+1. **JWT inválido o expirado** (401)
+2. **Email no verificado** (403)
+3. **Perfil ya existe** (409)
+4. **DNI duplicado** (409)
 
-    FE->>API: POST /usuarios/crear-perfil (JWT)
-    API->>API: Verificar JWT + extraer email_verified
-    API->>DB: Crear seguridad.usuarios
-    API->>DB: Crear financiera.personas
-    API->>DB: Crear financiera.clientes ✅
-    API-->>FE: Perfil creado exitosamente
-
-    Note over U,DB: Usuario puede usar la plataforma inmediatamente
+### **Respuestas de Error**
+```json
+{
+  "statusCode": 401,
+  "message": "Token inválido o expirado"
+}
 ```
 
 ## 🧪 **Testing**
 
-### **Flujo de Pruebas:**
+### **Flujo de Pruebas**
+1. **Registro** en Supabase
+2. **Verificar email** (manual o automático)
+3. **Login** y obtener JWT
+4. **Crear perfil** con JWT válido
+5. **Verificar** creación en base de datos
 
-1. **Registro en Supabase:**
-
-   ```typescript
-   const { data } = await supabase.auth.signUp({
-     email: 'test@example.com',
-     password: 'password123',
-   });
-   ```
-
-2. **Verificar email** (manual o automático en testing)
-
-3. **Login:**
-
-   ```typescript
-   const { data } = await supabase.auth.signInWithPassword({
-     email: 'test@example.com',
-     password: 'password123',
-   });
-   ```
-
-4. **Crear perfil:**
-
-   ```typescript
-   const response = await fetch('/usuarios/crear-perfil', {
-     method: 'POST',
-     headers: {
-       Authorization: `Bearer ${data.session.access_token}`,
-       'Content-Type': 'application/json',
-     },
-     body: JSON.stringify(mockPerfilDto),
-   });
-   ```
-
-5. **Verificar** que se creó usuario + persona + cliente
-
-## 🚨 **Manejo de Errores**
-
-### **Errores Comunes:**
-
-1. **JWT inválido o expirado:**
-
-   ```json
-   {
-     "statusCode": 401,
-     "message": "Token inválido o expirado"
-   }
-   ```
-
-2. **Email no verificado:**
-   - El JWT debe contener `email_verified: true`
-   - Si es `false`, el usuario debe verificar en Supabase
-
-3. **Perfil ya existe:**
-
-   ```json
-   {
-     "statusCode": 409,
-     "message": "El usuario ya tiene un perfil creado"
-   }
-   ```
-
-4. **DNI duplicado:**
-   ```json
-   {
-     "statusCode": 409,
-     "message": "Ya existe una persona con DNI número 12345678"
-   }
-   ```
-
-## 📝 **Notas de Implementación**
-
-1. **En desarrollo:** El guard permite bypass si no hay configuración de Supabase
-2. **En producción:** JWT debe ser válido y verificado con JWKS
-3. **Email verification:** Solo se maneja en Supabase, no en backend
-4. **SendGrid:** Solo para notificaciones transaccionales futuras
-5. **Admin users:** Creados manualmente en Supabase Dashboard
-
-## 🔗 **Endpoints Relacionados**
-
-- `POST /usuarios/crear-perfil` - Crear perfil (requiere JWT válido)
-- `GET /usuarios/yo` - Obtener perfil del usuario
-- `PUT /usuarios/yo` - Actualizar perfil
-- `PUT /usuarios/:id/cambiar-email` - Cambiar email (admin)
-
-## 📈 **Beneficios del Nuevo Flujo**
+## 📈 **Beneficios**
 
 ### **1. Simplicidad**
-
-- ✅ Un solo sistema de verificación (Supabase)
-- ✅ Flujo más directo y comprensible
-- ✅ Menos código que mantener
+- Un solo sistema de verificación
+- Flujo directo y comprensible
+- Menos código que mantener
 
 ### **2. Seguridad**
-
-- ✅ Verificación robusta por Supabase
-- ✅ JWT con JWKS para validación
-- ✅ No duplicación de lógica de verificación
+- Verificación robusta por Supabase
+- JWT con clave secreta
+- Roles granulares
 
 ### **3. Escalabilidad**
-
-- ✅ Supabase maneja la escalabilidad de auth
-- ✅ Backend se enfoca en lógica de negocio
-- ✅ Fácil integración con otros servicios
-
-### **4. Mantenibilidad**
-
-- ✅ Menos servicios que mantener
-- ✅ Lógica de auth centralizada
-- ✅ Fácil testing y debugging
+- Supabase maneja escalabilidad de auth
+- Backend se enfoca en lógica de negocio
+- Fácil integración con otros servicios
 
 ---
 
-**Documento creado:** 2025-01-10  
-**Versión:** 1.0  
+**Documento actualizado:** 2025-01-15  
+**Versión:** 3.0  
 **Autor:** Sistema Zaga - NextLab

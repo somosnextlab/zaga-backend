@@ -1,167 +1,201 @@
-# Autenticación en Swagger
+# Autenticación en Swagger - Zaga
 
-## Descripción
+## 📋 **Resumen**
 
-Este documento explica cómo usar el sistema de autenticación para probar los endpoints en Swagger en diferentes entornos.
+Guía para configurar y usar la autenticación JWT de Supabase en Swagger UI para probar los endpoints de la API.
 
-## 🔒 **Seguridad por Entorno**
+## 🔧 **Configuración**
 
-### **Desarrollo Local**
-- ✅ Usa JWT locales generados por `/auth/login`
-- ✅ Credenciales de desarrollo para testing
-- ✅ Acceso automático sin token (modo desarrollo)
+### **1. Obtener Token JWT**
+```typescript
+// Frontend - Login con Supabase
+const { data, error } = await supabase.auth.signInWithPassword({
+  email: 'usuario@example.com',
+  password: 'password123',
+});
 
-### **Producción (Railway)**
-- 🔒 **Solo Supabase Auth** - Máxima seguridad
-- 🔒 Tokens validados criptográficamente
-- 🔒 Rotación automática de claves
-- 🔒 Auditoría y monitoreo completo
+const jwt = data.session.access_token;
+```
 
-## Endpoints Disponibles
+### **2. Configurar Swagger**
+1. **Abrir Swagger UI**: `https://zaga-backend-production.up.railway.app/api`
+2. **Hacer clic en "Authorize"** (botón verde)
+3. **Pegar JWT** en el campo "Value"
+4. **Hacer clic en "Authorize"**
 
-### 1. Salud del Sistema (Sin Autenticación)
-- **URL**: `GET /salud`
-- **Descripción**: Verifica el estado del sistema
-- **Autenticación**: No requerida
-- **Uso**: Ideal para verificar que el backend esté funcionando
+## 🎯 **Roles y Permisos**
 
-### 2. Autenticación
-- **URL**: `POST /auth/login`
-- **Descripción**: Obtiene un token JWT para autenticación
-- **Autenticación**: No requerida
-- **Body**:
-  ```json
-  {
-    "email": "usuario@ejemplo.com",
-    "password": "miPassword123"
-  }
-  ```
+### **`admin`**
+- ✅ Acceso completo a todos los endpoints
+- ✅ Gestión de usuarios y clientes
+- ✅ Operaciones administrativas
 
-## Credenciales de Desarrollo
+### **`usuario`**
+- ✅ Consultar su perfil (`GET /usuarios/yo`)
+- ✅ Actualizar su perfil (`PUT /usuarios/yo`)
+- ✅ Consultar usuarios específicos (`GET /usuarios/:id`)
 
-Para testing, se han configurado las siguientes credenciales:
+### **`cliente`**
+- ✅ Todo lo de `usuario`
+- ✅ Consultar clientes (`GET /clientes`)
+- ✅ Consultar cliente específico (`GET /clientes/:id`)
 
-| Email | Password | Rol | Descripción |
-|-------|----------|-----|-------------|
-| `admin@zaga.com` | `admin123` | admin | Usuario administrador |
-| `cliente@zaga.com` | `cliente123` | cliente | Usuario cliente |
-| `test@zaga.com` | `test123` | cliente | Usuario de prueba |
+## 📋 **Endpoints por Rol**
 
-## Cómo Usar en Swagger
+### **Autenticación**
+```
+POST /auth/login          - Público
+GET  /auth/health         - Público
+```
 
-1. **Acceder a Swagger**: Ve a `http://localhost:3000/api/docs`
+### **Usuarios**
+```
+GET    /usuarios          - admin
+GET    /usuarios/:id      - admin, usuario
+PUT    /usuarios/yo       - admin, usuario, cliente
+DELETE /usuarios/:id      - admin, usuario
+```
 
-2. **Probar endpoint de salud**: 
-   - Busca el endpoint `GET /salud`
-   - Haz clic en "Try it out"
-   - Ejecuta la petición (no requiere autenticación)
+### **Clientes**
+```
+GET    /clientes          - admin, cliente
+GET    /clientes/:id      - admin, cliente
+DELETE /clientes/:id      - admin
+```
 
-3. **Obtener token de autenticación**:
-   - Busca el endpoint `POST /auth/login`
-   - Haz clic en "Try it out"
-   - Ingresa las credenciales en el body:
-     ```json
-     {
-       "email": "admin@zaga.com",
-       "password": "admin123"
-     }
-     ```
-   - Ejecuta la petición
-   - Copia el `access_token` de la respuesta
+## 🧪 **Testing en Swagger**
 
-4. **Autorizar en Swagger**:
-   - Haz clic en el botón "Authorize" (🔒) en la parte superior de Swagger
-   - Pega el token en el campo "Value"
-   - Haz clic en "Authorize"
-   - Cierra el modal
-
-5. **Probar endpoints protegidos**:
-   - Ahora puedes probar cualquier endpoint que requiera autenticación
-   - El token se incluirá automáticamente en las peticiones
-
-## Respuesta del Login
-
+### **1. Login**
 ```json
+POST /auth/login
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "email": "admin@zaga.com",
+  "password": "password123"
+}
+```
+
+### **2. Obtener Token**
+```json
+Response:
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
   "token_type": "Bearer",
   "expires_in": 86400,
   "user": {
-    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "user_id": "uuid",
     "email": "admin@zaga.com",
     "rol": "admin"
   }
 }
 ```
 
-## Configuración de Variables de Entorno
+### **3. Usar Token**
+1. **Copiar** `access_token` de la respuesta
+2. **Pegar** en Swagger "Authorize"
+3. **Probar** endpoints protegidos
 
-Asegúrate de tener estas variables en tu archivo `.env`:
+## 🛡️ **Seguridad**
 
-```env
-# JWT Configuration
-JWT_SECRET=tu_clave_secreta_jwt_aqui
-JWT_EXPIRES_IN=24h
+### **Headers Requeridos**
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+Content-Type: application/json
 ```
 
-## Notas Importantes
+### **Validaciones**
+- ✅ **JWT válido** - Verificado con Supabase
+- ✅ **Token no expirado** - Verificación temporal
+- ✅ **Rol correcto** - Permisos granulares
+- ✅ **Email verificado** - `email_verified: true`
 
-- Los tokens JWT tienen una duración de 24 horas por defecto
-- En modo desarrollo, el sistema acepta tanto tokens JWT locales como tokens de Supabase
-- Si no hay configuración de Supabase, el sistema usa JWT locales para autenticación
-- Las credenciales de desarrollo son solo para testing, no para producción
-- El endpoint de salud no requiere autenticación para facilitar el monitoreo del sistema
-- El token generado por `/auth/login` es compatible con todos los endpoints protegidos
+## 🚨 **Errores Comunes**
 
-## Solución de Problemas
+### **401 Unauthorized**
+```json
+{
+  "message": "Token inválido o expirado",
+  "error": "Unauthorized",
+  "statusCode": 401
+}
+```
+**Solución**: Obtener nuevo token de Supabase
 
-### Error "Token inválido o expirado"
-Si recibes este error después de usar el token del endpoint `/auth/login`:
+### **403 Forbidden**
+```json
+{
+  "message": "Acceso denegado - Se requiere rol de administrador",
+  "error": "Forbidden",
+  "statusCode": 403
+}
+```
+**Solución**: Verificar rol del usuario
 
-1. **Verifica que estés en modo desarrollo**: El sistema debe estar configurado sin Supabase
-2. **Revisa la configuración**: Asegúrate de que `SUPABASE_PROJECT_URL` no esté configurado o sea `https://example.supabase.co`
-3. **Token expirado**: Los tokens duran 24 horas, genera uno nuevo si es necesario
-4. **Formato del token**: Asegúrate de incluir "Bearer " antes del token en Swagger
+### **Token Expirado**
+```json
+{
+  "message": "Token inválido o expirado",
+  "error": "Unauthorized",
+  "statusCode": 401
+}
+```
+**Solución**: Hacer login nuevamente
 
-## 🚀 **Para Producción (Railway)**
+## 🔄 **Flujo de Testing**
 
-### **Obtener Token de Supabase**
+### **1. Preparación**
+- Tener cuenta en Supabase
+- Email verificado
+- Usuario creado en backend
 
-1. **Configura Supabase**:
-   ```env
-   SUPABASE_PROJECT_URL=https://tu-proyecto.supabase.co
-   SUPABASE_JWKS_URL=https://tu-proyecto.supabase.co/auth/v1/keys
-   ```
+### **2. Autenticación**
+- Hacer login en frontend
+- Obtener JWT válido
+- Configurar en Swagger
 
-2. **Usa el SDK de Supabase**:
-   ```javascript
-   import { createClient } from '@supabase/supabase-js'
-   
-   const supabase = createClient(
-     'https://tu-proyecto.supabase.co',
-     'tu-anon-key'
-   )
-   
-   const { data, error } = await supabase.auth.signInWithPassword({
-     email: 'usuario@ejemplo.com',
-     password: 'tu-password'
-   })
-   
-   const token = data.session.access_token
-   ```
+### **3. Testing**
+- Probar endpoints según rol
+- Verificar respuestas
+- Validar permisos
 
-3. **O desde la consola de Supabase**:
-   - Ve a tu proyecto en [supabase.com](https://supabase.com)
-   - Authentication → Users
-   - Genera un token de prueba
+## 📊 **Ejemplos de Uso**
 
-4. **Usa el token en Swagger**:
-   - Formato: `Bearer <supabase_token>`
-   - El token debe ser válido y no expirado
+### **Admin - Listar Usuarios**
+```http
+GET /usuarios?page=1&limit=10
+Authorization: Bearer [JWT]
+```
 
-### **Endpoint de Ayuda**
-- `GET /auth/supabase-token` - Información sobre autenticación con Supabase
+### **Usuario - Ver Perfil**
+```http
+GET /usuarios/yo
+Authorization: Bearer [JWT]
+```
 
-### Modo de Funcionamiento
-- **Desarrollo**: Usa JWT locales generados por `/auth/login`
-- **Producción**: Usa tokens de Supabase para autenticación (máxima seguridad)
+### **Cliente - Listar Clientes**
+```http
+GET /clientes?page=1&limit=10
+Authorization: Bearer [JWT]
+```
+
+## 🎯 **Mejores Prácticas**
+
+### **1. Seguridad**
+- ✅ **No compartir** tokens en logs
+- ✅ **Renovar** tokens antes de expirar
+- ✅ **Usar HTTPS** en producción
+
+### **2. Testing**
+- ✅ **Probar** todos los roles
+- ✅ **Validar** respuestas de error
+- ✅ **Verificar** permisos granulares
+
+### **3. Desarrollo**
+- ✅ **Usar** tokens de desarrollo
+- ✅ **Limpiar** tokens después de testing
+- ✅ **Documentar** cambios en permisos
+
+---
+
+**Documento actualizado:** 2025-01-15  
+**Versión:** 3.0  
+**Autor:** Sistema Zaga - NextLab

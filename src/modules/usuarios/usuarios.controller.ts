@@ -257,12 +257,47 @@ export class UsuariosController {
     return this.usuariosService.cambiarEmail(id, cambiarEmailDto);
   }
 
-  @Post('crear-perfil')
-  @Roles('cliente')
+  @Post('registro-inicial')
+  @Roles('usuario')
   @ApiOperation({
-    summary: 'Crear perfil de usuario',
+    summary: 'Registro inicial de usuario',
     description:
-      'Endpoint para crear un perfil de usuario autenticado con Supabase. Crea usuario + persona + cliente inmediatamente.',
+      'Endpoint para crear el registro inicial de usuario después de verificar email. Solo crea el usuario con rol "usuario".',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Usuario registrado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        data: {
+          type: 'object',
+          properties: {
+            user_id: { type: 'string' },
+            rol: { type: 'string' },
+            estado: { type: 'string' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Se requiere rol de usuario',
+  })
+  async registroInicial(@Req() req: AuthenticatedRequest) {
+    return this.usuariosService.registroInicial(req.user.user_id);
+  }
+
+  @Post('crear-perfil')
+  @Roles('usuario')
+  @ApiOperation({
+    summary: 'Crear perfil completo de cliente',
+    description:
+      'Endpoint para crear perfil completo con datos personales. Cambia el rol de "usuario" a "cliente".',
   })
   @ApiResponse({
     status: 201,

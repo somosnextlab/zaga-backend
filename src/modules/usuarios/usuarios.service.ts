@@ -221,25 +221,63 @@ export class UsuariosService {
     }
   }
 
+  async registroInicial(userId: string) {
+    this.logger.log(`Registro inicial para usuario: ${userId}`);
+
+    try {
+      // Verificar si el usuario ya existe
+      const usuarioExistente = await this.prisma.seguridad_usuarios.findUnique({
+        where: { user_id: userId },
+      });
+
+      if (usuarioExistente) {
+        throw new ConflictException('El usuario ya está registrado');
+      }
+
+      // Crear usuario con rol 'usuario'
+      const usuario = await this.prisma.seguridad_usuarios.create({
+        data: {
+          user_id: userId,
+          rol: 'usuario',
+          estado: 'activo',
+        },
+      });
+
+      this.logger.log(`Usuario registrado exitosamente: ${userId}`);
+
+      return {
+        success: true,
+        message: 'Usuario registrado exitosamente. Ahora puedes cargar tus datos personales.',
+        data: {
+          user_id: usuario.user_id,
+          rol: usuario.rol,
+          estado: usuario.estado,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Error en registro inicial:', error);
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      throw new Error('Error en registro inicial');
+    }
+  }
+
   async crearPerfil(createPerfilDto: CreatePerfilDto, userId: string) {
     this.logger.log(`Creando perfil para usuario: ${userId}`);
 
     try {
-      // Verificar si el usuario ya tiene un perfil
-      let usuarioExistente = await this.prisma.seguridad_usuarios.findUnique({
+      // Verificar si el usuario existe y tiene rol 'usuario'
+      const usuarioExistente = await this.prisma.seguridad_usuarios.findUnique({
         where: { user_id: userId },
       });
 
-      // Si el usuario no existe, crearlo (Supabase ya verificó el email)
       if (!usuarioExistente) {
-        this.logger.log(`Usuario no existe, creándolo: ${userId}`);
-        usuarioExistente = await this.prisma.seguridad_usuarios.create({
-          data: {
-            user_id: userId,
-            rol: 'cliente',
-            estado: 'activo',
-          },
-        });
+        throw new ConflictException('Usuario no registrado. Debe hacer registro inicial primero.');
+      }
+
+      if (usuarioExistente.rol !== 'usuario') {
+        throw new ConflictException('El usuario ya tiene un perfil completo creado');
       }
 
       if (usuarioExistente.persona_id) {
@@ -288,10 +326,13 @@ export class UsuariosService {
         },
       });
 
-      // Actualizar usuario con persona_id
+      // Actualizar usuario con persona_id y cambiar rol a 'cliente'
       await this.prisma.seguridad_usuarios.update({
         where: { user_id: userId },
-        data: { persona_id: persona.id },
+        data: { 
+          persona_id: persona.id,
+          rol: 'cliente' // Cambiar rol a cliente al cargar datos personales
+        },
       });
 
       // ✅ CREAR CLIENTE INMEDIATAMENTE (sin esperar verificación)
