@@ -91,12 +91,23 @@ export class AuthController {
       let verificationError = null;
 
       try {
-        const jwksClient = this.jwksClientService.getClient();
-        const { payload: verifiedPayload } = await jwtVerify(token, jwksClient, {
-          issuer: supabaseUrl,
-          audience: 'authenticated',
-        });
-        verificationResult = verifiedPayload;
+        if (supabaseJwtSecret && supabaseJwtSecret !== 'your_jwt_secret_key_here') {
+          // Usar clave secreta de Supabase para validación HS256
+          const secretKey = new TextEncoder().encode(supabaseJwtSecret);
+          const result = await jwtVerify(token, secretKey, {
+            issuer: supabaseUrl,
+            audience: 'authenticated',
+          });
+          verificationResult = result.payload;
+        } else {
+          // Fallback a JWKS si no hay clave secreta configurada
+          const jwksClient = this.jwksClientService.getClient();
+          const { payload: verifiedPayload } = await jwtVerify(token, jwksClient, {
+            issuer: supabaseUrl,
+            audience: 'authenticated',
+          });
+          verificationResult = verifiedPayload;
+        }
       } catch (error) {
         verificationError = error.message;
       }
