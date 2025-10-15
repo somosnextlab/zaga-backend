@@ -41,9 +41,12 @@ export class SupabaseJwtGuard implements CanActivate {
 
     // En modo desarrollo, si no hay configuración de Supabase
     const supabaseUrl = this.configService.get<string>('SUPABASE_PROJECT_URL');
-    const supabaseAuthUrl = supabaseUrl ? `${supabaseUrl}/auth/v1` : 'https://example.supabase.co/auth/v1';
-    const isDevelopment = !supabaseUrl || supabaseUrl === 'https://example.supabase.co';
-    
+    const supabaseAuthUrl = supabaseUrl
+      ? `${supabaseUrl}/auth/v1`
+      : 'https://example.supabase.co/auth/v1';
+    const isDevelopment =
+      !supabaseUrl || supabaseUrl === 'https://example.supabase.co';
+
     if (isDevelopment) {
       // Si no hay token, permitir acceso con usuario de desarrollo por defecto
       if (!token) {
@@ -60,12 +63,13 @@ export class SupabaseJwtGuard implements CanActivate {
       // Si hay token, intentar validarlo como JWT local (solo en desarrollo)
       try {
         const payload = this.jwtService.verify(token);
-        
+
         // Validar que el rol sea válido
         const validRoles = ['admin', 'cliente'];
-        const finalRole = payload.rol && validRoles.includes(payload.rol) 
-          ? payload.rol 
-          : 'cliente';
+        const finalRole =
+          payload.rol && validRoles.includes(payload.rol)
+            ? payload.rol
+            : 'cliente';
 
         request.user = {
           user_id: payload.sub,
@@ -94,8 +98,10 @@ export class SupabaseJwtGuard implements CanActivate {
 
     try {
       // Obtener la clave secreta de Supabase
-      const supabaseSecret = this.configService.get<string>('SUPABASE_JWT_SECRET');
-      
+      const supabaseSecret = this.configService.get<string>(
+        'SUPABASE_JWT_SECRET',
+      );
+
       let payload;
       if (supabaseSecret && supabaseSecret !== 'your_jwt_secret_key_here') {
         // Usar clave secreta de Supabase para validación HS256
@@ -107,16 +113,22 @@ export class SupabaseJwtGuard implements CanActivate {
         payload = result.payload;
       } else {
         // Fallback a JWKS si no hay clave secreta configurada
-        const { payload: jwksPayload } = await jwtVerify(token, this.jwksClient, {
-          issuer: supabaseAuthUrl,
-          audience: 'authenticated',
-        });
+        const { payload: jwksPayload } = await jwtVerify(
+          token,
+          this.jwksClient,
+          {
+            issuer: supabaseAuthUrl,
+            audience: 'authenticated',
+          },
+        );
         payload = jwksPayload;
       }
 
       // Extraer información del usuario del payload
       const userMetadata = (
-        payload as { user_metadata?: { role?: string; rol?: string; persona_id?: string } }
+        payload as {
+          user_metadata?: { role?: string; rol?: string; persona_id?: string };
+        }
       ).user_metadata;
       const userRole = userMetadata?.role || userMetadata?.rol;
 
