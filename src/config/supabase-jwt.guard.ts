@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { jwtVerify, createRemoteJWKSet } from 'jose';
 
 import { IS_PUBLIC_KEY } from './roles.decorator';
 
@@ -92,10 +92,26 @@ export class SupabaseJwtGuard implements CanActivate {
     }
 
     try {
-      const { payload } = await jwtVerify(token, this.jwksClient, {
-        issuer: supabaseUrl,
-        audience: 'authenticated',
-      });
+      // Obtener la clave secreta de Supabase
+      const supabaseSecret = this.configService.get<string>('SUPABASE_JWT_SECRET');
+      
+      let payload;
+      if (supabaseSecret && supabaseSecret !== 'your_jwt_secret_key_here') {
+        // Usar clave secreta de Supabase para validación HS256
+        const secretKey = new TextEncoder().encode(supabaseSecret);
+        const result = await jwtVerify(token, secretKey, {
+          issuer: supabaseUrl,
+          audience: 'authenticated',
+        });
+        payload = result.payload;
+      } else {
+        // Fallback a JWKS si no hay clave secreta configurada
+        const { payload: jwksPayload } = await jwtVerify(token, this.jwksClient, {
+          issuer: supabaseUrl,
+          audience: 'authenticated',
+        });
+        payload = jwksPayload;
+      }
 
       // Extraer información del usuario del payload
       const userMetadata = (
