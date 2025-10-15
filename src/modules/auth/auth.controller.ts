@@ -75,6 +75,7 @@ export class AuthController {
 
       // Información del entorno
       const supabaseUrl = this.configService.get<string>('SUPABASE_PROJECT_URL');
+      const supabaseAuthUrl = supabaseUrl ? `${supabaseUrl}/auth/v1` : 'https://example.supabase.co/auth/v1';
       const jwksUrl = this.configService.get<string>('SUPABASE_JWKS_URL');
       const supabaseJwtSecret = this.configService.get<string>('SUPABASE_JWT_SECRET');
       const nodeEnv = this.configService.get<string>('NODE_ENV');
@@ -95,7 +96,7 @@ export class AuthController {
           // Usar clave secreta de Supabase para validación HS256
           const secretKey = new TextEncoder().encode(supabaseJwtSecret);
           const result = await jwtVerify(token, secretKey, {
-            issuer: supabaseUrl,
+            issuer: supabaseAuthUrl,
             audience: 'authenticated',
           });
           verificationResult = result.payload;
@@ -103,7 +104,7 @@ export class AuthController {
           // Fallback a JWKS si no hay clave secreta configurada
           const jwksClient = this.jwksClientService.getClient();
           const { payload: verifiedPayload } = await jwtVerify(token, jwksClient, {
-            issuer: supabaseUrl,
+            issuer: supabaseAuthUrl,
             audience: 'authenticated',
           });
           verificationResult = verifiedPayload;
