@@ -2,7 +2,20 @@
 
 ## Descripción
 
-Este documento explica cómo usar el sistema de autenticación para probar los endpoints en Swagger.
+Este documento explica cómo usar el sistema de autenticación para probar los endpoints en Swagger en diferentes entornos.
+
+## 🔒 **Seguridad por Entorno**
+
+### **Desarrollo Local**
+- ✅ Usa JWT locales generados por `/auth/login`
+- ✅ Credenciales de desarrollo para testing
+- ✅ Acceso automático sin token (modo desarrollo)
+
+### **Producción (Railway)**
+- 🔒 **Solo Supabase Auth** - Máxima seguridad
+- 🔒 Tokens validados criptográficamente
+- 🔒 Rotación automática de claves
+- 🔒 Auditoría y monitoreo completo
 
 ## Endpoints Disponibles
 
@@ -94,6 +107,61 @@ JWT_EXPIRES_IN=24h
 ## Notas Importantes
 
 - Los tokens JWT tienen una duración de 24 horas por defecto
-- En modo desarrollo, si no hay configuración de Supabase, se permite acceso automático
+- En modo desarrollo, el sistema acepta tanto tokens JWT locales como tokens de Supabase
+- Si no hay configuración de Supabase, el sistema usa JWT locales para autenticación
 - Las credenciales de desarrollo son solo para testing, no para producción
 - El endpoint de salud no requiere autenticación para facilitar el monitoreo del sistema
+- El token generado por `/auth/login` es compatible con todos los endpoints protegidos
+
+## Solución de Problemas
+
+### Error "Token inválido o expirado"
+Si recibes este error después de usar el token del endpoint `/auth/login`:
+
+1. **Verifica que estés en modo desarrollo**: El sistema debe estar configurado sin Supabase
+2. **Revisa la configuración**: Asegúrate de que `SUPABASE_PROJECT_URL` no esté configurado o sea `https://example.supabase.co`
+3. **Token expirado**: Los tokens duran 24 horas, genera uno nuevo si es necesario
+4. **Formato del token**: Asegúrate de incluir "Bearer " antes del token en Swagger
+
+## 🚀 **Para Producción (Railway)**
+
+### **Obtener Token de Supabase**
+
+1. **Configura Supabase**:
+   ```env
+   SUPABASE_PROJECT_URL=https://tu-proyecto.supabase.co
+   SUPABASE_JWKS_URL=https://tu-proyecto.supabase.co/auth/v1/keys
+   ```
+
+2. **Usa el SDK de Supabase**:
+   ```javascript
+   import { createClient } from '@supabase/supabase-js'
+   
+   const supabase = createClient(
+     'https://tu-proyecto.supabase.co',
+     'tu-anon-key'
+   )
+   
+   const { data, error } = await supabase.auth.signInWithPassword({
+     email: 'usuario@ejemplo.com',
+     password: 'tu-password'
+   })
+   
+   const token = data.session.access_token
+   ```
+
+3. **O desde la consola de Supabase**:
+   - Ve a tu proyecto en [supabase.com](https://supabase.com)
+   - Authentication → Users
+   - Genera un token de prueba
+
+4. **Usa el token en Swagger**:
+   - Formato: `Bearer <supabase_token>`
+   - El token debe ser válido y no expirado
+
+### **Endpoint de Ayuda**
+- `GET /auth/supabase-token` - Información sobre autenticación con Supabase
+
+### Modo de Funcionamiento
+- **Desarrollo**: Usa JWT locales generados por `/auth/login`
+- **Producción**: Usa tokens de Supabase para autenticación (máxima seguridad)

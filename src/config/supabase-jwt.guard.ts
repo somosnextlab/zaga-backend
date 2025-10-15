@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
+import { JwtService } from '@nestjs/jwt';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 import { IS_PUBLIC_KEY } from './roles.decorator';
@@ -19,6 +20,7 @@ export class SupabaseJwtGuard implements CanActivate {
     private readonly configService: ConfigService,
     private readonly jwksClientService: JwksClientService,
     private readonly reflector: Reflector,
+    private readonly jwtService: JwtService,
   ) {
     this.jwksClient = this.jwksClientService.getClient();
   }
@@ -37,17 +39,52 @@ export class SupabaseJwtGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
 
-    // En modo desarrollo, si no hay configuración de Supabase, permitir acceso
+    // En modo desarrollo, si no hay configuración de Supabase
     const supabaseUrl = this.configService.get<string>('SUPABASE_PROJECT_URL');
-    if (!supabaseUrl || supabaseUrl === 'https://example.supabase.co') {
-      request.user = {
-        user_id: '550e8400-e29b-41d4-a716-446655440000', // UUID válido para desarrollo
-        email: 'dev@example.com',
-        email_verified: true, // ✅ Siempre true en dev
-        rol: 'cliente', // Rol válido para desarrollo
-        persona_id: '550e8400-e29b-41d4-a716-446655440001', // UUID válido para desarrollo
-      };
-      return true;
+    const isDevelopment = !supabaseUrl || supabaseUrl === 'https://example.supabase.co';
+    
+    if (isDevelopment) {
+      // Si no hay token, permitir acceso con usuario de desarrollo por defecto
+      if (!token) {
+        request.user = {
+          user_id: '550e8400-e29b-41d4-a716-446655440000',
+          email: 'dev@example.com',
+          email_verified: true,
+          rol: 'cliente',
+          persona_id: '550e8400-e29b-41d4-a716-446655440001',
+        };
+        return true;
+      }
+
+      // Si hay token, intentar validarlo como JWT local (solo en desarrollo)
+      try {
+        const payload = this.jwtService.verify(token);
+        
+        // Validar que el rol sea válido
+        const validRoles = ['admin', 'cliente'];
+        const finalRole = payload.rol && validRoles.includes(payload.rol) 
+          ? payload.rol 
+          : 'cliente';
+
+        request.user = {
+          user_id: payload.sub,
+          email: payload.email,
+          email_verified: true, // En desarrollo siempre true
+          rol: finalRole,
+          persona_id: payload.persona_id,
+        };
+        return true;
+      } catch (error) {
+        // Si el token JWT local es inválido, usar usuario por defecto
+        request.user = {
+          user_id: '550e8400-e29b-41d4-a716-446655440000',
+          email: 'dev@example.com',
+          email_verified: true,
+          rol: 'cliente',
+          persona_id: '550e8400-e29b-41d4-a716-446655440001',
+        };
+        return true;
+      }
     }
 
     if (!token) {
