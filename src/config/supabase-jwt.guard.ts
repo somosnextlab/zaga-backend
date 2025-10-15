@@ -54,7 +54,7 @@ export class SupabaseJwtGuard implements CanActivate {
           user_id: '550e8400-e29b-41d4-a716-446655440000',
           email: 'dev@example.com',
           email_verified: true,
-          rol: 'cliente',
+          rol: 'usuario',
           persona_id: '550e8400-e29b-41d4-a716-446655440001',
         };
         return true;
@@ -65,11 +65,11 @@ export class SupabaseJwtGuard implements CanActivate {
         const payload = this.jwtService.verify(token);
 
         // Validar que el rol sea válido
-        const validRoles = ['admin', 'cliente'];
+        const validRoles = ['admin', 'usuario', 'cliente'];
         const finalRole =
           payload.rol && validRoles.includes(payload.rol)
             ? payload.rol
-            : 'cliente';
+            : 'usuario';
 
         request.user = {
           user_id: payload.sub,
@@ -85,7 +85,7 @@ export class SupabaseJwtGuard implements CanActivate {
           user_id: '550e8400-e29b-41d4-a716-446655440000',
           email: 'dev@example.com',
           email_verified: true,
-          rol: 'cliente',
+          rol: 'usuario',
           persona_id: '550e8400-e29b-41d4-a716-446655440001',
         };
         return true;
@@ -132,10 +132,10 @@ export class SupabaseJwtGuard implements CanActivate {
       ).user_metadata;
       const userRole = userMetadata?.role || userMetadata?.rol;
 
-      // Validar que el rol sea válido, si no, asignar 'cliente' por defecto
-      const validRoles = ['admin', 'cliente'];
+      // Validar que el rol sea válido, si no, asignar 'usuario' por defecto
+      const validRoles = ['admin', 'usuario', 'cliente'];
       const finalRole =
-        userRole && validRoles.includes(userRole) ? userRole : 'cliente';
+        userRole && validRoles.includes(userRole) ? userRole : 'usuario';
 
       request.user = {
         user_id: payload.sub,

@@ -1,5 +1,6 @@
 import { AuthModule as ConfigAuthModule } from '@config/auth.module';
 import { AuthModule } from '@modules/auth/auth.module';
+import { ClientesModule } from '@modules/clientes/clientes.module';
 import { SaludModule } from '@modules/salud/salud.module';
 import { UsuariosModule } from '@modules/usuarios/usuarios.module';
 import { Module } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { PrismaModule } from '@shared/prisma.service';
     PrismaModule,
     SaludModule,
     UsuariosModule,
+    ClientesModule,
   ],
 })
 export class AppModule {}

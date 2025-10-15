@@ -156,11 +156,11 @@ export class UsuariosController {
   }
 
   @Get(':id')
-  @Roles('admin')
+  @Roles('admin', 'usuario')
   @ApiOperation({
     summary: 'Obtener usuario por ID',
     description:
-      'Endpoint para obtener un usuario específico por su ID (solo administradores)',
+      'Endpoint para obtener un usuario específico por su ID (admin y usuario)',
   })
   @ApiResponse({
     status: 200,
@@ -198,11 +198,11 @@ export class UsuariosController {
   }
 
   @Delete(':id')
-  @Roles('admin')
+  @Roles('admin', 'usuario')
   @ApiOperation({
     summary: 'Desactivar usuario',
     description:
-      'Endpoint para desactivar un usuario (soft delete) - solo administradores',
+      'Endpoint para desactivar un usuario (soft delete) - admin y usuario',
   })
   @ApiResponse({
     status: 200,
