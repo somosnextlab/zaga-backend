@@ -3,12 +3,12 @@ import { RolesGuard } from '@config/roles.guard';
 import { SupabaseJwtGuard } from '@config/supabase-jwt.guard';
 import {
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
-  Query,
-  DefaultValuePipe,
   ParseIntPipe,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
