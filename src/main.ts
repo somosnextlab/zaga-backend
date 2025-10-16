@@ -45,13 +45,20 @@ async function bootstrap() {
   });
 
   // Configuración de Swagger para documentación de API
-  const config = new DocumentBuilder()
+  const configBuilder = new DocumentBuilder()
     .setTitle('Zaga API')
     .setDescription('API para el sistema de gestión de préstamos Zaga')
     .setVersion('1.0')
     .addTag('salud', 'Endpoints de salud del sistema (sin autenticación)')
-    .addTag('auth', 'Autenticación y autorización')
     .addTag('usuarios', 'Gestión de usuarios y perfiles')
+    .addTag('clientes', 'Gestión de clientes');
+
+  // Solo agregar el tag de auth en desarrollo
+  if (process.env.NODE_ENV !== 'production') {
+    configBuilder.addTag('auth', 'Autenticación y autorización');
+  }
+
+  const config = configBuilder
     .addBearerAuth(
       {
         type: 'http',

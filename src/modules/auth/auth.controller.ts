@@ -1,5 +1,10 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeEndpoint,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { AuthService } from './auth.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
@@ -11,6 +16,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @ApiExcludeEndpoint(process.env.NODE_ENV === 'production')
   @ApiOperation({
     summary: 'Iniciar sesión',
     description: 'Endpoint para autenticar usuarios con email y contraseña',
@@ -26,6 +32,7 @@ export class AuthController {
   }
 
   @Get('health')
+  @ApiExcludeEndpoint(process.env.NODE_ENV === 'production')
   @ApiOperation({
     summary: 'Health check del servicio de autenticación',
     description: 'Verifica el estado del servicio de autenticación',
@@ -41,5 +48,4 @@ export class AuthController {
       service: 'auth',
     };
   }
-
 }
