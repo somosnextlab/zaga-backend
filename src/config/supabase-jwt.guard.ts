@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { jwtVerify, createRemoteJWKSet } from 'jose';
+import { createRemoteJWKSet,jwtVerify } from 'jose';
 
 import { IS_PUBLIC_KEY } from './roles.decorator';
 
