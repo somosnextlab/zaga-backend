@@ -131,6 +131,27 @@ export class UsuariosController {
     return this.usuariosService.updateMe(updatePerfilDto, req.user.user_id);
   }
 
+  @Get('rol-usuario')
+  @Roles('admin', 'cliente', 'usuario')
+  @ApiOperation({
+    summary: 'Obtener rol del usuario',
+    description:
+      'Endpoint para obtener el rol del usuario autenticado desde la base de datos',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rol del usuario obtenido exitosamente',
+    type: RolResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado o inactivo' })
+  @ApiResponse({ status: 500, description: 'Error interno del servidor' })
+  async obtenerRolUsuario(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<RolResponseDto> {
+    return this.usuariosService.obtenerRolUsuario(req.user.user_id);
+  }
+
   @Get(':id')
   @Roles('admin', 'usuario')
   @ApiOperation({
@@ -298,26 +319,5 @@ export class UsuariosController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.usuariosService.crearPerfil(createPerfilDto, req.user.user_id);
-  }
-
-  @Get('rol-usuario')
-  @Roles('admin', 'cliente', 'usuario')
-  @ApiOperation({
-    summary: 'Obtener rol del usuario',
-    description:
-      'Endpoint para obtener el rol del usuario autenticado desde la base de datos',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Rol del usuario obtenido exitosamente',
-    type: RolResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
-  @ApiResponse({ status: 404, description: 'Usuario no encontrado o inactivo' })
-  @ApiResponse({ status: 500, description: 'Error interno del servidor' })
-  async obtenerRolUsuario(
-    @Req() req: AuthenticatedRequest,
-  ): Promise<RolResponseDto> {
-    return this.usuariosService.obtenerRolUsuario(req.user.user_id);
   }
 }
