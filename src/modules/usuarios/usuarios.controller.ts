@@ -24,6 +24,7 @@ import {
 
 import { CambiarEmailDto } from './dtos/cambiar-email.dto';
 import { CreatePerfilDto } from './dtos/create-perfil.dto';
+import { RolResponseDto } from './dtos/rol-response.dto';
 import { UpdatePerfilDto } from './dtos/update-perfil.dto';
 import { UsuariosService } from './usuarios.service';
 
@@ -322,5 +323,26 @@ export class UsuariosController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.usuariosService.crearPerfil(createPerfilDto, req.user.user_id);
+  }
+
+  @Get('mi-rol')
+  @Roles('admin', 'cliente', 'usuario')
+  @ApiOperation({
+    summary: 'Obtener mi rol',
+    description:
+      'Endpoint para obtener el rol del usuario autenticado desde la base de datos',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rol del usuario obtenido exitosamente',
+    type: RolResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado o inactivo' })
+  @ApiResponse({ status: 500, description: 'Error interno del servidor' })
+  async obtenerMiRol(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<RolResponseDto> {
+    return this.usuariosService.obtenerRolUsuario(req.user.user_id);
   }
 }
