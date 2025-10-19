@@ -411,4 +411,44 @@ export class UsuariosService {
       throw error;
     }
   }
+
+  /**
+   * Obtiene el rol del usuario autenticado
+   * @param userId - ID del usuario autenticado
+   * @returns Objeto con el rol del usuario
+   */
+  async obtenerRolUsuario(userId: string) {
+    this.logger.log(`Obteniendo rol para usuario: ${userId}`);
+
+    try {
+      const usuario = await this.prisma.seguridad_usuarios.findUnique({
+        where: { user_id: userId },
+        select: {
+          rol: true,
+          estado: true,
+        },
+      });
+
+      if (!usuario) {
+        throw new NotFoundException('Usuario no encontrado en la base de datos');
+      }
+
+      if (usuario.estado !== 'activo') {
+        throw new NotFoundException('Usuario inactivo');
+      }
+
+      this.logger.log(`Rol obtenido exitosamente para usuario ${userId}: ${usuario.rol}`);
+
+      return {
+        success: true,
+        role: usuario.rol,
+      };
+    } catch (error) {
+      this.logger.error('Error al obtener rol del usuario:', error);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error('Error al obtener rol del usuario');
+    }
+  }
 }
