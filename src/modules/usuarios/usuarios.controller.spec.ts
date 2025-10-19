@@ -13,7 +13,7 @@ describe('UsuariosController', () => {
   // Mock del servicio
   const mockUsuariosService = {
     findAll: jest.fn(),
-    findMe: jest.fn(),
+    obtenerRolUsuario: jest.fn(),
     crearPerfil: jest.fn(),
     updateMe: jest.fn(),
     deactivateUser: jest.fn(),
@@ -99,27 +99,12 @@ describe('UsuariosController', () => {
     });
   });
 
-  describe('findMe', () => {
-    it('debería retornar el perfil del usuario autenticado', async () => {
+  describe('obtenerRolUsuario', () => {
+    it('debería retornar el rol del usuario autenticado', async () => {
       // Arrange
-      const mockUser = {
-        user_id: 'user-123',
-        persona_id: 'persona-123',
-        rol: 'cliente',
-        estado: 'activo',
-        created_at: new Date(),
-        updated_at: new Date(),
-        persona: {
-          id: 'persona-123',
-          nombre: 'Juan',
-          apellido: 'Pérez',
-          email: 'juan@example.com',
-        },
-      };
-
       const expectedResponse = {
         success: true,
-        data: mockUser,
+        role: 'cliente',
       };
 
       const mockRequest = {
@@ -128,22 +113,22 @@ describe('UsuariosController', () => {
         },
       };
 
-      mockUsuariosService.findMe.mockResolvedValue(expectedResponse);
+      mockUsuariosService.obtenerRolUsuario.mockResolvedValue(expectedResponse);
 
       // Act
-      const result = await controller.findMe(mockRequest);
+      const result = await controller.obtenerRolUsuario(mockRequest);
 
       // Assert
       expect(result).toEqual(expectedResponse);
-      expect(service.findMe).toHaveBeenCalledWith('user-123');
-      expect(service.findMe).toHaveBeenCalledTimes(1);
+      expect(service.obtenerRolUsuario).toHaveBeenCalledWith('user-123');
+      expect(service.obtenerRolUsuario).toHaveBeenCalledTimes(1);
     });
 
     it('debería retornar error cuando el usuario no existe', async () => {
       // Arrange
       const expectedResponse = {
         success: false,
-        message: 'Usuario no encontrado',
+        message: 'Usuario no encontrado en la base de datos',
       };
 
       const mockRequest = {
@@ -152,17 +137,17 @@ describe('UsuariosController', () => {
         },
       };
 
-      mockUsuariosService.findMe.mockResolvedValue(expectedResponse);
+      mockUsuariosService.obtenerRolUsuario.mockResolvedValue(expectedResponse);
 
       // Act
-      const result = await controller.findMe(mockRequest);
+      const result = await controller.obtenerRolUsuario(mockRequest);
 
       // Assert
       expect(result).toEqual(expectedResponse);
-      expect(service.findMe).toHaveBeenCalledWith('user-no-existe');
+      expect(service.obtenerRolUsuario).toHaveBeenCalledWith('user-no-existe');
     });
 
-    it('debería manejar errores al obtener perfil del usuario', async () => {
+    it('debería manejar errores al obtener rol del usuario', async () => {
       // Arrange
       const error = new Error('Error de base de datos');
       const mockRequest = {
@@ -171,13 +156,13 @@ describe('UsuariosController', () => {
         },
       };
 
-      mockUsuariosService.findMe.mockRejectedValue(error);
+      mockUsuariosService.obtenerRolUsuario.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(controller.findMe(mockRequest)).rejects.toThrow(
+      await expect(controller.obtenerRolUsuario(mockRequest)).rejects.toThrow(
         'Error de base de datos',
       );
-      expect(service.findMe).toHaveBeenCalledWith('user-123');
+      expect(service.obtenerRolUsuario).toHaveBeenCalledWith('user-123');
     });
   });
 

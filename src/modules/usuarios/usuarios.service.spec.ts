@@ -110,64 +110,13 @@ describe('UsuariosService', () => {
     });
   });
 
-  describe('findMe', () => {
-    it('debería retornar el perfil del usuario con datos de persona', async () => {
+  describe('obtenerRolUsuario', () => {
+    it('debería retornar el rol del usuario cuando existe y está activo', async () => {
       // Arrange
       const userId = 'user-123';
       const mockUsuario = {
-        user_id: userId,
-        persona_id: 'persona-123',
         rol: 'cliente',
         estado: 'activo',
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      const mockPersona = {
-        id: 'persona-123',
-        nombre: 'Juan',
-        apellido: 'Pérez',
-        email: 'juan@example.com',
-        telefono: '+54911234567',
-      };
-
-      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(
-        mockUsuario,
-      );
-      mockPrismaService.financiera_personas.findUnique.mockResolvedValue(
-        mockPersona,
-      );
-
-      // Act
-      const result = await service.findMe(userId);
-
-      // Assert
-      expect(result).toEqual({
-        ...mockUsuario,
-        persona: mockPersona,
-      });
-      expect(
-        mockPrismaService.seguridad_usuarios.findUnique,
-      ).toHaveBeenCalledWith({
-        where: { user_id: userId },
-      });
-      expect(
-        mockPrismaService.financiera_personas.findUnique,
-      ).toHaveBeenCalledWith({
-        where: { id: 'persona-123' },
-      });
-    });
-
-    it('debería retornar usuario sin datos de persona cuando no tiene persona_id', async () => {
-      // Arrange
-      const userId = 'user-123';
-      const mockUsuario = {
-        user_id: userId,
-        persona_id: null,
-        rol: 'cliente',
-        estado: 'activo',
-        created_at: new Date(),
-        updated_at: new Date(),
       };
 
       mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(
@@ -175,21 +124,22 @@ describe('UsuariosService', () => {
       );
 
       // Act
-      const result = await service.findMe(userId);
+      const result = await service.obtenerRolUsuario(userId);
 
       // Assert
       expect(result).toEqual({
-        ...mockUsuario,
-        persona: null,
+        success: true,
+        role: 'cliente',
       });
       expect(
         mockPrismaService.seguridad_usuarios.findUnique,
       ).toHaveBeenCalledWith({
         where: { user_id: userId },
+        select: {
+          rol: true,
+          estado: true,
+        },
       });
-      expect(
-        mockPrismaService.financiera_personas.findUnique,
-      ).not.toHaveBeenCalled();
     });
 
     it('debería retornar error cuando el usuario no existe', async () => {
@@ -198,8 +148,26 @@ describe('UsuariosService', () => {
       mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.findMe(userId)).rejects.toThrow(
-        'Error al obtener perfil del usuario',
+      await expect(service.obtenerRolUsuario(userId)).rejects.toThrow(
+        'Usuario no encontrado en la base de datos',
+      );
+    });
+
+    it('debería retornar error cuando el usuario está inactivo', async () => {
+      // Arrange
+      const userId = 'user-123';
+      const mockUsuario = {
+        rol: 'cliente',
+        estado: 'inactivo',
+      };
+
+      mockPrismaService.seguridad_usuarios.findUnique.mockResolvedValue(
+        mockUsuario,
+      );
+
+      // Act & Assert
+      await expect(service.obtenerRolUsuario(userId)).rejects.toThrow(
+        'Usuario inactivo',
       );
     });
 
@@ -210,8 +178,8 @@ describe('UsuariosService', () => {
       mockPrismaService.seguridad_usuarios.findUnique.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.findMe(userId)).rejects.toThrow(
-        'Error al obtener perfil del usuario',
+      await expect(service.obtenerRolUsuario(userId)).rejects.toThrow(
+        'Error al obtener rol del usuario',
       );
     });
   });

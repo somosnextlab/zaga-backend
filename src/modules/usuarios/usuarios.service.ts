@@ -48,36 +48,6 @@ export class UsuariosService {
     }
   }
 
-  async findMe(userId: string) {
-    this.logger.log(`Obteniendo perfil del usuario: ${userId}`);
-
-    try {
-      const usuario = await this.prisma.seguridad_usuarios.findUnique({
-        where: { user_id: userId },
-      });
-
-      if (!usuario) {
-        throw new NotFoundException('Usuario no encontrado');
-      }
-
-      // Si tiene persona_id, obtener datos de la persona
-      let persona = null;
-      if (usuario.persona_id) {
-        persona = await this.prisma.financiera_personas.findUnique({
-          where: { id: usuario.persona_id },
-        });
-      }
-
-      return {
-        ...usuario,
-        persona,
-      };
-    } catch (error) {
-      this.logger.error('Error al obtener perfil del usuario:', error);
-      throw new Error('Error al obtener perfil del usuario');
-    }
-  }
-
   async findOne(userId: string) {
     this.logger.log(`Obteniendo usuario por ID: ${userId}`);
 
@@ -247,7 +217,8 @@ export class UsuariosService {
 
       return {
         success: true,
-        message: 'Usuario registrado exitosamente. Ahora puedes cargar tus datos personales.',
+        message:
+          'Usuario registrado exitosamente. Ahora puedes cargar tus datos personales.',
         data: {
           user_id: usuario.user_id,
           rol: usuario.rol,
@@ -273,11 +244,15 @@ export class UsuariosService {
       });
 
       if (!usuarioExistente) {
-        throw new ConflictException('Usuario no registrado. Debe hacer registro inicial primero.');
+        throw new ConflictException(
+          'Usuario no registrado. Debe hacer registro inicial primero.',
+        );
       }
 
       if (usuarioExistente.rol !== 'usuario') {
-        throw new ConflictException('El usuario ya tiene un perfil completo creado');
+        throw new ConflictException(
+          'El usuario ya tiene un perfil completo creado',
+        );
       }
 
       if (usuarioExistente.persona_id) {
@@ -329,9 +304,9 @@ export class UsuariosService {
       // Actualizar usuario con persona_id y cambiar rol a 'cliente'
       await this.prisma.seguridad_usuarios.update({
         where: { user_id: userId },
-        data: { 
+        data: {
           persona_id: persona.id,
-          rol: 'cliente' // Cambiar rol a cliente al cargar datos personales
+          rol: 'cliente', // Cambiar rol a cliente al cargar datos personales
         },
       });
 
@@ -430,14 +405,18 @@ export class UsuariosService {
       });
 
       if (!usuario) {
-        throw new NotFoundException('Usuario no encontrado en la base de datos');
+        throw new NotFoundException(
+          'Usuario no encontrado en la base de datos',
+        );
       }
 
       if (usuario.estado !== 'activo') {
         throw new NotFoundException('Usuario inactivo');
       }
 
-      this.logger.log(`Rol obtenido exitosamente para usuario ${userId}: ${usuario.rol}`);
+      this.logger.log(
+        `Rol obtenido exitosamente para usuario ${userId}: ${usuario.rol}`,
+      );
 
       return {
         success: true,

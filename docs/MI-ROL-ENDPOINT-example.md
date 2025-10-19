@@ -1,4 +1,20 @@
-# Ejemplo de Integración en el Frontend
+# Endpoint de Rol de Usuario - Ejemplo de Integración
+
+## Información del Endpoint
+
+**Ruta**: `GET /usuarios/rol-usuario`
+
+**Propósito**: Obtener el rol del usuario autenticado desde la base de datos
+
+**Roles permitidos**: `admin`, `cliente`, `usuario`
+
+**Respuesta**:
+```json
+{
+  "success": true,
+  "role": "cliente"
+}
+```
 
 ## Reemplazo de consulta directa a Supabase
 
@@ -68,7 +84,7 @@ export async function GET(_request: NextRequest) {
     }
 
     // Llamar al endpoint del backend
-    const response = await fetch(`${process.env.BACKEND_URL}/usuarios/mi-rol`, {
+    const response = await fetch(`${process.env.BACKEND_URL}/usuarios/rol-usuario`, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,
@@ -118,7 +134,7 @@ export const useUserRole = () => {
         setLoading(true);
         setError(null);
 
-        const response = await fetch('/api/usuarios/mi-rol', {
+        const response = await fetch('/api/usuarios/rol-usuario', {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
