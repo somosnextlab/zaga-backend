@@ -58,10 +58,20 @@ jobs:
         echo "SUPABASE_SERVICE_ROLE_KEY=test_service_role_key" >> .env
 
     - name: Generate Prisma Client
-      run: npx prisma generate
+      run: |
+        if [ -f "prisma/schema.prisma" ] && grep -q "model " prisma/schema.prisma; then
+          npx prisma generate
+        else
+          echo "ℹ️  No models defined in schema - skipping Prisma generation (Fase 0)"
+        fi
 
     - name: Push database schema
-      run: npx prisma db push --accept-data-loss
+      run: |
+        if [ -f "prisma/schema.prisma" ] && grep -q "model " prisma/schema.prisma; then
+          npx prisma db push --accept-data-loss
+        else
+          echo "ℹ️  No models to push - skipping database schema (Fase 0)"
+        fi
 
     - name: Run linting
       run: npm run lint
