@@ -1,0 +1,17 @@
+---
+alwaysApply: false
+---
+🔹 Configuración de colas, workers y tareas programadas:
+
+Contenido:
+- Estructura:
+/jobs
+  /queues/*.ts
+  /processors/*.processor.ts
+  /schedulers/*.ts
+
+- Workers corren en proceso aparte.
+- Configurar retries exponenciales, backoff y DLQ.
+- Usar Redis (Upstash/Redis Cloud).
+- Registrar métricas básicas (reintentos, fallos, éxito).
+- Encolar eventos importantes: recordatorios, conciliaciones, intereses.

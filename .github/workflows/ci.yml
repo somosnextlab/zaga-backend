@@ -51,15 +51,11 @@ jobs:
         echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/zaga_test" >> .env
         echo "REDIS_URL=redis://localhost:6379" >> .env
         echo "NODE_ENV=test" >> .env
-        echo "API_PORT=3000" >> .env
+        echo "API_PORT=3001" >> .env
         echo "SUPABASE_PROJECT_URL=https://test.supabase.co" >> .env
         echo "SUPABASE_JWKS_URL=https://test.supabase.co/auth/v1/keys" >> .env
         echo "SUPABASE_ANON_KEY=test_anon_key" >> .env
         echo "SUPABASE_SERVICE_ROLE_KEY=test_service_role_key" >> .env
-        echo "BCRA_API_BASE_URL=https://api.bcra.test/v1" >> .env
-        echo "BCRA_API_KEY=test_key" >> .env
-        echo "AFIP_API_BASE_URL=https://api.afip.test/v1" >> .env
-        echo "AFIP_API_KEY=test_key" >> .env
 
     - name: Generate Prisma Client
       run: npx prisma generate

@@ -1,0 +1,12 @@
+---
+alwaysApply: false
+---
+🔹 Testing, CI/CD y calidad de código.
+
+Contenido:
+- Unit tests: servicios con mocks de Prisma/Supabase.
+- e2e tests: app real con DB temporal (pg-tmp o schema aislado).
+- Contract tests: comparar respuesta real con openapi.json.
+- CI Pipeline: lint → build → test → prisma migrate deploy → e2e smoke → deploy
+- Conventional commits: feat:, fix:, refactor:, test:, etc.
+- PRs pequeños, con checklist: Swagger actualizado, Tests pasan, Lint y format OK, Migraciones incluidas si aplica.

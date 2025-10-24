@@ -1,49 +1,48 @@
-# Multi-stage build para producción
-FROM node:20-alpine AS base
-
-# Instalar dependencias necesarias
-RUN apk add --no-cache libc6-compat openssl libssl3
+# Multi-stage build para Railway
+FROM node:18-alpine AS builder
 
 WORKDIR /app
+
+# Copiar archivos de dependencias
+COPY package*.json ./
+COPY prisma ./prisma/
 
 # Instalar dependencias
-FROM base AS deps
-COPY package*.json ./
-RUN npm ci --only=production --ignore-scripts && npm cache clean --force
+RUN npm ci --only=production && npm cache clean --force
+
+# Generar cliente Prisma
+RUN npx prisma generate
+
+# Copiar código fuente
+COPY . .
 
 # Build de la aplicación
-FROM base AS builder
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npx prisma generate
 RUN npm run build
 
-# Imagen de producción
-FROM base AS runner
+# Etapa de producción
+FROM node:18-alpine AS production
+
 WORKDIR /app
 
-# Crear usuario no-root
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nestjs
+# Instalar dependencias de producción
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
 
-# Copiar archivos necesarios
-COPY --from=deps /app/node_modules ./node_modules
+# Copiar build y archivos necesarios
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/prisma ./prisma
 
-# Cambiar propietario de los archivos
+# Crear usuario no-root
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nestjs -u 1001
+
+# Cambiar ownership
 RUN chown -R nestjs:nodejs /app
 USER nestjs
 
 # Exponer puerto
 EXPOSE 3000
-
-# Variables de entorno
-ENV NODE_ENV=production
-ENV PORT=3000
 
 # Comando de inicio
 CMD ["node", "dist/main.js"]

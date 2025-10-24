@@ -1,0 +1,25 @@
+---
+alwaysApply: true
+---
+🔹 Estructura y convenciones del proyecto:
+
+Contenido:
+- Estructura:
+/src
+  /config
+  /database
+  /supabase
+  /modules (auth, usuarios, prestamos, pagos, notificaciones)
+  /jobs (queues, processors)
+  /common (filters, pipes, utils)
+
+Nombres:
+- Entities Prisma: PascalCase (Usuario, Prestamo).
+- Tablas Postgres: snake_case.
+- Rutas REST: plural kebab-case (/usuarios, /prestamos/:id).
+
+Convenciones:
+- DTOs: create-*.dto.ts, update-*.dto.ts, query-*.dto.ts.
+- Carpetas separadas para lógica (services), controladores y DTOs.
+- Siempre usar TypeScript estricto.
+- No duplicar lógica, no hardcodear valores.

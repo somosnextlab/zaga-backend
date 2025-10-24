@@ -1,23 +1,21 @@
-import { AuthModule as ConfigAuthModule } from '@config/auth.module';
-import { AuthModule } from '@modules/auth/auth.module';
-import { ClientesModule } from '@modules/clientes/clientes.module';
-import { SaludModule } from '@modules/salud/salud.module';
-import { UsuariosModule } from '@modules/usuarios/usuarios.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { PrismaModule } from '@shared/prisma.service';
+import { ConfigService } from './config/config.module';
+import { PrismaService } from './shared/prisma.service';
+import { SaludModule } from './modules/salud/salud.module';
 
 @Module({
   imports: [
+    // Configuración global
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env.development', '.env'],
     }),
-    ConfigAuthModule,
-    AuthModule,
-    PrismaModule,
+    ConfigService,
+
+    // Módulos de la aplicación
     SaludModule,
-    UsuariosModule,
-    ClientesModule,
   ],
+  providers: [PrismaService],
 })
 export class AppModule {}

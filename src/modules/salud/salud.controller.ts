@@ -1,34 +1,32 @@
-import { Public } from '@config/roles.decorator';
 import { Controller, Get } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
-@ApiTags('salud')
+@ApiTags('Salud')
 @Controller('salud')
 export class SaludController {
   @Get()
-  @Public()
-  @ApiOperation({
-    summary: 'Verificar estado del sistema',
-    description:
-      'Endpoint para verificar que el sistema esté funcionando correctamente. No requiere autenticación.',
-  })
+  @ApiOperation({ summary: 'Health check del sistema' })
   @ApiResponse({
     status: 200,
     description: 'Sistema funcionando correctamente',
     schema: {
       type: 'object',
       properties: {
-        ok: { type: 'boolean', example: true },
+        status: { type: 'string', example: 'ok' },
+        timestamp: { type: 'string', example: '2025-01-15T10:30:00.000Z' },
+        uptime: { type: 'number', example: 123.45 },
+        environment: { type: 'string', example: 'development' },
         version: { type: 'string', example: '1.0.0' },
-        timestamp: { type: 'string', format: 'date-time' },
       },
     },
   })
-  getSalud() {
+  getHealth() {
     return {
-      ok: true,
-      version: '1.0.0',
+      status: 'ok',
       timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0',
     };
   }
 }

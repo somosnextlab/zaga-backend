@@ -1,0 +1,16 @@
+---
+alwaysApply: false
+---
+🔹 Diseño de controladores, servicios y DTOs:
+
+Contenido:
+- Controladores delgados, sin lógica de negocio.
+- Servicios con validación y transacciones Prisma.
+- Validación con class-validator + class-transformer.
+- Respuestas estándar:
+{ success: true, data }
+{ success: false, error: { code, message, details? } }
+- Documentar cada endpoint con Swagger: @ApiTags(), @ApiBearerAuth(), @ApiResponse()
+- DTOs usan @ApiProperty() + decoradores (@IsString(), @IsUUID(), etc).
+- Paginación: ?cursor, ?limit, ?page, X-Total-Count.
+- Fechas siempre en UTC.
