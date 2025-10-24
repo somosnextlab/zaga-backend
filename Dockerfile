@@ -14,7 +14,8 @@ RUN npm ci --only=production && npm cache clean --force
 RUN if [ -f "prisma/schema.prisma" ] && grep -q "model " prisma/schema.prisma; then \
         npx prisma generate; \
     else \
-        echo "ℹ️  No models defined in schema - skipping Prisma generation (Fase 0)"; \
+        echo "No models defined in schema - skipping Prisma generation (Fase 0)"; \
+        mkdir -p node_modules/.prisma; \
     fi
 
 # Copiar código fuente
@@ -35,8 +36,8 @@ RUN npm ci --only=production && npm cache clean --force
 # Copiar build y archivos necesarios
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
-# Copiar cliente Prisma solo si existe
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma 2>/dev/null || echo "ℹ️  No Prisma client to copy (Fase 0)"
+# Copiar cliente Prisma si existe
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Crear usuario no-root
 RUN addgroup -g 1001 -S nodejs
