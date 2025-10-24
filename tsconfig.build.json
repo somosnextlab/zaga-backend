@@ -1,13 +1,4 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "**/*.e2e-spec.ts"],
-  "compilerOptions": {
-    "baseUrl": "./",
-    "paths": {
-      "@config/*": ["src/config/*"],
-      "@modules/*": ["src/modules/*"],
-      "@shared/*": ["src/shared/*"],
-      "@adapters/*": ["src/adapters/*"]
-    }
-  }
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "**/*test.ts"]
 }

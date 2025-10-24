@@ -1,0 +1,14 @@
+---
+alwaysApply: true
+---
+
+🔹 Objetivo, stack y estándares generales del proyecto:
+- Proyecto: Financiera Zaga — backend en NestJS + TypeScript.
+- Base de datos: Supabase Postgres con RLS on-behalf-of user.
+- ORM: Prisma, con migraciones controladas.
+- Jobs: BullMQ + Redis.
+- Documentación: Swagger/OpenAPI.
+- Autenticación: Supabase Auth (JWT).
+- Hosting: Railway/Render para backend y worker.
+- Logs: nest-pino, auditoría en cambios críticos.
+- Código estrictamente tipado, modular y seguro.

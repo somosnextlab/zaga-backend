@@ -1,0 +1,18 @@
+---
+alwaysApply: true
+---
+🔹 Variables de entorno, validación y configuración:
+
+Contenido:
+- Módulo /config/config.module.ts valida con zod o joi.
+- Variables mínimas:
+SUPABASE_URL
+SUPABASE_ANON_KEY
+SUPABASE_JWT_SECRET o JWKS
+SERVICE_ROLE_KEY (solo en workers seguros)
+DATABASE_URL
+REDIS_URL
+
+- Nunca loggear secretos ni tokens.
+- No inventar nombres nuevos sin confirmar.
+- Config centralizada accesible vía ConfigService.

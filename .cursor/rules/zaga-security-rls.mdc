@@ -1,0 +1,18 @@
+---
+alwaysApply: false
+---
+🔹 Seguridad, autenticación y reglas de acceso a datos:
+
+Contenido:
+- Patrón on-behalf-of user obligatorio para RLS.
+- Prohibido usar el cliente service-role en controladores o requests.
+
+Roles:
+- admin → ve todo.
+- usuario -> ve datos de registro {email, puede acceder a solicitar un prestamo}
+- cliente → filtra por usuario_id, es quien ya ha cargado datos extra para solicitar un prestamo.
+- Controladores siempre usan SupabaseJwtGuard + RolesGuard.
+- Campos sensibles nunca se exponen.
+- Cliente Supabase se crea por request:
+createClient(SUPABASE_URL, SUPABASE_KEY, { headers: { Authorization: `Bearer ${token}` }})
+- Cada request contiene userId, role, accessToken.

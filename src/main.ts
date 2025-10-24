@@ -1,7 +1,6 @@
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-
+import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -10,88 +9,55 @@ async function bootstrap() {
   // Configuración global de validación
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Elimina propiedades que no están en el DTO
-      forbidNonWhitelisted: true, // Lanza error si hay propiedades no permitidas
-      transform: true, // Transforma automáticamente los tipos
-      transformOptions: {
-        enableImplicitConversion: true, // Convierte tipos implícitamente
-      },
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
     }),
   );
 
-  // Configuración CORS para dominios específicos del frontend
+  // Configuración CORS
   app.enableCors({
-    origin: [
-      'https://zaga.com.ar',
-      'https://zaga-frontend.vercel.app',
-      // Dominios de desarrollo local
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'Cache-Control',
-      'Pragma',
-    ],
-    credentials: true, // Importante para cookies y autenticación
-    optionsSuccessStatus: 200, // Para compatibilidad con navegadores legacy
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? ['https://zaga.com', 'https://www.zaga.com']
+        : true,
+    credentials: true,
   });
 
-  // Configuración de Swagger para documentación de API
-  const configBuilder = new DocumentBuilder()
-    .setTitle('Zaga API')
-    .setDescription('API para el sistema de gestión de préstamos Zaga')
+  // Configuración Swagger
+  const config = new DocumentBuilder()
+    .setTitle('Zaga Backend API')
+    .setDescription('API REST para el sistema de gestión de préstamos Zaga')
     .setVersion('1.0')
-    .addTag('salud', 'Endpoints de salud del sistema (sin autenticación)')
-    .addTag('usuarios', 'Gestión de usuarios y perfiles')
-    .addTag('clientes', 'Gestión de clientes');
-
-  // Solo agregar el tag de auth en desarrollo
-  if (process.env.NODE_ENV !== 'production') {
-    configBuilder.addTag('auth', 'Autenticación y autorización');
-  }
-
-  const config = configBuilder
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
         name: 'JWT',
-        description:
-          'Token JWT de autenticación obtenido del endpoint /auth/login',
+        description: 'Token JWT de Supabase',
         in: 'header',
       },
-      'JWT-auth', // Este nombre debe coincidir con el usado en @ApiBearerAuth()
+      'JWT-auth',
     )
+    .addTag('Salud', 'Endpoints de monitoreo y estado del sistema')
+    .addTag('Autenticación', 'Endpoints de autenticación y autorización')
+    .addTag('Usuarios', 'Gestión de usuarios del sistema')
+    .addTag('Clientes', 'Gestión de clientes')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document, {
+  SwaggerModule.setup('api', app, document, {
     swaggerOptions: {
-      persistAuthorization: true, // Mantiene la autorización entre recargas
+      persistAuthorization: true,
     },
-    customSiteTitle: 'Zaga API Documentation',
-    customfavIcon: 'https://zaga.com.ar/favicon.ico',
-    customCss: `
-      .swagger-ui .topbar { display: none }
-      .swagger-ui .info .title { color: #2563eb }
-    `,
   });
 
-  const port = process.env.API_PORT || 3000;
+  const port = process.env.API_PORT || 3001;
   await app.listen(port);
-  console.log(`🚀 Aplicación ejecutándose en: http://localhost:${port}`);
-  console.log(
-    `📚 Documentación Swagger disponible en: http://localhost:${port}/api/docs`,
-  );
+
+  console.log(`🚀 Servidor Zaga ejecutándose en puerto ${port}`);
+  console.log(`📚 Swagger UI disponible en http://localhost:${port}/api`);
 }
 
 bootstrap();

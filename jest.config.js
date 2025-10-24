@@ -5,15 +5,19 @@ module.exports = {
   transform: {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
-  collectCoverageFrom: ['**/*.(t|j)s'],
+  collectCoverageFrom: [
+    '**/*.(t|j)s',
+    '!**/*.spec.ts',
+    '!**/*.interface.ts',
+    '!**/*.dto.ts',
+    '!**/main.ts',
+  ],
   coverageDirectory: '../coverage',
   testEnvironment: 'node',
-  setupFilesAfterEnv: ['<rootDir>/test-setup.ts'],
   moduleNameMapper: {
-    '^@app/(.*)$': '<rootDir>/$1',
-    '^@modules/(.*)$': '<rootDir>/modules/$1',
-    '^@shared/(.*)$': '<rootDir>/shared/$1',
-    '^@config/(.*)$': '<rootDir>/config/$1',
-    '^@adapters/(.*)$': '<rootDir>/adapters/$1',
+    '^@/(.*)$': '<rootDir>/$1',
+    '^@/config/(.*)$': '<rootDir>/config/$1',
+    '^@/modules/(.*)$': '<rootDir>/modules/$1',
+    '^@/shared/(.*)$': '<rootDir>/shared/$1',
   },
 };

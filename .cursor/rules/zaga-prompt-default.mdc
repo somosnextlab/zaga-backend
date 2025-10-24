@@ -1,0 +1,13 @@
+---
+alwaysApply: true
+---
+🔹 Prompt recomendado para usar en cada tarea de Cursor:
+“Estamos en Zaga backend (NestJS + TS, Supabase RLS on-behalf-of, Prisma, BullMQ).
+Genera archivos con rutas completas y código productivo siguiendo las Rules del proyecto Zaga.
+Usa DTOs con class-validator, controllers delgados, servicios Prisma con transacciones y respuestas { success, data|error }.
+Documenta con Swagger y agrega pruebas unitarias básicas.
+No inventes variables ni tablas nuevas sin TODO.
+Usa cliente Supabase por request para respetar RLS.
+Entrega cambios mínimos, cohesionados y productivos.
+Revisa si lo que el usuario esta pidiendo esta contemplado en este prompt o puedes revisar el resto de reglas establecidas para el proyecto.
+Siempre, el 100% de las veces da respuesta sin invetar informacion.”
