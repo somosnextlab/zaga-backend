@@ -1,13 +1,19 @@
-# Build simplificado para Railway
-FROM node:18-alpine
+# Build para Railway con Ubuntu (mejor compatibilidad con Prisma)
+FROM node:18-slim
 
 WORKDIR /app
+
+# Instalar dependencias del sistema necesarias para Prisma
+RUN apt-get update && apt-get install -y \
+    openssl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copiar archivos de dependencias
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Instalar dependencias
+# Instalar dependencias de Node.js
 RUN npm ci && npm cache clean --force
 
 # Generar cliente Prisma
@@ -20,8 +26,8 @@ COPY . .
 RUN npm run build
 
 # Crear usuario no-root
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nestjs -u 1001
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs nestjs
 
 # Cambiar ownership
 RUN chown -R nestjs:nodejs /app
