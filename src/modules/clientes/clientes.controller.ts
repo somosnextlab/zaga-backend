@@ -26,7 +26,7 @@ import { PaginatedResponse } from '../../common/interfaces/user.interface';
 @ApiTags('Clientes')
 @Controller('clientes')
 @UseGuards(SupabaseJwtGuard, RolesGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 export class ClientesController {
   constructor(private clientesService: ClientesService) {}
 

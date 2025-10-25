@@ -16,7 +16,7 @@ import { ApiResponse } from '../../common/interfaces/user.interface';
 @ApiTags('Autenticación')
 @Controller('auth')
 @UseGuards(SupabaseJwtGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
