@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
@@ -10,15 +11,58 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Configuración base para conectar con Supabase
-// Los modelos se agregarán en fases posteriores cuando se conecte con la DB existente
+// ===========================================
+// MODELOS DE SEGURIDAD
+// ===========================================
 
-// Modelo temporal para permitir generación del cliente Prisma en Fase 0
-// Este modelo se eliminará cuando se implementen los modelos reales
-model TempModel {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Usuario {
+  user_id    String   @id @db.Uuid
+  persona_id String?  @db.Uuid
+  rol        String   @db.Text
+  estado     String   @db.Text
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+  
+  // Relaciones
+  persona    Persona? @relation(fields: [persona_id], references: [id], onDelete: SetNull)
+  
+  @@map("seguridad.usuarios")
+}
 
-  @@map("temp_model")
+// ===========================================
+// MODELOS FINANCIEROS
+// ===========================================
+
+model Persona {
+  id                String    @id @default(uuid()) @db.Uuid
+  tipo_doc          String    @db.Text
+  numero_doc        String    @db.Text
+  nombre            String    @db.Text
+  apellido          String    @db.Text
+  email             String?   @db.Text
+  telefono          String?   @db.Text
+  fecha_nac         DateTime? @db.Date
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(6)
+  
+  // Relaciones
+  usuarios          Usuario[]
+  clientes          Cliente[]
+  
+  // Índices únicos
+  @@unique([tipo_doc, numero_doc], name: "personas_tipo_doc_numero_doc_key")
+  @@map("financiera.personas")
+}
+
+model Cliente {
+  id         String   @id @default(uuid()) @db.Uuid
+  persona_id String   @db.Uuid
+  estado     String   @db.Text
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+  
+  // Relaciones
+  persona    Persona  @relation(fields: [persona_id], references: [id], onDelete: Cascade)
+  
+  @@map("financiera.clientes")
 }
