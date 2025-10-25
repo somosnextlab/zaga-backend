@@ -20,7 +20,14 @@ async function bootstrap() {
     origin:
       process.env.NODE_ENV === 'production'
         ? ['https://zaga.com', 'https://www.zaga.com']
-        : true,
+        : [
+            'https://zaga.com',
+            'https://www.zaga.com',
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:5173', // Vite dev server
+            'http://localhost:8080', // Vue dev server
+          ],
     credentials: true,
   });
 
