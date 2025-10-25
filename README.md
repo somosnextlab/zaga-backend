@@ -34,15 +34,6 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 - **`usuario`**: Usuario registrado con perfil básico
 - **`cliente`**: Usuario con datos completos para préstamos
 
-### **Flujo de Usuario**
-```
-Registro → usuario → Carga datos → cliente
-```
-
-### **Tablas Principales**
-- `seguridad.usuarios` - Control de acceso y roles
-- `financiera.personas` - Datos personales
-- `financiera.clientes` - Relación comercial
 
 ## 📋 **Endpoints Principales**
 
@@ -81,13 +72,6 @@ npm run prisma:studio
 npm run test
 npm run test:e2e
 ```
-
-## 🛡️ **Seguridad**
-
-- **Autenticación**: Supabase Auth con JWT
-- **Autorización**: Roles granulares (admin/usuario/cliente)
-- **Validación**: DTOs con class-validator
-- **Base de datos**: Row Level Security (RLS)
 
 ## 📊 **Swagger**
 
@@ -135,4 +119,4 @@ src/
 
 ---
 
-**Desarrollado por NextLab** | **Versión 2.0** | **2025**
+**Desarrollado por NextLab** | **Versión 1.0** | **2025**

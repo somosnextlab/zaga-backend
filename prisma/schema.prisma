@@ -12,3 +12,13 @@ datasource db {
 
 // Configuración base para conectar con Supabase
 // Los modelos se agregarán en fases posteriores cuando se conecte con la DB existente
+
+// Modelo temporal para permitir generación del cliente Prisma en Fase 0
+// Este modelo se eliminará cuando se implementen los modelos reales
+model TempModel {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("temp_model")
+}

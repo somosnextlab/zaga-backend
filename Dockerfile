@@ -10,13 +10,8 @@ COPY prisma ./prisma/
 # Instalar dependencias
 RUN npm ci && npm cache clean --force
 
-# Generar cliente Prisma (solo si hay modelos)
-RUN if [ -f "prisma/schema.prisma" ] && grep -q "model " prisma/schema.prisma; then \
-        npx prisma generate; \
-    else \
-        echo "No models defined in schema - skipping Prisma generation (Fase 0)"; \
-        mkdir -p node_modules/.prisma; \
-    fi
+# Generar cliente Prisma
+RUN npx prisma generate
 
 # Copiar código fuente
 COPY . .
