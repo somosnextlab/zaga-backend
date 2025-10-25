@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../shared/prisma.service';
 import { SupabaseService } from '../../supabase/supabase.service';
