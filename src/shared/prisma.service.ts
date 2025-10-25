@@ -9,18 +9,30 @@ export class PrismaService
 {
   constructor(private configService: ConfigService) {
     const databaseUrl = configService.get<string>('DATABASE_URL');
-    const isProduction = configService.get<string>('NODE_ENV') === 'production';
+    const nodeEnv = configService.get<string>('NODE_ENV');
+    
+    // Detectar si estamos en un entorno con PgBouncer (Railway, Render, etc.)
+    const isProduction = nodeEnv === 'production';
+    const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID;
+    const isRender = process.env.RENDER;
+    const isHeroku = process.env.HEROKU_APP_NAME;
+    
+    // Aplicar pgbouncer=true si estamos en producción O en plataformas que usan PgBouncer
+    const needsPgbouncer = isProduction || isRailway || isRender || isHeroku;
+    const hasPgbouncer = databaseUrl && databaseUrl.includes('pgbouncer=true');
+    
+    const finalDatabaseUrl = needsPgbouncer && !hasPgbouncer && databaseUrl
+      ? `${databaseUrl}?pgbouncer=true`
+      : databaseUrl;
     
     super({
       datasources: {
         db: {
-          url: isProduction && databaseUrl && !databaseUrl.includes('pgbouncer=true')
-            ? `${databaseUrl}?pgbouncer=true`
-            : databaseUrl,
+          url: finalDatabaseUrl,
         },
       },
       log:
-        configService.get<string>('NODE_ENV') === 'development'
+        nodeEnv === 'development'
           ? ['query', 'info', 'warn', 'error']
           : ['error'],
     });
@@ -31,21 +43,33 @@ export class PrismaService
       await this.$connect();
       console.log('📋 PrismaService conectado a la base de datos');
 
-      // Verificar conexión con una consulta simple (evitar prepared statements en producción)
-      const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
-      if (isProduction) {
-        // En producción, usar una consulta más simple que no genere prepared statements
+      // Detectar si necesitamos evitar prepared statements
+      const nodeEnv = this.configService.get<string>('NODE_ENV');
+      const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID;
+      const isRender = process.env.RENDER;
+      const isHeroku = process.env.HEROKU_APP_NAME;
+      const needsPgbouncer = nodeEnv === 'production' || isRailway || isRender || isHeroku;
+
+      if (needsPgbouncer) {
+        // En entornos con PgBouncer, usar executeRaw para evitar prepared statements
         await this.$executeRaw`SELECT 1`;
+        console.log('✅ Conexión verificada (modo PgBouncer)');
       } else {
-        // En desarrollo, usar queryRaw para debugging
+        // En desarrollo local, usar queryRaw para debugging
         await this.$queryRaw`SELECT 1`;
+        console.log('✅ Conexión a base de datos verificada');
       }
-      console.log('✅ Conexión a base de datos verificada');
     } catch (error) {
       console.error('❌ Error conectando a la base de datos:', error);
-      // En producción, no fallar si hay problemas con prepared statements
-      const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
-      if (isProduction && error.code === 'P2010') {
+      
+      // En entornos con PgBouncer, no fallar si hay problemas con prepared statements
+      const nodeEnv = this.configService.get<string>('NODE_ENV');
+      const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID;
+      const isRender = process.env.RENDER;
+      const isHeroku = process.env.HEROKU_APP_NAME;
+      const needsPgbouncer = nodeEnv === 'production' || isRailway || isRender || isHeroku;
+      
+      if (needsPgbouncer && error.code === 'P2010') {
         console.warn('⚠️ Advertencia: Problema con prepared statements, continuando sin verificación');
         return;
       }
@@ -81,12 +105,17 @@ export class PrismaService
    */
   async isHealthy(): Promise<boolean> {
     try {
-      const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
-      if (isProduction) {
-        // En producción, usar executeRaw para evitar prepared statements
+      const nodeEnv = this.configService.get<string>('NODE_ENV');
+      const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID;
+      const isRender = process.env.RENDER;
+      const isHeroku = process.env.HEROKU_APP_NAME;
+      const needsPgbouncer = nodeEnv === 'production' || isRailway || isRender || isHeroku;
+
+      if (needsPgbouncer) {
+        // En entornos con PgBouncer, usar executeRaw para evitar prepared statements
         await this.$executeRaw`SELECT 1`;
       } else {
-        // En desarrollo, usar queryRaw para debugging
+        // En desarrollo local, usar queryRaw para debugging
         await this.$queryRaw`SELECT 1`;
       }
       return true;
