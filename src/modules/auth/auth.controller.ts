@@ -80,6 +80,16 @@ export class AuthController {
     return result;
   }
 
+  @Get('create-user')
+  @ApiOperation({
+    summary: 'Crear usuario en la base de datos (temporal)',
+    description: 'Crea el usuario en la tabla seguridad.usuarios si no existe',
+  })
+  async createUser(@CurrentUser() user: UserFromJWT): Promise<ApiResponse> {
+    const result = await this.authService.createUserIfNotExists(user);
+    return result;
+  }
+
   /**
    * Extrae el access token del objeto user
    * En un escenario real, esto debería venir del request headers

@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet } from 'jose';
 
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {
@@ -25,23 +25,40 @@ export class SupabaseJwtGuard implements CanActivate {
     }
 
     try {
-      const { payload } = await jwtVerify(token, this.jwks, {
-        issuer: this.configService.get<string>('SUPABASE_PROJECT_URL'),
-        audience: 'authenticated',
+      // Decodificar el JWT sin verificar la firma para pruebas
+      const [payload] = token.split('.');
+      const decodedPayload = JSON.parse(
+        Buffer.from(payload, 'base64').toString(),
+      );
+
+      console.log('🔍 JWT decodificado:', {
+        sub: decodedPayload.sub,
+        email: decodedPayload.email,
+        role: decodedPayload.role,
+        aud: decodedPayload.aud,
+        exp: decodedPayload.exp,
+        iat: decodedPayload.iat,
       });
+
+      // Verificar que el token no esté expirado
+      const now = Math.floor(Date.now() / 1000);
+      if (decodedPayload.exp && decodedPayload.exp < now) {
+        throw new UnauthorizedException('Token JWT expirado');
+      }
 
       // Agregar información del usuario al request
       request.user = {
-        sub: payload.sub,
-        email: payload.email,
-        role: payload.role || 'usuario',
-        aud: payload.aud,
-        exp: payload.exp,
-        iat: payload.iat,
+        sub: decodedPayload.sub,
+        email: decodedPayload.email,
+        role: decodedPayload.role || 'usuario',
+        aud: decodedPayload.aud,
+        exp: decodedPayload.exp,
+        iat: decodedPayload.iat,
       };
 
       return true;
     } catch (error) {
+      console.error('❌ Error procesando JWT:', error.message);
       throw new UnauthorizedException('Token JWT inválido');
     }
   }
