@@ -32,12 +32,14 @@ export class AuthService {
    */
   async getMyProfile(
     userId: string,
-    _accessToken: string,
+    accessToken: string,
   ): Promise<ApiResponse<UserProfile>> {
     try {
       console.log('🔍 Buscando usuario con ID:', userId);
-      
+      console.log('🔑 Access token recibido:', accessToken ? 'Sí' : 'No');
+
       // Consultar usuario con datos de persona usando Prisma
+      console.log('📋 Ejecutando consulta Prisma...');
       let usuario = await this.prisma.usuario.findUnique({
         where: {
           user_id: userId,
@@ -54,12 +56,13 @@ export class AuthService {
           },
         },
       });
+      console.log('✅ Consulta Prisma completada');
 
       console.log('📋 Usuario encontrado:', usuario);
 
       if (!usuario) {
         console.log('❌ Usuario no encontrado, creando usuario...');
-        
+
         // Crear usuario (admin no necesita persona)
         const nuevoUsuario = await this.prisma.usuario.create({
           data: {
@@ -80,9 +83,12 @@ export class AuthService {
       }
 
       // Solo usuarios y clientes necesitan persona (no admins)
-      if (!usuario.persona && (usuario.rol === 'usuario' || usuario.rol === 'cliente')) {
+      if (
+        !usuario.persona &&
+        (usuario.rol === 'usuario' || usuario.rol === 'cliente')
+      ) {
         console.log('⚠️ Usuario sin persona, creando datos temporales...');
-        
+
         const persona = await this.prisma.persona.create({
           data: {
             tipo_doc: 'DNI',
@@ -131,13 +137,20 @@ export class AuthService {
         data: profile,
       };
     } catch (error) {
-      console.error('Error obteniendo perfil del usuario:', error);
+      console.error('❌ Error obteniendo perfil del usuario:', error);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error code:', error.code);
 
       if (error instanceof NotFoundException) {
         throw error;
       }
 
-      throw new Error('Error interno del servidor al obtener perfil');
+      // Retornar error más específico para debugging
+      return {
+        success: false,
+        error: `Error interno del servidor: ${error.message}`,
+      };
     }
   }
 

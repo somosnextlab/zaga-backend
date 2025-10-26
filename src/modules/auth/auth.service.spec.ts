@@ -146,9 +146,10 @@ describe('AuthService', () => {
         new Error('Database error'),
       );
 
-      await expect(service.getMyProfile(userId, accessToken)).rejects.toThrow(
-        'Error interno del servidor al obtener perfil',
-      );
+      const result = await service.getMyProfile(userId, accessToken);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Error interno del servidor: Database error');
     });
   });
 
