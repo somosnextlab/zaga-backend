@@ -73,39 +73,19 @@ export class AuthController {
     description: 'Usuario no encontrado',
   })
   async getMyProfile(@CurrentUser() user: UserFromJWT): Promise<ApiResponse> {
+    console.log('🔍 Usuario recibido en controlador:', {
+      sub: user.sub,
+      email: user.email,
+      role: user.role,
+      hasAccessToken: !!user.accessToken,
+      accessTokenLength: user.accessToken?.length || 0,
+    });
+
     // Usar el access token del usuario autenticado
     const result = await this.authService.getMyProfile(
       user.sub,
       user.accessToken,
     );
-    return result;
-  }
-
-  @Get('test')
-  @ApiOperation({
-    summary: 'Endpoint de prueba para verificar autenticación',
-    description: 'Retorna información básica del usuario autenticado',
-  })
-  async testAuth(@CurrentUser() user: UserFromJWT): Promise<ApiResponse> {
-    return {
-      success: true,
-      data: {
-        userId: user.sub,
-        email: user.email,
-        role: user.role,
-        hasToken: !!user.accessToken,
-        tokenLength: user.accessToken?.length || 0,
-      },
-    };
-  }
-
-  @Get('create-user')
-  @ApiOperation({
-    summary: 'Crear usuario en la base de datos (temporal)',
-    description: 'Crea el usuario en la tabla seguridad.usuarios si no existe',
-  })
-  async createUser(@CurrentUser() user: UserFromJWT): Promise<ApiResponse> {
-    const result = await this.authService.createUserIfNotExists(user);
     return result;
   }
 }

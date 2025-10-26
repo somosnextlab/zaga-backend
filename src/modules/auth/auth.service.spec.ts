@@ -101,40 +101,19 @@ describe('AuthService', () => {
       });
     });
 
-    it('should create user when not found', async () => {
+    it('should return error when user not found', async () => {
       const userId = 'non-existent-user';
       const accessToken = 'test-token';
-      const mockCreatedUsuario = {
-        user_id: userId,
-        persona_id: null,
-        rol: 'admin',
-        estado: 'activo',
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
 
       mockSupabaseService.createClientForUser.mockReturnValue({});
       mockPrismaService.usuario.findUnique.mockResolvedValue(null);
-      mockPrismaService.usuario.create.mockResolvedValue(mockCreatedUsuario);
 
       const result = await service.getMyProfile(userId, accessToken);
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({
-        userId: mockCreatedUsuario.user_id,
-        email: 'admin@zaga.com', // Email del JWT decodificado
-        role: mockCreatedUsuario.rol,
-        estado: mockCreatedUsuario.estado,
-        persona: undefined, // Admin no tiene persona
-      });
-      expect(mockPrismaService.usuario.create).toHaveBeenCalledWith({
-        data: {
-          user_id: userId,
-          persona_id: null,
-          rol: 'admin',
-          estado: 'activo',
-        },
-      });
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(
+        'Usuario no encontrado. Debe registrarse primero.',
+      );
     });
 
     it('should handle database errors', async () => {
