@@ -24,11 +24,11 @@ export class AuthService {
   ) {}
 
   /**
-   * Obtiene el perfil del usuario autenticado usando RLS
+   * Obtiene el perfil del usuario autenticado
    *
    * @param userId - ID del usuario en Supabase
    * @param accessToken - JWT token del usuario
-   * @returns Promise con el perfil del usuario
+   * @returns Promise con el perfil del usuario o error si no existe
    */
   async getMyProfile(
     userId: string,
@@ -61,60 +61,11 @@ export class AuthService {
       console.log('📋 Usuario encontrado:', usuario);
 
       if (!usuario) {
-        console.log('❌ Usuario no encontrado, creando usuario...');
-
-        // Crear usuario (admin no necesita persona)
-        const nuevoUsuario = await this.prisma.usuario.create({
-          data: {
-            user_id: userId,
-            persona_id: null, // Admin no tiene persona
-            rol: 'admin',
-            estado: 'activo',
-          },
-        });
-
-        console.log('✅ Usuario admin creado:', nuevoUsuario.user_id);
-
-        // Actualizar usuario para el resto del flujo
-        usuario = {
-          ...nuevoUsuario,
-          persona: null, // Admin no tiene persona
+        console.log('❌ Usuario no encontrado en la base de datos');
+        return {
+          success: false,
+          error: 'Usuario no encontrado. Debe registrarse primero.',
         };
-      }
-
-      // Solo usuarios y clientes necesitan persona (no admins)
-      if (
-        !usuario.persona &&
-        (usuario.rol === 'usuario' || usuario.rol === 'cliente')
-      ) {
-        console.log('⚠️ Usuario sin persona, creando datos temporales...');
-
-        const persona = await this.prisma.persona.create({
-          data: {
-            tipo_doc: 'DNI',
-            numero_doc: '00000000',
-            nombre: 'Usuario',
-            apellido: 'Temporal',
-            email: 'usuario@temporal.com',
-            telefono: null,
-          },
-        });
-
-        // Actualizar usuario con persona_id
-        await this.prisma.usuario.update({
-          where: { user_id: userId },
-          data: { persona_id: persona.id },
-        });
-
-        usuario.persona = {
-          id: persona.id,
-          nombre: persona.nombre,
-          apellido: persona.apellido,
-          email: persona.email,
-          telefono: persona.telefono,
-        };
-
-        console.log('✅ Persona creada y asociada:', persona.id);
       }
 
       const profile: UserProfile = {
@@ -200,74 +151,6 @@ export class AuthService {
     } catch (error) {
       console.error('Error verificando estado del usuario:', error);
       return false;
-    }
-  }
-
-  /**
-   * Crea el usuario en la base de datos si no existe
-   *
-   * @param user - Datos del usuario del JWT
-   * @returns Promise con el resultado de la creación
-   */
-  async createUserIfNotExists(user: any): Promise<ApiResponse> {
-    try {
-      console.log('🔍 Verificando si el usuario existe:', user.sub);
-
-      // Verificar si el usuario ya existe
-      const existingUser = await this.prisma.usuario.findUnique({
-        where: {
-          user_id: user.sub,
-        },
-      });
-
-      if (existingUser) {
-        console.log('✅ Usuario ya existe en la base de datos');
-        return {
-          success: true,
-          data: { message: 'Usuario ya existe' },
-        };
-      }
-
-      // Crear persona primero
-      const persona = await this.prisma.persona.create({
-        data: {
-          tipo_doc: 'DNI',
-          numero_doc: '00000000', // Temporal
-          nombre: 'Usuario',
-          apellido: 'Temporal',
-          email: user.email,
-          telefono: null,
-        },
-      });
-
-      console.log('✅ Persona creada:', persona.id);
-
-      // Crear usuario
-      const usuario = await this.prisma.usuario.create({
-        data: {
-          user_id: user.sub,
-          persona_id: persona.id,
-          rol: 'usuario',
-          estado: 'activo',
-        },
-      });
-
-      console.log('✅ Usuario creado:', usuario.user_id);
-
-      return {
-        success: true,
-        data: {
-          message: 'Usuario creado exitosamente',
-          userId: usuario.user_id,
-          personaId: persona.id,
-        },
-      };
-    } catch (error) {
-      console.error('❌ Error creando usuario:', error);
-      return {
-        success: false,
-        error: 'Error creando usuario: ' + error.message,
-      };
     }
   }
 }

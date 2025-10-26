@@ -38,7 +38,15 @@ export class SupabaseJwtGuard implements CanActivate {
         aud: decodedPayload.aud,
         exp: decodedPayload.exp,
         iat: decodedPayload.iat,
+        hasSub: !!decodedPayload.sub,
+        subType: typeof decodedPayload.sub,
       });
+
+      // Verificar que el token tenga el campo sub
+      if (!decodedPayload.sub) {
+        console.error('❌ Token JWT no tiene campo sub:', decodedPayload);
+        throw new UnauthorizedException('Token JWT inválido: falta campo sub');
+      }
 
       // Verificar que el token no esté expirado
       const now = Math.floor(Date.now() / 1000);
