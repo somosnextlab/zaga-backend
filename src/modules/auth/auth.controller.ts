@@ -73,11 +73,30 @@ export class AuthController {
     description: 'Usuario no encontrado',
   })
   async getMyProfile(@CurrentUser() user: UserFromJWT): Promise<ApiResponse> {
-    // Extraer access token del header Authorization
-    const accessToken = this.extractAccessTokenFromUser(user);
-
-    const result = await this.authService.getMyProfile(user.sub, accessToken);
+    // Usar el access token del usuario autenticado
+    const result = await this.authService.getMyProfile(
+      user.sub,
+      user.accessToken,
+    );
     return result;
+  }
+
+  @Get('test')
+  @ApiOperation({
+    summary: 'Endpoint de prueba para verificar autenticación',
+    description: 'Retorna información básica del usuario autenticado',
+  })
+  async testAuth(@CurrentUser() user: UserFromJWT): Promise<ApiResponse> {
+    return {
+      success: true,
+      data: {
+        userId: user.sub,
+        email: user.email,
+        role: user.role,
+        hasToken: !!user.accessToken,
+        tokenLength: user.accessToken?.length || 0,
+      },
+    };
   }
 
   @Get('create-user')
@@ -88,17 +107,5 @@ export class AuthController {
   async createUser(@CurrentUser() user: UserFromJWT): Promise<ApiResponse> {
     const result = await this.authService.createUserIfNotExists(user);
     return result;
-  }
-
-  /**
-   * Extrae el access token del objeto user
-   * En un escenario real, esto debería venir del request headers
-   * Por ahora, simulamos que el token está disponible
-   */
-  private extractAccessTokenFromUser(_user: UserFromJWT): string {
-    // TODO: En una implementación real, esto debería extraerse del request
-    // Por ahora, retornamos un token simulado
-    // En producción, el SupabaseJwtGuard debería exponer el token original
-    return 'simulated-token';
   }
 }

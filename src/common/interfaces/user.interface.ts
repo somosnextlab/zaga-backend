@@ -8,6 +8,7 @@ export interface UserFromJWT {
   aud: string; // Audience del JWT
   exp: number; // Timestamp de expiración
   iat: number; // Timestamp de emisión
+  accessToken: string; // Token JWT original
 }
 
 /**

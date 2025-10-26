@@ -54,6 +54,7 @@ export class SupabaseJwtGuard implements CanActivate {
         aud: decodedPayload.aud,
         exp: decodedPayload.exp,
         iat: decodedPayload.iat,
+        accessToken: token, // Exponer el token original
       };
 
       return true;
