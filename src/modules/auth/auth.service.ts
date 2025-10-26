@@ -1,6 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma.service';
-import { SupabaseService } from '../../supabase/supabase.service';
 import { ApiResponse } from '../../common/interfaces/user.interface';
 
 export interface UserProfile {
@@ -18,10 +17,7 @@ export interface UserProfile {
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private prisma: PrismaService,
-    private supabaseService: SupabaseService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Obtiene el perfil del usuario autenticado
@@ -32,15 +28,13 @@ export class AuthService {
    */
   async getMyProfile(
     userId: string,
-    accessToken: string,
+    _accessToken: string,
   ): Promise<ApiResponse<UserProfile>> {
     try {
       console.log('🔍 Buscando usuario con ID:', userId);
-      console.log('🔑 Access token recibido:', accessToken ? 'Sí' : 'No');
 
-      // Consultar usuario con datos de persona usando Prisma
-      console.log('📋 Ejecutando consulta Prisma...');
-      let usuario = await this.prisma.usuario.findUnique({
+      // Buscar el usuario en la tabla usuarios usando el user_id del JWT
+      const usuario = await this.prisma.usuario.findUnique({
         where: {
           user_id: userId,
         },
@@ -56,7 +50,6 @@ export class AuthService {
           },
         },
       });
-      console.log('✅ Consulta Prisma completada');
 
       console.log('📋 Usuario encontrado:', usuario);
 
@@ -68,19 +61,25 @@ export class AuthService {
         };
       }
 
+      if (!usuario.persona) {
+        console.log('❌ Usuario sin persona asociada');
+        return {
+          success: false,
+          error: 'Usuario sin datos de persona asociados.',
+        };
+      }
+
       const profile: UserProfile = {
         userId: usuario.user_id,
-        email: usuario.persona?.email || 'admin@zaga.com', // Admin usa email del JWT
+        email: usuario.persona.email || 'email_no_disponible@zaga.com',
         role: usuario.rol,
         estado: usuario.estado,
-        persona: usuario.persona
-          ? {
-              id: usuario.persona.id,
-              nombre: usuario.persona.nombre,
-              apellido: usuario.persona.apellido,
-              telefono: usuario.persona.telefono,
-            }
-          : undefined,
+        persona: {
+          id: usuario.persona.id,
+          nombre: usuario.persona.nombre,
+          apellido: usuario.persona.apellido,
+          telefono: usuario.persona.telefono,
+        },
       };
 
       return {
@@ -89,68 +88,10 @@ export class AuthService {
       };
     } catch (error) {
       console.error('❌ Error obteniendo perfil del usuario:', error);
-      console.error('❌ Error stack:', error.stack);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error code:', error.code);
-
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-
-      // Retornar error más específico para debugging
       return {
         success: false,
         error: `Error interno del servidor: ${error.message}`,
       };
-    }
-  }
-
-  /**
-   * Valida que el usuario tenga un rol específico
-   *
-   * @param userId - ID del usuario
-   * @param accessToken - JWT token del usuario
-   * @param requiredRole - Rol requerido
-   * @returns Promise<boolean> - true si el usuario tiene el rol
-   */
-  async validateUserRole(
-    userId: string,
-    accessToken: string,
-    requiredRole: string,
-  ): Promise<boolean> {
-    try {
-      const profile = await this.getMyProfile(userId, accessToken);
-
-      if (!profile.success || !profile.data) {
-        return false;
-      }
-
-      return profile.data.role === requiredRole;
-    } catch (error) {
-      console.error('Error validando rol del usuario:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Verifica que el usuario esté activo
-   *
-   * @param userId - ID del usuario
-   * @param accessToken - JWT token del usuario
-   * @returns Promise<boolean> - true si el usuario está activo
-   */
-  async isUserActive(userId: string, accessToken: string): Promise<boolean> {
-    try {
-      const profile = await this.getMyProfile(userId, accessToken);
-
-      if (!profile.success || !profile.data) {
-        return false;
-      }
-
-      return profile.data.estado === 'activo';
-    } catch (error) {
-      console.error('Error verificando estado del usuario:', error);
-      return false;
     }
   }
 }

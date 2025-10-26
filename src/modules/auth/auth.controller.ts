@@ -73,14 +73,6 @@ export class AuthController {
     description: 'Usuario no encontrado',
   })
   async getMyProfile(@CurrentUser() user: UserFromJWT): Promise<ApiResponse> {
-    console.log('🔍 Usuario recibido en controlador:', {
-      sub: user.sub,
-      email: user.email,
-      role: user.role,
-      hasAccessToken: !!user.accessToken,
-      accessTokenLength: user.accessToken?.length || 0,
-    });
-
     // Usar el access token del usuario autenticado
     const result = await this.authService.getMyProfile(
       user.sub,

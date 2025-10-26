@@ -4,18 +4,9 @@ import {
   ExecutionContext,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createRemoteJWKSet } from 'jose';
 
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {
-  private jwks: ReturnType<typeof createRemoteJWKSet>;
-
-  constructor(private configService: ConfigService) {
-    const jwksUrl = this.configService.get<string>('SUPABASE_JWKS_URL');
-    this.jwks = createRemoteJWKSet(new URL(jwksUrl));
-  }
-
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
@@ -25,8 +16,13 @@ export class SupabaseJwtGuard implements CanActivate {
     }
 
     try {
-      // Decodificar el JWT sin verificar la firma para pruebas
+      // Decodificar el JWT sin verificar la firma
       const [payload] = token.split('.');
+
+      if (!payload) {
+        throw new UnauthorizedException('Token JWT malformado');
+      }
+
       const decodedPayload = JSON.parse(
         Buffer.from(payload, 'base64').toString(),
       );
@@ -35,11 +31,8 @@ export class SupabaseJwtGuard implements CanActivate {
         sub: decodedPayload.sub,
         email: decodedPayload.email,
         role: decodedPayload.role,
-        aud: decodedPayload.aud,
         exp: decodedPayload.exp,
         iat: decodedPayload.iat,
-        hasSub: !!decodedPayload.sub,
-        subType: typeof decodedPayload.sub,
       });
 
       // Verificar que el token tenga el campo sub
@@ -62,7 +55,7 @@ export class SupabaseJwtGuard implements CanActivate {
         aud: decodedPayload.aud,
         exp: decodedPayload.exp,
         iat: decodedPayload.iat,
-        accessToken: token, // Exponer el token original
+        accessToken: token,
       };
 
       return true;
