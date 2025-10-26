@@ -17,14 +17,14 @@ export class SupabaseJwtGuard implements CanActivate {
 
     try {
       // Decodificar el JWT sin verificar la firma
-      const [payload] = token.split('.');
-
-      if (!payload) {
+      const parts = token.split('.');
+      
+      if (parts.length !== 3) {
         throw new UnauthorizedException('Token JWT malformado');
       }
 
       const decodedPayload = JSON.parse(
-        Buffer.from(payload, 'base64').toString(),
+        Buffer.from(parts[1], 'base64').toString(),
       );
 
       console.log('🔍 JWT decodificado:', {
