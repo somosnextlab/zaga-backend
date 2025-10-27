@@ -63,4 +63,7 @@ Thumbs.db
 prisma/migrations/
 
 # Documentación interna de desarrollo
-/md-desarrollo/
+docs/
+
+# Cursor
+.cursor/
