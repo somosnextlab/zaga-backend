@@ -22,7 +22,7 @@ export class ConsentsController {
     });
   }
 
-  @Get(':token')
+  @Get('token/:token')
   public async getConsentByToken(@Param('token') token: string): Promise<{
     token: string;
     status: 'PENDING' | 'ACCEPTED';
