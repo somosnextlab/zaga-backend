@@ -473,27 +473,32 @@ export class PrequalService {
     if (parts.length === 0)
       return { first_name: '', last_name: '', isReliable: false };
     if (parts.length === 1) {
+      const unico = parts[0];
       return {
-        first_name: parts[0],
+        first_name: unico,
         last_name: '',
         isReliable:
-          parts[0].length >= 2 && /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s-]+$/.test(parts[0]),
+          unico.length >= 2 && /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s-]+$/.test(unico),
       };
     }
 
-    const first = parts[0];
-    const last = parts.slice(1).join(' ');
+    const primero = parts[0];
+    const resto = parts.slice(1).join(' ');
     const alphaOnly = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s-]+$/;
     const isReliable =
-      first.length >= 2 &&
-      last.length >= 2 &&
-      alphaOnly.test(first) &&
-      alphaOnly.test(last) &&
+      primero.length >= 2 &&
+      resto.length >= 2 &&
+      alphaOnly.test(primero) &&
+      alphaOnly.test(resto) &&
       parts.length <= 5;
 
+    // Heurística: si la primera palabra está en MAYÚSCULAS → "APELLIDO NOMBRES"
+    // Si no → "NOMBRES APELLIDO" (formato típico español)
+    const esApellidoPrimero = primero === primero.toUpperCase();
+
     return {
-      first_name: first,
-      last_name: last,
+      first_name: esApellidoPrimero ? resto : primero,
+      last_name: esApellidoPrimero ? primero : resto,
       isReliable,
     };
   }
