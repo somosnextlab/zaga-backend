@@ -14,7 +14,6 @@ export class AppController {
     description: 'Información básica y enlace a documentación',
   })
   getApiInfo(): ApiInfo {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     return this.appService.getApiInfo();
   }
 }

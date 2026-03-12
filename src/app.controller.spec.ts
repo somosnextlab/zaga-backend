@@ -14,9 +14,15 @@ describe('AppController', () => {
     appController = app.get<AppController>(AppController);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+  describe('getApiInfo', () => {
+    it('should return API info with name, version, status and docs', () => {
+      const result = appController.getApiInfo();
+      expect(result).toEqual({
+        name: 'Zaga API',
+        version: '0.0.1',
+        status: 'ok',
+        docs: '/api/docs',
+      });
     });
   });
 });
