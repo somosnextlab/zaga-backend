@@ -1,13 +1,21 @@
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AcceptConsentDto } from './dto/accept-consent.dto';
 import { ConsentsService } from './consents.service';
 
+@ApiTags('Consents')
 @Controller('consents')
 export class ConsentsController {
   public constructor(private readonly consentsService: ConsentsService) {}
 
   @Post('accept')
+  @ApiOperation({ summary: 'Aceptar consentimiento' })
+  @ApiResponse({
+    status: 201,
+    description: 'Consentimiento aceptado correctamente',
+  })
+  @ApiResponse({ status: 400, description: 'Token inválido o expirado' })
   public async acceptConsent(
     @Body() body: AcceptConsentDto,
     @Req() req: Request,
@@ -23,6 +31,10 @@ export class ConsentsController {
   }
 
   @Get('token/:token')
+  @ApiOperation({ summary: 'Obtener consentimiento por token' })
+  @ApiParam({ name: 'token', description: 'Token UUID del consentimiento' })
+  @ApiResponse({ status: 200, description: 'Datos del consentimiento' })
+  @ApiResponse({ status: 404, description: 'Token no encontrado' })
   public async getConsentByToken(@Param('token') token: string): Promise<{
     token: string;
     status: 'PENDING' | 'ACCEPTED';
