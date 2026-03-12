@@ -62,7 +62,7 @@ interface BcraHistoricalResponse {
 }
 
 interface NormalizedLatest {
-  bcra_status: string;
+  bcra_status: number;
   periodo: string;
   entidades_count: number;
   max_situacion: number;
@@ -387,7 +387,7 @@ export class PrequalService {
     const largest_entity_share = max_entity_amount / totalMontoSafe;
 
     return {
-      bcra_status: 'OK',
+      bcra_status: 0,
       periodo,
       entidades_count: entidades.length,
       max_situacion,
@@ -608,7 +608,7 @@ export class PrequalService {
       user_id: string;
       phone: string;
       cuit: string;
-      bcra_status: string;
+      bcra_status: number;
       periodo: string;
       entidades_count: number;
       max_situacion: number;
