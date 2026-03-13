@@ -468,10 +468,6 @@ describe('PrequalService', () => {
   });
 
   describe('Carga de deuda (R_debt_load)', () => {
-    /**
-     * El BCRA devuelve monto en miles de pesos.
-     * Ej: monto 200 = 200.000 pesos, monto 15000 = 15.000.000 pesos.
-     */
     const setupMockUser = () => {
       mockDbService.query.mockResolvedValue({
         rows: [
@@ -512,14 +508,14 @@ describe('PrequalService', () => {
       }
     });
 
-    it('debe penalizar cuando total_monto >= 15.000.000 pesos y reducir el score', async () => {
+    it('debe penalizar cuando total_monto >= 20.000.000 pesos y reducir el score', async () => {
       setupMockUser();
       fetchMock.mockImplementation((url) => {
         const urlStr = String(url as string);
         const payload = urlStr.includes('/historicas/')
           ? createBcraHistoricalResponse()
           : createBcraLatestResponse({
-              monto: 15_000,
+              monto: 25_000,
               situacion: 1,
             });
         return Promise.resolve({
@@ -541,15 +537,18 @@ describe('PrequalService', () => {
       }
     });
 
-    it('debe que score con deuda baja (250k) sea mayor que con deuda alta (15M) - mismo perfil', async () => {
+    it('debe que score con deuda 500k sea mayor que con deuda 20M (mismo perfil)', async () => {
       setupMockUser();
 
-      const runWithMonto = async (montoBcra: number) => {
+      const runWithMonto = async (montoMilesPesos: number) => {
         fetchMock.mockImplementation((url) => {
           const urlStr = String(url as string);
           const payload = urlStr.includes('/historicas/')
             ? createBcraHistoricalResponse()
-            : createBcraLatestResponse({ monto: montoBcra, situacion: 1 });
+            : createBcraLatestResponse({
+                monto: montoMilesPesos,
+                situacion: 1,
+              });
           return Promise.resolve({
             status: 200,
             json: () => Promise.resolve(payload),
@@ -563,8 +562,8 @@ describe('PrequalService', () => {
         return r.ok ? (r as { zcore_bcra: number }).zcore_bcra : 0;
       };
 
-      const scoreConDeudaBaja = await runWithMonto(200);
-      const scoreConDeudaAlta = await runWithMonto(15_000);
+      const scoreConDeudaBaja = await runWithMonto(500);
+      const scoreConDeudaAlta = await runWithMonto(20_000);
 
       expect(scoreConDeudaBaja).toBeGreaterThan(scoreConDeudaAlta);
     });
@@ -572,12 +571,15 @@ describe('PrequalService', () => {
     it('debe que score con deuda intermedia (2M) esté entre deuda baja y alta', async () => {
       setupMockUser();
 
-      const runWithMonto = async (montoBcra: number) => {
+      const runWithMonto = async (montoMilesPesos: number) => {
         fetchMock.mockImplementation((url) => {
           const urlStr = String(url as string);
           const payload = urlStr.includes('/historicas/')
             ? createBcraHistoricalResponse()
-            : createBcraLatestResponse({ monto: montoBcra, situacion: 1 });
+            : createBcraLatestResponse({
+                monto: montoMilesPesos,
+                situacion: 1,
+              });
           return Promise.resolve({
             status: 200,
             json: () => Promise.resolve(payload),
@@ -591,12 +593,12 @@ describe('PrequalService', () => {
         return r.ok ? (r as { zcore_bcra: number }).zcore_bcra : 0;
       };
 
-      const scoreConDeudaBaja = await runWithMonto(200);
+      const scoreBaja = await runWithMonto(500);
       const scoreIntermedia = await runWithMonto(2_000);
-      const scoreConDeudaAlta = await runWithMonto(15_000);
+      const scoreAlta = await runWithMonto(20_000);
 
-      expect(scoreIntermedia).toBeLessThanOrEqual(scoreConDeudaBaja);
-      expect(scoreIntermedia).toBeGreaterThanOrEqual(scoreConDeudaAlta);
+      expect(scoreIntermedia).toBeLessThanOrEqual(scoreBaja);
+      expect(scoreIntermedia).toBeGreaterThanOrEqual(scoreAlta);
     });
   });
 

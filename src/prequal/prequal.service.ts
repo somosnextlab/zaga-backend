@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PoolClient } from 'pg';
 import { DbService } from '../db/db.service';
@@ -124,7 +124,6 @@ const PERIODO_REGEX = /^\d{6}$/;
 
 @Injectable()
 export class PrequalService {
-  private readonly logger = new Logger(PrequalService.name);
   private readonly bcraLatestUrl: string;
   private readonly bcraHistoricalUrl: string;
   private readonly bcraTimeoutMs: number;
@@ -281,12 +280,7 @@ export class PrequalService {
       if (res.status >= 500) throw new Error('BCRA 5xx');
       const json = (await res.json()) as BcraLatestResponse;
       return json;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const stack = err instanceof Error ? err.stack : undefined;
-      this.logger.warn(
-        `BCRA latest fetch failed for CUIT ${cuit}: ${msg}${stack ? `\n${stack}` : ''}`,
-      );
+    } catch {
       return null;
     }
   }
@@ -308,12 +302,7 @@ export class PrequalService {
       if (res.status >= 500) throw new Error('BCRA 5xx');
       const json = (await res.json()) as BcraHistoricalResponse;
       return json;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const stack = err instanceof Error ? err.stack : undefined;
-      this.logger.warn(
-        `BCRA historical fetch failed for CUIT ${cuit}: ${msg}${stack ? `\n${stack}` : ''}`,
-      );
+    } catch {
       return null;
     }
   }
@@ -618,16 +607,15 @@ export class PrequalService {
     const R_debt_load = normDebtLoad(total_debt);
 
     /**
-     * Mantenemos la recalibración que ya habíamos definido:
-     * el endeudamiento pesa fuerte.
+     * Pesos de sub-scores en R_total (recalibrados).
      */
     const R_total =
-      0.24 * R_actual +
-      0.14 * R_mora +
-      0.1 * R_flags +
-      0.17 * R_history +
-      0.1 * R_structure +
-      0.25 * R_debt_load;
+      0.25 * R_actual +
+      0.15 * R_mora +
+      0.11 * R_flags +
+      0.19 * R_history +
+      0.095 * R_structure +
+      0.205 * R_debt_load;
 
     const zcore_bcra = Math.round(1000 * (1 - R_total));
     const eligible = zcore_bcra >= 600;
