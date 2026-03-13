@@ -539,6 +539,32 @@ export class PrequalService {
     const normDays = (x: number) => Math.min(Math.max(x, 0), 180) / 180;
     const normEntities = (x: number) => Math.min(Math.max(x, 0), 8) / 8;
 
+    /**
+     * Penalización explícita por nivel de endeudamiento total.
+     *
+     * Escala logarítmica para que la brecha entre 1,8M y 14,6M sea visible,
+     * sin volver explosivo el castigo en todos los casos.
+     *
+     * Ajuste inicial propuesto:
+     * - hasta 500.000 => penalización 0
+     * - 20.000.000 o más => penalización 1
+     *
+     * Si luego quieren endurecer aún más el castigo:
+     * - subir peso de R_debt_load
+     * - bajar minDebt
+     * - bajar maxDebt
+     */
+    const normDebtLoad = (totalMonto: number) => {
+      const safeMonto = Math.max(totalMonto, 0);
+      const minDebt = 500_000;
+      const maxDebt = 20_000_000;
+
+      if (safeMonto <= minDebt) return 0;
+      if (safeMonto >= maxDebt) return 1;
+
+      return Math.log10(safeMonto / minDebt) / Math.log10(maxDebt / minDebt);
+    };
+
     const worst_current_situation = latest.max_situacion;
     const avg_current_situation_weighted = latest.avg_situacion_weighted;
     const share_debt_sit_2plus = latest.share_debt_sit_2plus;
@@ -547,6 +573,7 @@ export class PrequalService {
     const avg_days_past_due_weighted = latest.avg_dias_atraso_weighted;
     const entities_count_current = latest.entidades_count;
     const largest_entity_share = latest.largest_entity_share;
+    const total_debt = latest.total_monto;
 
     const R_actual =
       0.45 * normSituation(worst_current_situation) +
@@ -573,15 +600,27 @@ export class PrequalService {
     const R_structure =
       0.6 * normEntities(entities_count_current) + 0.4 * largest_entity_share;
 
+    /**
+     * Nuevo bloque explícito de carga de deuda.
+     */
+    const R_debt_load = normDebtLoad(total_debt);
+
+    /**
+     * Recalibración:
+     * - bajamos un poco el peso relativo de comportamiento/historial
+     * - incorporamos 15% de peso real al nivel de endeudamiento total
+     */
     const R_total =
-      0.34 * R_actual +
-      0.18 * R_mora +
-      0.14 * R_flags +
-      0.26 * R_history +
-      0.08 * R_structure;
+      0.29 * R_actual +
+      0.16 * R_mora +
+      0.12 * R_flags +
+      0.2 * R_history +
+      0.08 * R_structure +
+      0.15 * R_debt_load;
 
     const zcore_bcra = Math.round(1000 * (1 - R_total));
     const eligible = zcore_bcra >= 600;
+
     let risk_level: 'LOW' | 'MEDIUM' | 'HIGH' = 'HIGH';
     if (zcore_bcra >= 800) risk_level = 'LOW';
     else if (zcore_bcra >= 600) risk_level = 'MEDIUM';
