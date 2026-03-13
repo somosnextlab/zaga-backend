@@ -549,12 +549,12 @@ export class PrequalService {
 
       /**
        * Escala de negocio en pesos:
-       * - hasta 250.000 => penalización 0
+       * - hasta 1.000.000 => penalización 0
        * - 15.000.000 o más => penalización 1
        *
        * La curva es logarítmica + potencia para endurecer el tramo alto.
        */
-      const minDebt = 250_000;
+      const minDebt = 1_000_000;
       const maxDebt = 15_000_000;
 
       if (totalMontoPesos <= minDebt) return 0;
