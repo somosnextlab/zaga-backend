@@ -482,13 +482,13 @@ describe('PrequalService', () => {
       });
     };
 
-    it('debe no penalizar cuando total_monto <= 250.000 pesos (R_debt_load = 0)', async () => {
+    it('debe no penalizar cuando total_monto <= 1.000.000 pesos (R_debt_load = 0)', async () => {
       setupMockUser();
       fetchMock.mockImplementation((url) => {
         const urlStr = String(url as string);
         const payload = urlStr.includes('/historicas/')
           ? createBcraHistoricalResponse()
-          : createBcraLatestResponse({ monto: 200, situacion: 1 });
+          : createBcraLatestResponse({ monto: 800, situacion: 1 });
         return Promise.resolve({
           status: 200,
           json: () => Promise.resolve(payload),
