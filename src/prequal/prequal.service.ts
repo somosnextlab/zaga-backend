@@ -540,29 +540,30 @@ export class PrequalService {
     const normEntities = (x: number) => Math.min(Math.max(x, 0), 8) / 8;
 
     /**
-     * Penalización explícita por nivel de endeudamiento total.
-     *
-     * Escala logarítmica para que la brecha entre 1,8M y 14,6M sea visible,
-     * sin volver explosivo el castigo en todos los casos.
-     *
-     * Ajuste inicial propuesto:
-     * - hasta 500.000 => penalización 0
-     * - 20.000.000 o más => penalización 1
-     *
-     * Si luego quieren endurecer aún más el castigo:
-     * - subir peso de R_debt_load
-     * - bajar minDebt
-     * - bajar maxDebt
+     * OJO:
+     * latest.total_monto viene del BCRA en miles de pesos.
+     * Para esta función convertimos a pesos reales antes de penalizar.
      */
-    const normDebtLoad = (totalMonto: number) => {
-      const safeMonto = Math.max(totalMonto, 0);
-      const minDebt = 500_000;
-      const maxDebt = 20_000_000;
+    const normDebtLoad = (totalMontoBcra: number) => {
+      const totalMontoPesos = Math.max(totalMontoBcra, 0) * 1000;
 
-      if (safeMonto <= minDebt) return 0;
-      if (safeMonto >= maxDebt) return 1;
+      /**
+       * Escala de negocio en pesos:
+       * - hasta 250.000 => penalización 0
+       * - 15.000.000 o más => penalización 1
+       *
+       * La curva es logarítmica + potencia para endurecer el tramo alto.
+       */
+      const minDebt = 250_000;
+      const maxDebt = 15_000_000;
 
-      return Math.log10(safeMonto / minDebt) / Math.log10(maxDebt / minDebt);
+      if (totalMontoPesos <= minDebt) return 0;
+      if (totalMontoPesos >= maxDebt) return 1;
+
+      const base =
+        Math.log10(totalMontoPesos / minDebt) / Math.log10(maxDebt / minDebt);
+
+      return Math.pow(base, 1.35);
     };
 
     const worst_current_situation = latest.max_situacion;
@@ -601,22 +602,21 @@ export class PrequalService {
       0.6 * normEntities(entities_count_current) + 0.4 * largest_entity_share;
 
     /**
-     * Nuevo bloque explícito de carga de deuda.
+     * Penalización explícita por carga de deuda total.
      */
     const R_debt_load = normDebtLoad(total_debt);
 
     /**
-     * Recalibración:
-     * - bajamos un poco el peso relativo de comportamiento/historial
-     * - incorporamos 15% de peso real al nivel de endeudamiento total
+     * Mantenemos la recalibración que ya habíamos definido:
+     * el endeudamiento pesa fuerte.
      */
     const R_total =
-      0.29 * R_actual +
-      0.16 * R_mora +
-      0.12 * R_flags +
-      0.2 * R_history +
-      0.08 * R_structure +
-      0.15 * R_debt_load;
+      0.24 * R_actual +
+      0.14 * R_mora +
+      0.1 * R_flags +
+      0.17 * R_history +
+      0.1 * R_structure +
+      0.25 * R_debt_load;
 
     const zcore_bcra = Math.round(1000 * (1 - R_total));
     const eligible = zcore_bcra >= 600;
