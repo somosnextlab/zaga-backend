@@ -612,10 +612,10 @@ export class PrequalService {
     const R_total =
       0.25 * R_actual +
       0.15 * R_mora +
-      0.11 * R_flags +
-      0.19 * R_history +
+      0.12 * R_flags +
+      0.2 * R_history +
       0.095 * R_structure +
-      0.205 * R_debt_load;
+      0.185 * R_debt_load;
 
     const zcore_bcra = Math.round(1000 * (1 - R_total));
     const eligible = zcore_bcra >= 600;
