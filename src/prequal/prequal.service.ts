@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PoolClient } from 'pg';
 import { DbService } from '../db/db.service';
@@ -124,6 +124,7 @@ const PERIODO_REGEX = /^\d{6}$/;
 
 @Injectable()
 export class PrequalService {
+  private readonly logger = new Logger(PrequalService.name);
   private readonly bcraLatestUrl: string;
   private readonly bcraHistoricalUrl: string;
   private readonly bcraTimeoutMs: number;
@@ -280,7 +281,12 @@ export class PrequalService {
       if (res.status >= 500) throw new Error('BCRA 5xx');
       const json = (await res.json()) as BcraLatestResponse;
       return json;
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.warn(
+        `BCRA latest fetch failed for CUIT ${cuit}: ${msg}${stack ? `\n${stack}` : ''}`,
+      );
       return null;
     }
   }
@@ -302,7 +308,12 @@ export class PrequalService {
       if (res.status >= 500) throw new Error('BCRA 5xx');
       const json = (await res.json()) as BcraHistoricalResponse;
       return json;
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.warn(
+        `BCRA historical fetch failed for CUIT ${cuit}: ${msg}${stack ? `\n${stack}` : ''}`,
+      );
       return null;
     }
   }
