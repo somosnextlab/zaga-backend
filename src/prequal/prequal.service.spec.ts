@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { PoolClient } from 'pg';
@@ -195,6 +196,165 @@ describe('PrequalService', () => {
         error_code: 'USER_NOT_FOUND',
       });
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fetchWithRetry (resiliencia BCRA)', () => {
+    it('debe reintentar ante 503 y tener éxito en el segundo intento', async () => {
+      mockDbService.query.mockResolvedValue({
+        rows: [
+          {
+            id: VALID_USER_ID,
+            phone: VALID_PHONE,
+            cuit: VALID_CUIT,
+            first_name: null,
+            last_name: null,
+          },
+        ],
+      });
+      let latestCallCount = 0;
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        if (urlStr.includes('/historicas/')) {
+          return Promise.resolve({
+            status: 200,
+            json: () => Promise.resolve(createBcraHistoricalResponse()),
+          } as Response);
+        }
+        latestCallCount++;
+        if (latestCallCount === 1) {
+          return Promise.resolve({ status: 503 } as Response);
+        }
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(createBcraLatestResponse()),
+        } as Response);
+      });
+
+      const result = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(latestCallCount).toBe(2);
+    });
+
+    it('debe reintentar ante error de red (TypeError) y tener éxito', async () => {
+      mockDbService.query.mockResolvedValue({
+        rows: [
+          {
+            id: VALID_USER_ID,
+            phone: VALID_PHONE,
+            cuit: VALID_CUIT,
+            first_name: null,
+            last_name: null,
+          },
+        ],
+      });
+      let latestCallCount = 0;
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        if (urlStr.includes('/historicas/')) {
+          return Promise.resolve({
+            status: 200,
+            json: () => Promise.resolve(createBcraHistoricalResponse()),
+          } as Response);
+        }
+        latestCallCount++;
+        if (latestCallCount === 1) {
+          return Promise.reject(new TypeError('fetch failed'));
+        }
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(createBcraLatestResponse()),
+        } as Response);
+      });
+
+      const result = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(latestCallCount).toBe(2);
+    });
+
+    it('no debe reintentar ante 404 (respuesta válida)', async () => {
+      mockDbService.query.mockResolvedValue({
+        rows: [
+          {
+            id: VALID_USER_ID,
+            phone: VALID_PHONE,
+            cuit: VALID_CUIT,
+            first_name: null,
+            last_name: null,
+          },
+        ],
+      });
+      fetchMock.mockImplementation((url) => {
+        if (String(url as string).includes('/historicas/')) {
+          return Promise.resolve({
+            status: 200,
+            json: () => Promise.resolve(createBcraHistoricalResponse()),
+          } as Response);
+        }
+        return Promise.resolve({ status: 404 } as Response);
+      });
+
+      await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('debe registrar Logger.warn en cada reintento', async () => {
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      mockDbService.query.mockResolvedValue({
+        rows: [
+          {
+            id: VALID_USER_ID,
+            phone: VALID_PHONE,
+            cuit: VALID_CUIT,
+            first_name: null,
+            last_name: null,
+          },
+        ],
+      });
+      let latestCallCount = 0;
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        if (urlStr.includes('/historicas/')) {
+          return Promise.resolve({
+            status: 200,
+            json: () => Promise.resolve(createBcraHistoricalResponse()),
+          } as Response);
+        }
+        latestCallCount++;
+        if (latestCallCount <= 2) {
+          return Promise.resolve({ status: 503 } as Response);
+        }
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(createBcraLatestResponse()),
+        } as Response);
+      });
+
+      await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Reintentando conexión con BCRA'),
+      );
+      warnSpy.mockRestore();
     });
   });
 

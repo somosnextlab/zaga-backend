@@ -3,127 +3,30 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PoolClient } from 'pg';
 import { DbService } from '../db/db.service';
-
-type BcraClassification = 'SUCCESS' | 'BUSINESS' | 'TECHNICAL';
-
-interface BcraLatestEntity {
-  entidad: string;
-  situacion: number;
-  monto: number;
-  diasAtrasoPago?: number;
-  refinanciaciones?: boolean;
-  recategorizacionOblig?: boolean;
-  situacionJuridica?: boolean;
-  irrecDisposicionTecnica?: boolean;
-  enRevision?: boolean;
-  procesoJud?: boolean;
-}
-
-interface BcraLatestPeriodo {
-  periodo: string;
-  entidades: BcraLatestEntity[];
-}
-
-interface BcraLatestResults {
-  identificacion?: number;
-  denominacion?: string;
-  periodos?: BcraLatestPeriodo[];
-}
-
-interface BcraLatestResponse {
-  status?: number;
-  results?: BcraLatestResults;
-}
-
-interface BcraHistoricalEntity {
-  entidad: string;
-  situacion: number;
-  monto: number;
-  enRevision?: boolean;
-  procesoJud?: boolean;
-}
-
-interface BcraHistoricalPeriodo {
-  periodo: string;
-  entidades: BcraHistoricalEntity[];
-}
-
-interface BcraHistoricalResults {
-  periodos?: BcraHistoricalPeriodo[];
-}
-
-interface BcraHistoricalResponse {
-  status?: number;
-  results?: BcraHistoricalResults;
-}
-
-interface NormalizedLatest {
-  bcra_status: number;
-  periodo: string;
-  entidades_count: number;
-  max_situacion: number;
-  total_monto: number;
-  max_dias_atraso: number;
-  max_entity_amount: number;
-  max_entity_name: string;
-  has_refinanciaciones: boolean;
-  has_recategorizacion_oblig: boolean;
-  has_situacion_juridica: boolean;
-  has_irrec_disposicion_tecnica: boolean;
-  has_proceso_jud: boolean;
-  has_en_revision: boolean;
-  denominacion: string;
-  avg_situacion_weighted: number;
-  share_debt_sit_2plus: number;
-  share_debt_sit_3plus: number;
-  avg_dias_atraso_weighted: number;
-  largest_entity_share: number;
-}
-
-interface NormalizedHistorical {
-  worst_historical_situation_24m: number;
-  months_any_sit_2plus_24m: number;
-  months_any_sit_3plus_24m: number;
-  clean_months_24m: number;
-  months_since_last_bad_event: number;
-}
-
-interface ParsedDenominacion {
-  first_name: string;
-  last_name: string;
-  isReliable: boolean;
-}
-
-interface PrequalSuccessResponse {
-  ok: true;
-  eligible: boolean;
-  risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
-  zcore_bcra: number;
-  score_initial: number;
-  score_reason: string;
-  model_version: string;
-  periodo: string;
-  first_name: string;
-  last_name: string;
-}
-
-interface PrequalErrorResponse {
-  ok: false;
-  error_type: 'TECHNICAL' | 'BUSINESS';
-  error_code: string;
-}
-
-type PrequalResponse = PrequalSuccessResponse | PrequalErrorResponse;
-
-const CUIT_DIGITS_LENGTH = 11;
-const PERIODO_REGEX = /^\d{6}$/;
+import {
+  type BcraClassification,
+  type BcraHistoricalResponse,
+  type BcraLatestResponse,
+  type NormalizedHistorical,
+  type NormalizedLatest,
+  type ParsedDenominacion,
+  type PrequalResponse,
+} from './prequal.types';
+import {
+  BCRA_BACKOFF_BASE_MS,
+  BCRA_BACKOFF_JITTER,
+  BCRA_MAX_RETRIES,
+  CUIT_DIGITS_LENGTH,
+  PERIODO_REGEX,
+} from './prequal.constants';
 
 @Injectable()
 export class PrequalService {
+  private readonly logger = new Logger(PrequalService.name);
   private readonly bcraLatestUrl: string;
   private readonly bcraHistoricalUrl: string;
   private readonly bcraTimeoutMs: number;
@@ -140,6 +43,58 @@ export class PrequalService {
       'https://api.bcra.gob.ar/centraldedeudores/v1.0/deudas/historicas';
     this.bcraTimeoutMs =
       Number(this.configService.get<string>('BCRA_API_TIMEOUT_MS')) || 15000;
+  }
+
+  /**
+   * Fetch con reintentos y exponential backoff para la API del BCRA.
+   * Reintenta ante 5xx, errores de red (TypeError) o timeout (AbortError).
+   * No reintenta ante 4xx (ej. 404).
+   */
+  private async fetchWithRetry(
+    url: string,
+    timeoutMs: number,
+  ): Promise<Response> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= BCRA_MAX_RETRIES + 1; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        // 5xx: reintentar. 4xx/2xx: devolver sin reintentar.
+        if (res.status >= 500 && attempt <= BCRA_MAX_RETRIES) {
+          this.logger.warn(
+            `Reintentando conexión con BCRA (Intento ${attempt})... status=${res.status}`,
+          );
+          await this.delayWithBackoff(attempt);
+          continue;
+        }
+        return res;
+      } catch (err) {
+        lastError = err;
+        const isRetryable =
+          err instanceof TypeError ||
+          (err instanceof Error && err.name === 'AbortError');
+        if (isRetryable && attempt <= BCRA_MAX_RETRIES) {
+          this.logger.warn(
+            `Reintentando conexión con BCRA (Intento ${attempt})... error=${err instanceof Error ? err.message : String(err)}`,
+          );
+          await this.delayWithBackoff(attempt);
+          continue;
+        }
+        throw lastError;
+      }
+    }
+    throw lastError;
+  }
+
+  /** Espera base * 2^(attempt-1) con jitter ±20%. */
+  private delayWithBackoff(attempt: number): Promise<void> {
+    const baseDelay = BCRA_BACKOFF_BASE_MS * Math.pow(2, attempt - 1);
+    const jitter = baseDelay * BCRA_BACKOFF_JITTER * (Math.random() * 2 - 1);
+    const delayMs = Math.max(0, Math.round(baseDelay + jitter));
+    return new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
   public async runPrequal(input: {
@@ -268,13 +223,7 @@ export class PrequalService {
   ): Promise<BcraLatestResponse | null> {
     const url = `${this.bcraLatestUrl}/${cuit}`;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        this.bcraTimeoutMs,
-      );
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
+      const res = await this.fetchWithRetry(url, this.bcraTimeoutMs);
       if (res.status === 404)
         return { results: { periodos: [] } } as BcraLatestResponse;
       if (res.status >= 500) throw new Error('BCRA 5xx');
@@ -290,13 +239,7 @@ export class PrequalService {
   ): Promise<BcraHistoricalResponse | null> {
     const url = `${this.bcraHistoricalUrl}/${cuit}`;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        this.bcraTimeoutMs,
-      );
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
+      const res = await this.fetchWithRetry(url, this.bcraTimeoutMs);
       if (res.status === 404)
         return { results: { periodos: [] } } as BcraHistoricalResponse;
       if (res.status >= 500) throw new Error('BCRA 5xx');
