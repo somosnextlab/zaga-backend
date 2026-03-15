@@ -56,11 +56,10 @@ export class PrequalService {
   ): Promise<Response> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= BCRA_MAX_RETRIES + 1; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
 
         // 5xx: reintentar. 4xx/2xx: devolver sin reintentar.
         if (res.status >= 500 && attempt <= BCRA_MAX_RETRIES) {
@@ -84,9 +83,17 @@ export class PrequalService {
           continue;
         }
         throw lastError;
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
     throw lastError;
+  }
+
+  /** Enmascara CUIT para logs: solo últimos 4 dígitos visibles. */
+  private maskCuit(cuit: string): string {
+    if (cuit.length <= 4) return '****';
+    return '*'.repeat(cuit.length - 4) + cuit.slice(-4);
   }
 
   /** Espera base * 2^(attempt-1) con jitter ±20%. */
@@ -226,10 +233,15 @@ export class PrequalService {
       const res = await this.fetchWithRetry(url, this.bcraTimeoutMs);
       if (res.status === 404)
         return { results: { periodos: [] } } as BcraLatestResponse;
-      if (res.status >= 500) throw new Error('BCRA 5xx');
+      if (res.status >= 500) throw new Error(`BCRA ${res.status}`);
       const json = (await res.json()) as BcraLatestResponse;
       return json;
-    } catch {
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const errType = err instanceof Error ? err.name : 'unknown';
+      this.logger.warn(
+        `BCRA latest falló: endpoint=latest, cuit=${this.maskCuit(cuit)}, errorType=${errType}, error=${errMsg}`,
+      );
       return null;
     }
   }
@@ -242,10 +254,15 @@ export class PrequalService {
       const res = await this.fetchWithRetry(url, this.bcraTimeoutMs);
       if (res.status === 404)
         return { results: { periodos: [] } } as BcraHistoricalResponse;
-      if (res.status >= 500) throw new Error('BCRA 5xx');
+      if (res.status >= 500) throw new Error(`BCRA ${res.status}`);
       const json = (await res.json()) as BcraHistoricalResponse;
       return json;
-    } catch {
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const errType = err instanceof Error ? err.name : 'unknown';
+      this.logger.warn(
+        `BCRA historical falló: endpoint=historical, cuit=${this.maskCuit(cuit)}, errorType=${errType}, error=${errMsg}`,
+      );
       return null;
     }
   }
