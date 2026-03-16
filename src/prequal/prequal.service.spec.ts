@@ -134,6 +134,7 @@ describe('PrequalService', () => {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'INVALID_INPUT',
+        bypass_allowed: false,
       });
       expect(mockDbService.query).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
@@ -150,6 +151,7 @@ describe('PrequalService', () => {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'INVALID_INPUT',
+        bypass_allowed: false,
       });
     });
 
@@ -194,6 +196,7 @@ describe('PrequalService', () => {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'USER_NOT_FOUND',
+        bypass_allowed: false,
       });
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -391,6 +394,8 @@ describe('PrequalService', () => {
         ok: false,
         error_type: 'TECHNICAL',
         error_code: 'BCRA_UNAVAILABLE',
+        bypass_allowed: true,
+        manual_review_reason: 'BCRA_UNAVAILABLE',
       });
     });
 
@@ -426,6 +431,8 @@ describe('PrequalService', () => {
         ok: false,
         error_type: 'TECHNICAL',
         error_code: 'BCRA_UNAVAILABLE',
+        bypass_allowed: true,
+        manual_review_reason: 'BCRA_UNAVAILABLE',
       });
     });
   });
@@ -463,6 +470,8 @@ describe('PrequalService', () => {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'BCRA_NO_DATA',
+        bypass_allowed: true,
+        manual_review_reason: 'BCRA_NO_DATA',
       });
     });
 
@@ -499,6 +508,8 @@ describe('PrequalService', () => {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'BCRA_NO_DATA',
+        bypass_allowed: true,
+        manual_review_reason: 'BCRA_NO_DATA',
       });
     });
   });
@@ -537,6 +548,7 @@ describe('PrequalService', () => {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'BCRA_INVALID_PAYLOAD',
+        bypass_allowed: false,
       });
     });
   });
@@ -952,6 +964,37 @@ describe('PrequalService', () => {
   });
 
   describe('Persistencia', () => {
+    it('no debe llamar withTransaction cuando BCRA_NO_DATA (bypass manual)', async () => {
+      mockDbService.query.mockResolvedValue({
+        rows: [
+          {
+            id: VALID_USER_ID,
+            phone: VALID_PHONE,
+            cuit: VALID_CUIT,
+            first_name: null,
+            last_name: null,
+          },
+        ],
+      });
+      fetchMock.mockImplementation((url) => {
+        const payload = String(url as string).includes('/historicas/')
+          ? createBcraHistoricalResponse()
+          : { status: 0, results: { periodos: [] } };
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(mockDbService.withTransaction).not.toHaveBeenCalled();
+    });
+
     it('debe llamar withTransaction para upsert en user_prequals en caso de éxito', async () => {
       mockDbService.query.mockResolvedValue({
         rows: [

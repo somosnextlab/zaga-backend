@@ -111,6 +111,8 @@ export interface PrequalErrorResponse {
   ok: false;
   error_type: 'TECHNICAL' | 'BUSINESS';
   error_code: string;
+  bypass_allowed: boolean;
+  manual_review_reason?: 'BCRA_NO_DATA' | 'BCRA_UNAVAILABLE';
 }
 
 export type PrequalResponse = PrequalSuccessResponse | PrequalErrorResponse;

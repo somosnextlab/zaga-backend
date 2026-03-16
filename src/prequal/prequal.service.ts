@@ -115,6 +115,7 @@ export class PrequalService {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'INVALID_INPUT',
+        bypass_allowed: false,
       };
     }
 
@@ -124,6 +125,7 @@ export class PrequalService {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'USER_NOT_FOUND',
+        bypass_allowed: false,
       };
     }
 
@@ -134,10 +136,17 @@ export class PrequalService {
 
     const classification = this.classifyBcraResponses(latestRes, historicalRes);
     if (classification.type !== 'SUCCESS') {
+      const code = classification.code ?? 'UNKNOWN';
+      const bypassAllowed =
+        code === 'BCRA_NO_DATA' || code === 'BCRA_UNAVAILABLE';
       return {
         ok: false,
         error_type: classification.type,
-        error_code: classification.code ?? 'UNKNOWN',
+        error_code: code,
+        bypass_allowed: bypassAllowed,
+        ...(bypassAllowed && {
+          manual_review_reason: code,
+        }),
       };
     }
 
@@ -147,6 +156,7 @@ export class PrequalService {
         ok: false,
         error_type: 'BUSINESS',
         error_code: 'BCRA_INVALID_PAYLOAD',
+        bypass_allowed: false,
       };
     }
 
