@@ -203,6 +203,7 @@ describe('PrequalController (e2e)', () => {
           ok: false,
           error_type: 'BUSINESS',
           error_code: 'USER_NOT_FOUND',
+          bypass_allowed: false,
         });
       });
   });
