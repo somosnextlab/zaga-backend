@@ -23,6 +23,7 @@ import {
   CUIT_DIGITS_LENGTH,
   PERIODO_REGEX,
 } from './prequal.constants';
+import { BcraRequestQueue } from './bcra-request-queue';
 
 @Injectable()
 export class PrequalService {
@@ -30,6 +31,7 @@ export class PrequalService {
   private readonly bcraLatestUrl: string;
   private readonly bcraHistoricalUrl: string;
   private readonly bcraTimeoutMs: number;
+  private readonly bcraQueue: BcraRequestQueue;
 
   public constructor(
     private readonly dbService: DbService,
@@ -43,12 +45,17 @@ export class PrequalService {
       'https://api.bcra.gob.ar/centraldedeudores/v1.0/deudas/historicas';
     this.bcraTimeoutMs =
       Number(this.configService.get<string>('BCRA_API_TIMEOUT_MS')) || 15000;
+    const maxConcurrent =
+      Number(this.configService.get<string>('BCRA_MAX_CONCURRENT_REQUESTS')) ||
+      5;
+    this.bcraQueue = new BcraRequestQueue(maxConcurrent);
   }
 
   /**
    * Fetch con reintentos y exponential backoff para la API del BCRA.
    * Reintenta ante 5xx, errores de red (TypeError) o timeout (AbortError).
    * No reintenta ante 4xx (ej. 404).
+   * Las requests pasan por la cola de concurrencia limitada (control de tráfico).
    */
   private async fetchWithRetry(
     url: string,
@@ -59,7 +66,9 @@ export class PrequalService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const res = await fetch(url, { signal: controller.signal });
+        const res = await this.bcraQueue.add(() =>
+          fetch(url, { signal: controller.signal }),
+        );
 
         // 5xx: reintentar. 4xx/2xx: devolver sin reintentar.
         if (res.status >= 500 && attempt <= BCRA_MAX_RETRIES) {
