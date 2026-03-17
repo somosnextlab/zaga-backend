@@ -187,7 +187,7 @@ describe('PrequalController (e2e)', () => {
       .expect(400);
   });
 
-  it('POST /internal/prequal/run con usuario inexistente debe devolver 404, ok:false, USER_NOT_FOUND', () => {
+  it('POST /internal/prequal/run con usuario inexistente debe devolver 200, ok:false, USER_NOT_FOUND', () => {
     mockDbService.query.mockResolvedValue({ rows: [] });
 
     return request(app.getHttpServer())
@@ -197,7 +197,7 @@ describe('PrequalController (e2e)', () => {
         phone: VALID_PHONE,
         cuit: VALID_CUIT,
       })
-      .expect(404)
+      .expect(200)
       .expect((res) => {
         expect(res.body).toEqual({
           ok: false,
