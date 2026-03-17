@@ -1,14 +1,7 @@
-import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpException,
-  HttpStatus,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RunPrequalDto } from './dto/run-prequal.dto';
-import type { PrequalErrorResponse, PrequalResponse } from './prequal.types';
+import type { PrequalResponse } from './prequal.types';
 import { PrequalService } from './prequal.service';
 
 @ApiTags('Prequal')
@@ -21,55 +14,24 @@ export class PrequalController {
   @ApiOperation({ summary: 'Ejecutar precalificación' })
   @ApiResponse({
     status: 200,
-    description: 'Precalificación ejecutada correctamente',
+    description:
+      'Precalificación ejecutada. Incluye éxito (ok: true) o outcomes manejados (ok: false con error_code: BCRA_NO_DATA, BCRA_UNAVAILABLE, INVALID_INPUT, BCRA_INVALID_PAYLOAD, USER_NOT_FOUND).',
   })
   @ApiResponse({
     status: 400,
-    description: 'Input inválido (ej. CUIT mal formado)',
+    description: 'Validación DTO fallida (ej. campos requeridos faltantes, formato inválido)',
   })
   @ApiResponse({
-    status: 404,
-    description: 'Usuario no encontrado o BCRA sin datos para el CUIT',
-  })
-  @ApiResponse({
-    status: 422,
-    description: 'Payload BCRA inválido o inesperado',
-  })
-  @ApiResponse({
-    status: 502,
-    description: 'BCRA no disponible (timeout, 5xx, error de red)',
+    status: 500,
+    description: 'Error interno inesperado no manejado',
   })
   public async runPrequal(
     @Body() body: RunPrequalDto,
   ): Promise<PrequalResponse> {
-    const result = await this.prequalService.runPrequal({
+    return this.prequalService.runPrequal({
       userId: body.userId,
       phone: body.phone,
       cuit: body.cuit,
     });
-
-    if (!result.ok) {
-      const status = this.mapErrorToStatus(result);
-      throw new HttpException(result, status);
-    }
-
-    return result;
-  }
-
-  private mapErrorToStatus(result: PrequalErrorResponse): number {
-    if (result.error_type === 'TECHNICAL') {
-      return HttpStatus.BAD_GATEWAY;
-    }
-    switch (result.error_code) {
-      case 'INVALID_INPUT':
-        return HttpStatus.BAD_REQUEST;
-      case 'USER_NOT_FOUND':
-      case 'BCRA_NO_DATA':
-        return HttpStatus.NOT_FOUND;
-      case 'BCRA_INVALID_PAYLOAD':
-        return HttpStatus.UNPROCESSABLE_ENTITY;
-      default:
-        return HttpStatus.INTERNAL_SERVER_ERROR;
-    }
   }
 }
