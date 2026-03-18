@@ -1,7 +1,6 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PoolClient } from 'pg';
 import { DbService } from '../db/db.service';
@@ -263,7 +262,8 @@ describe('OfferEngineService', () => {
 
       const insertCall = mockClient.query.mock.calls.find(
         (call: [string]) =>
-          typeof call[0] === 'string' && call[0].includes('INSERT INTO case_offers'),
+          typeof call[0] === 'string' &&
+          call[0].includes('INSERT INTO case_offers'),
       );
       expect(insertCall).toBeDefined();
       expect(insertCall[1]).toContain(6);

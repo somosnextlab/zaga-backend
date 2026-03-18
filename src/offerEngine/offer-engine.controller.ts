@@ -22,8 +22,7 @@ export class OfferEngineController {
   })
   @ApiResponse({
     status: 400,
-    description:
-      'Validación fallida o caso no está en WAITING_CEO',
+    description: 'Validación fallida o caso no está en WAITING_CEO',
   })
   @ApiResponse({
     status: 404,
