@@ -135,12 +135,12 @@ export class OfferEngineService {
           }>(
             `INSERT INTO case_offers (
           case_id, version, amount, installments, status, created_by,
-          sent_at, payment_periodicity, payment_amount, tasa_nominal_anual,
+          created_at, sent_at, payment_periodicity, payment_amount, tasa_nominal_anual,
           costo_financiero_final_operacion, tea, cftna, cftea,
           total_interest, total_vat, total_payable, cfto_amount, cfto_percent,
           pricing_engine_version
         ) VALUES (
-          $1, $2, $3, $4, 'SENT', $5, now(), $6, $7, $8, $9, $10, $11, $12,
+          $1, $2, $3, $4, 'SENT', $5, now(), now(), $6, $7, $8, $9, $10, $11, $12,
           $13, $14, $15, $16, $17, $18
         ) RETURNING id, case_id, version, amount, installments, status,
           payment_periodicity, payment_amount, tasa_nominal_anual,
