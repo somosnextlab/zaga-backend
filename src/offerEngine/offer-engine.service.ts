@@ -48,88 +48,92 @@ export class OfferEngineService {
   public async createCaseOffer(
     input: CreateCaseOfferInput,
   ): Promise<CreateCaseOfferResponse> {
-    return this.dbService.withTransaction(async (client: PoolClient) => {
-      const caseRow = await this.findCaseForOffer(client, input.case_id);
+    try {
+      return await this.dbService.withTransaction(
+        async (client: PoolClient) => {
+          const caseRow = await this.findCaseForOffer(client, input.case_id);
 
-      if (!caseRow) {
-        throw new NotFoundException('Caso no encontrado');
-      }
+          if (!caseRow) {
+            throw new NotFoundException('Caso no encontrado');
+          }
 
-      if (caseRow.status !== ALLOWED_CASE_STATUS_FOR_OFFER) {
-        throw new BadRequestException(
-          `El caso debe estar en estado ${ALLOWED_CASE_STATUS_FOR_OFFER} para crear una oferta`,
-        );
-      }
+          if (caseRow.status !== ALLOWED_CASE_STATUS_FOR_OFFER) {
+            throw new BadRequestException(
+              `El caso debe estar en estado ${ALLOWED_CASE_STATUS_FOR_OFFER} para crear una oferta`,
+            );
+          }
 
-      const tnaDecimal = input.tasa_nominal_anual / 100;
-      const periodRate = tnaDecimal / WEEKS_PER_YEAR;
+          const tnaDecimal = input.tasa_nominal_anual / 100;
+          const periodRate = tnaDecimal / WEEKS_PER_YEAR;
 
-      const schedule = this.buildFrenchSchedule(
-        input.monto_pre_aprobado,
-        periodRate,
-        MVP_INSTALLMENTS,
-        input.first_due_date ?? null,
-      );
+          const schedule = this.buildFrenchSchedule(
+            input.monto_pre_aprobado,
+            periodRate,
+            MVP_INSTALLMENTS,
+            input.first_due_date ?? null,
+          );
 
-      const paymentAmount = schedule[0]?.gross_installment ?? 0;
-      const totalInterest = schedule.reduce((sum, s) => sum + s.interest, 0);
-      const totalVat = schedule.reduce((sum, s) => sum + s.vat, 0);
-      const totalPayable = schedule.reduce(
-        (sum, s) => sum + s.gross_installment,
-        0,
-      );
-      const cftoAmount = totalPayable - input.monto_pre_aprobado;
-      const cftoPercent =
-        input.monto_pre_aprobado > 0
-          ? cftoAmount / input.monto_pre_aprobado
-          : 0;
+          const paymentAmount = schedule[0]?.gross_installment ?? 0;
+          const totalInterest = schedule.reduce(
+            (sum, s) => sum + s.interest,
+            0,
+          );
+          const totalVat = schedule.reduce((sum, s) => sum + s.vat, 0);
+          const totalPayable = schedule.reduce(
+            (sum, s) => sum + s.gross_installment,
+            0,
+          );
+          const cftoAmount = totalPayable - input.monto_pre_aprobado;
+          const cftoPercent =
+            input.monto_pre_aprobado > 0
+              ? cftoAmount / input.monto_pre_aprobado
+              : 0;
 
-      const tea = Math.pow(1 + periodRate, WEEKS_PER_YEAR) - 1;
-      const cftna = tnaDecimal * (1 + IVA_RATE);
-      const cftea = tea * (1 + IVA_RATE);
+          const tea = Math.pow(1 + periodRate, WEEKS_PER_YEAR) - 1;
+          const cftna = tnaDecimal * (1 + IVA_RATE);
+          const cftea = tea * (1 + IVA_RATE);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      const maxVersionResult = await client.query<{
-        max_version: number | null;
-      }>(
-        `SELECT MAX(version) as max_version FROM case_offers WHERE case_id = $1`,
-        [input.case_id],
-      );
-      const maxVersion = maxVersionResult.rows[0]?.max_version ?? 0;
-      const newVersion = maxVersion + 1;
+          const maxVersionResult = await client.query<{
+            max_version: number | null;
+          }>(
+            `SELECT MAX(version) as max_version FROM case_offers WHERE case_id = $1`,
+            [input.case_id],
+          );
+          const maxVersion = maxVersionResult.rows[0]?.max_version ?? 0;
+          const newVersion = maxVersion + 1;
 
-      await client.query(
-        `UPDATE case_offers
+          await client.query(
+            `UPDATE case_offers
          SET status = 'SUPERSEDED'
          WHERE case_id = $1 AND status IN ('SENT', 'DRAFT')`,
-        [input.case_id],
-      );
+            [input.case_id],
+          );
 
-      const createdBy = input.created_by ?? 'system';
-      const requiresGuarantor = input.requires_guarantor ?? false;
+          const createdBy = input.created_by ?? 'system';
+          const requiresGuarantor = input.requires_guarantor ?? false;
 
-      const insertResult = await client.query<{
-        id: string;
-        case_id: string;
-        version: number;
-        amount: number;
-        installments: number;
-        status: string;
-        payment_periodicity: string;
-        payment_amount: number;
-        tasa_nominal_anual: number;
-        costo_financiero_final_operacion: number;
-        tea: number;
-        cftna: number;
-        cftea: number;
-        total_interest: number;
-        total_vat: number;
-        total_payable: number;
-        cfto_amount: number;
-        cfto_percent: number;
-        pricing_engine_version: string;
-      }>(
-        `INSERT INTO case_offers (
+          const insertResult = await client.query<{
+            id: string;
+            case_id: string;
+            version: number;
+            amount: number;
+            installments: number;
+            status: string;
+            payment_periodicity: string;
+            payment_amount: number;
+            tasa_nominal_anual: number;
+            costo_financiero_final_operacion: number;
+            tea: number;
+            cftna: number;
+            cftea: number;
+            total_interest: number;
+            total_vat: number;
+            total_payable: number;
+            cfto_amount: number;
+            cfto_percent: number;
+            pricing_engine_version: string;
+          }>(
+            `INSERT INTO case_offers (
           case_id, version, amount, installments, status, created_by,
           sent_at, payment_periodicity, payment_amount, tasa_nominal_anual,
           costo_financiero_final_operacion, tea, cftna, cftea,
@@ -143,68 +147,79 @@ export class OfferEngineService {
           costo_financiero_final_operacion, tea, cftna, cftea,
           total_interest, total_vat, total_payable, cfto_amount, cfto_percent,
           pricing_engine_version`,
-        [
-          input.case_id,
-          newVersion,
-          input.monto_pre_aprobado,
-          MVP_INSTALLMENTS,
-          createdBy,
-          MVP_PERIODICITY,
-          this.round2(paymentAmount),
-          input.tasa_nominal_anual,
-          this.round2(cftoAmount),
-          this.round2(tea),
-          this.round2(cftna),
-          this.round2(cftea),
-          this.round2(totalInterest),
-          this.round2(totalVat),
-          this.round2(totalPayable),
-          this.round2(cftoAmount),
-          this.round2(cftoPercent),
-          PRICING_ENGINE_VERSION,
-        ],
-      );
+            [
+              input.case_id,
+              newVersion,
+              input.monto_pre_aprobado,
+              MVP_INSTALLMENTS,
+              createdBy,
+              MVP_PERIODICITY,
+              this.round2(paymentAmount),
+              input.tasa_nominal_anual,
+              this.round2(cftoAmount),
+              this.round2(tea),
+              this.round2(cftna),
+              this.round2(cftea),
+              this.round2(totalInterest),
+              this.round2(totalVat),
+              this.round2(totalPayable),
+              this.round2(cftoAmount),
+              this.round2(cftoPercent),
+              PRICING_ENGINE_VERSION,
+            ],
+          );
 
-      const offerRow = insertResult.rows[0];
-      if (!offerRow) {
-        this.logger.error('Insert case_offer no devolvió fila');
-        throw new InternalServerErrorException(
-          'Error al crear la oferta. Intente nuevamente.',
-        );
-      }
+          const offerRow = insertResult.rows[0];
+          if (!offerRow) {
+            this.logger.error('Insert case_offer no devolvió fila');
+            throw new InternalServerErrorException(
+              'Error al crear la oferta. Intente nuevamente.',
+            );
+          }
 
-      await client.query(
-        `UPDATE cases
+          await client.query(
+            `UPDATE cases
          SET current_offer_id = $1, status = 'OFFER_SENT',
              requires_guarantor = $2, updated_at = now()
          WHERE id = $3`,
-        [offerRow.id, requiresGuarantor, input.case_id],
+            [offerRow.id, requiresGuarantor, input.case_id],
+          );
+
+          const offer: CaseOfferPayload = {
+            offer_id: offerRow.id,
+            case_id: offerRow.case_id,
+            version: offerRow.version,
+            requires_guarantor: requiresGuarantor,
+            amount: offerRow.amount,
+            installments: offerRow.installments,
+            payment_periodicity: offerRow.payment_periodicity,
+            payment_amount: offerRow.payment_amount,
+            tasa_nominal_anual: offerRow.tasa_nominal_anual,
+            tea: offerRow.tea,
+            cftna: offerRow.cftna,
+            cftea: offerRow.cftea,
+            total_interest: offerRow.total_interest,
+            total_vat: offerRow.total_vat,
+            total_payable: offerRow.total_payable,
+            cfto_amount: offerRow.cfto_amount,
+            cfto_percent: offerRow.cfto_percent,
+            pricing_engine_version: offerRow.pricing_engine_version,
+            schedule,
+          };
+
+          return { ok: true, offer };
+        },
       );
-
-      const offer: CaseOfferPayload = {
-        offer_id: offerRow.id,
-        case_id: offerRow.case_id,
-        version: offerRow.version,
-        requires_guarantor: requiresGuarantor,
-        amount: offerRow.amount,
-        installments: offerRow.installments,
-        payment_periodicity: offerRow.payment_periodicity,
-        payment_amount: offerRow.payment_amount,
-        tasa_nominal_anual: offerRow.tasa_nominal_anual,
-        tea: offerRow.tea,
-        cftna: offerRow.cftna,
-        cftea: offerRow.cftea,
-        total_interest: offerRow.total_interest,
-        total_vat: offerRow.total_vat,
-        total_payable: offerRow.total_payable,
-        cfto_amount: offerRow.cfto_amount,
-        cfto_percent: offerRow.cfto_percent,
-        pricing_engine_version: offerRow.pricing_engine_version,
-        schedule,
-      };
-
-      return { ok: true, offer };
-    });
+    } catch (error) {
+      const err = error as Error & { code?: string; detail?: string };
+      this.logger.error(`createCaseOffer failed: ${err.message}`, err.stack);
+      if (err.code) {
+        this.logger.error(
+          `DB code: ${err.code}, detail: ${err.detail ?? 'N/A'}`,
+        );
+      }
+      throw error;
+    }
   }
 
   /**
