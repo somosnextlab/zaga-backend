@@ -19,7 +19,8 @@ export class PrequalController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Validación DTO fallida (ej. campos requeridos faltantes, formato inválido)',
+    description:
+      'Validación DTO fallida (ej. campos requeridos faltantes, formato inválido)',
   })
   @ApiResponse({
     status: 500,

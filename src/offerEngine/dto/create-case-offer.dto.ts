@@ -41,7 +41,8 @@ export class CreateCaseOfferDto {
   public requires_guarantor?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Identificador de quién creó la oferta (ej: user_id o sistema)',
+    description:
+      'Identificador de quién creó la oferta (ej: user_id o sistema)',
   })
   @IsOptional()
   @IsString()

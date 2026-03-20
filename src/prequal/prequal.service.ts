@@ -201,6 +201,10 @@ export class PrequalService {
         model_version: scoreResult.model_version,
         raw: JSON.stringify(raw),
       });
+
+      if (!scoreResult.eligible) {
+        await this.setLeadRejected(client, input.phone);
+      }
     });
 
     return {
@@ -715,6 +719,27 @@ export class PrequalService {
         row.model_version,
         row.raw,
       ],
+    );
+  }
+
+  private async setLeadRejected(
+    client: PoolClient,
+    phone: string,
+  ): Promise<void> {
+    await client.query(
+      `
+      UPDATE leads
+      SET stage = 'REJECTED',
+          updated_at = now()
+      WHERE phone = $1
+        AND stage IN (
+          'DATA_COMPLETE',
+          'WAITING_AMOUNT_RANGE',
+          'WAITING_AMOUNT_RANGE_MANUAL_REVIEW',
+          'REJECTED'
+        )
+      `,
+      [phone],
     );
   }
 }
