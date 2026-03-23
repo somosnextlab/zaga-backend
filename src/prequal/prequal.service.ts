@@ -415,10 +415,11 @@ export class PrequalService {
   }
 
   /**
-   * Umbral mínimo de deuda (miles) para considerar "relevante".
-   * Si deuda ref = 0 y actual > umbral => suba fuerte/brusca (castigo).
+   * Umbral mínimo de deuda (escala BCRA, miles) para considerar "relevante".
+   * Si deuda ref = 0 y actual >= umbral => suba fuerte/brusca (castigo).
+   * 5 = $5.000 en pesos reales; evita ruido, montos ínfimos y residuos de sistema.
    */
-  private readonly DEBT_RELEVANT_THRESHOLD_M = 0.1;
+  private readonly DEBT_RELEVANT_THRESHOLD_M = 5;
 
   private computeTrendAdjustmentPoints(
     historical: NormalizedHistorical,
