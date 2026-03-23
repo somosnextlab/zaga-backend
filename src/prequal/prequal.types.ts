@@ -85,6 +85,20 @@ export interface NormalizedHistorical {
   months_any_sit_3plus_24m: number;
   clean_months_24m: number;
   months_since_last_bad_event: number;
+  /** Deuda total último período (miles). Solo si hay datos para tendencia. */
+  debt_total_current?: number;
+  /** Deuda total hace 3 meses (miles). Solo si hay datos para tendencia. */
+  debt_total_3m_ago?: number;
+  /** Deuda total hace 6 meses (miles). Solo si hay datos para tendencia. */
+  debt_total_6m_ago?: number;
+  /** Variación % 3m: (current - 3m) / 3m * 100. Undefined si ref=0 o sin datos. */
+  pct_change_3m?: number;
+  /** Variación % 6m: (current - 6m) / 6m * 100. Undefined si ref=0 o sin datos. */
+  pct_change_6m?: number;
+  /** Meses consecutivos bajando en últimos 6 (0–5). */
+  consecutive_months_down_6m?: number;
+  /** Meses consecutivos subiendo en últimos 6 (0–5). */
+  consecutive_months_up_6m?: number;
 }
 
 /** Denominación parseada (nombre/apellido) desde BCRA. */

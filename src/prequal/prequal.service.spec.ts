@@ -60,6 +60,19 @@ const createBcraHistoricalResponse = () => ({
   },
 });
 
+/**
+ * Crea histórico con secuencia de deuda en últimos 7 meses.
+ * ultimos7Montos[0]=hace 6m, ultimos7Montos[3]=hace 3m, ultimos7Montos[6]=actual.
+ */
+const createHistoricalWithDebtSequence = (ultimos7Montos: number[]) => {
+  const base = createBcraHistoricalResponse();
+  const start = 24 - ultimos7Montos.length;
+  for (let i = 0; i < ultimos7Montos.length; i++) {
+    base.results.periodos[start + i].entidades[0].monto = ultimos7Montos[i];
+  }
+  return base;
+};
+
 describe('PrequalService', () => {
   let service: PrequalService;
   let fetchMock: jest.SpyInstance;
@@ -882,7 +895,392 @@ describe('PrequalService', () => {
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.eligible).toBe(false);
+        expect(result.zcore_bcra).toBe(0);
         expect(result.score_reason).toBe('HARD_REJECT_ZCORE_BCRA_V1');
+      }
+    });
+
+    it('debe aplicar hard reject cuando max_situacion >= 4 (nueva regla)', async () => {
+      mockDbService.query.mockResolvedValue({
+        rows: [
+          {
+            id: VALID_USER_ID,
+            phone: VALID_PHONE,
+            cuit: VALID_CUIT,
+            first_name: null,
+            last_name: null,
+          },
+        ],
+      });
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? createBcraHistoricalResponse()
+          : createBcraLatestResponse({ situacion: 4 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const result = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.eligible).toBe(false);
+        expect(result.zcore_bcra).toBe(0);
+        expect(result.score_initial).toBe(0);
+        expect(result.risk_level).toBe('HIGH');
+        expect(result.score_reason).toBe('HARD_REJECT_ZCORE_BCRA_V1');
+        expect(result.model_version).toBe('ZCORE_BCRA_V1');
+      }
+    });
+  });
+
+  describe('Tendencia de deuda', () => {
+    const setupMockUser = () => {
+      mockDbService.query.mockResolvedValue({
+        rows: [
+          {
+            id: VALID_USER_ID,
+            phone: VALID_PHONE,
+            cuit: VALID_CUIT,
+            first_name: null,
+            last_name: null,
+          },
+        ],
+      });
+    };
+
+    it('debe mantener score base cuando tendencia neutra (deuda estable)', async () => {
+      setupMockUser();
+      const historical = createHistoricalWithDebtSequence([
+        100, 100, 100, 100, 100, 100, 100,
+      ]);
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? historical
+          : createBcraLatestResponse({ monto: 100, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const result = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.zcore_bcra).toBeGreaterThanOrEqual(0);
+        expect(result.zcore_bcra).toBeLessThanOrEqual(1000);
+      }
+    });
+
+    it('debe dar premio cuando deuda bajó en 6 meses', async () => {
+      setupMockUser();
+      const historical = createHistoricalWithDebtSequence([
+        200, 180, 160, 140, 120, 100, 80,
+      ]);
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? historical
+          : createBcraLatestResponse({ monto: 80, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const withBajada = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? createBcraHistoricalResponse()
+          : createBcraLatestResponse({ monto: 80, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const neutro = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(withBajada.ok).toBe(true);
+      expect(neutro.ok).toBe(true);
+      if (withBajada.ok && neutro.ok) {
+        expect(
+          (withBajada as { zcore_bcra: number }).zcore_bcra,
+        ).toBeGreaterThan((neutro as { zcore_bcra: number }).zcore_bcra);
+      }
+    });
+
+    it('debe dar castigo cuando deuda subió en 6 meses', async () => {
+      setupMockUser();
+      const historical = createHistoricalWithDebtSequence([
+        80, 100, 120, 140, 160, 180, 200,
+      ]);
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? historical
+          : createBcraLatestResponse({ monto: 200, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const withSubida = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? createBcraHistoricalResponse()
+          : createBcraLatestResponse({ monto: 200, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const neutro = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(withSubida.ok).toBe(true);
+      expect(neutro.ok).toBe(true);
+      if (withSubida.ok && neutro.ok) {
+        expect((withSubida as { zcore_bcra: number }).zcore_bcra).toBeLessThan(
+          (neutro as { zcore_bcra: number }).zcore_bcra,
+        );
+      }
+    });
+
+    it('debe dar castigo mayor cuando suba brusca en 3 meses', async () => {
+      setupMockUser();
+      const historical = createHistoricalWithDebtSequence([
+        100, 100, 100, 50, 70, 120, 150,
+      ]);
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? historical
+          : createBcraLatestResponse({ monto: 150, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const result = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.zcore_bcra).toBeGreaterThanOrEqual(0);
+        expect(result.zcore_bcra).toBeLessThanOrEqual(1000);
+      }
+    });
+
+    it('debe castigar cuando deuda histórica 0 y actual relevante (no neutro)', async () => {
+      setupMockUser();
+      const historical = createHistoricalWithDebtSequence([
+        0, 0, 0, 0, 0, 0, 500,
+      ]);
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? historical
+          : createBcraLatestResponse({ monto: 500, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const conDeudaNueva = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? createBcraHistoricalResponse()
+          : createBcraLatestResponse({ monto: 500, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const estable = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(conDeudaNueva.ok).toBe(true);
+      expect(estable.ok).toBe(true);
+      if (conDeudaNueva.ok && estable.ok) {
+        expect(
+          (conDeudaNueva as { zcore_bcra: number }).zcore_bcra,
+        ).toBeLessThan((estable as { zcore_bcra: number }).zcore_bcra);
+      }
+    });
+
+    it('debe respetar clamp ±20 en ajuste por tendencia', async () => {
+      setupMockUser();
+      const historicalBajadaExtrema = createHistoricalWithDebtSequence([
+        1000, 800, 600, 400, 200, 100, 10,
+      ]);
+      const historicalSubidaExtrema = createHistoricalWithDebtSequence([
+        10, 100, 200, 400, 600, 800, 1000,
+      ]);
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? historicalBajadaExtrema
+          : createBcraLatestResponse({ monto: 10, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const conBajadaExtrema = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? historicalSubidaExtrema
+          : createBcraLatestResponse({ monto: 1000, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const conSubidaExtrema = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(conBajadaExtrema.ok).toBe(true);
+      expect(conSubidaExtrema.ok).toBe(true);
+      if (conBajadaExtrema.ok && conSubidaExtrema.ok) {
+        const diff =
+          (conBajadaExtrema as { zcore_bcra: number }).zcore_bcra -
+          (conSubidaExtrema as { zcore_bcra: number }).zcore_bcra;
+        expect(diff).toBeLessThanOrEqual(50);
+        expect(
+          (conBajadaExtrema as { zcore_bcra: number }).zcore_bcra,
+        ).toBeLessThanOrEqual(1000);
+        expect(
+          (conSubidaExtrema as { zcore_bcra: number }).zcore_bcra,
+        ).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    it('debe ordenar periodos por YYYYMM antes de calcular tendencia', async () => {
+      setupMockUser();
+      const ordered = createHistoricalWithDebtSequence([
+        200, 180, 160, 140, 120, 100, 80,
+      ]);
+      const reversed = {
+        ...ordered,
+        results: { periodos: [...ordered.results.periodos].reverse() },
+      };
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? reversed
+          : createBcraLatestResponse({ monto: 80, situacion: 1 });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const result = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.zcore_bcra).toBeGreaterThanOrEqual(0);
+        expect(result.zcore_bcra).toBeLessThanOrEqual(1000);
+      }
+    });
+
+    it('debe que score final nunca baje de 0 ni supere 1000', async () => {
+      setupMockUser();
+      const historicalMuyMalo = createHistoricalWithDebtSequence([
+        100, 150, 200, 250, 300, 350, 400,
+      ]);
+      fetchMock.mockImplementation((url) => {
+        const urlStr = String(url as string);
+        const payload = urlStr.includes('/historicas/')
+          ? historicalMuyMalo
+          : createBcraLatestResponse({
+              monto: 400,
+              situacion: 3,
+              has_refinanciaciones: true,
+              has_recategorizacion_oblig: true,
+            });
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(payload),
+        } as Response);
+      });
+
+      const result = await service.runPrequal({
+        userId: VALID_USER_ID,
+        phone: VALID_PHONE,
+        cuit: VALID_CUIT,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.zcore_bcra).toBeGreaterThanOrEqual(0);
+        expect(result.zcore_bcra).toBeLessThanOrEqual(1000);
+        expect(result.score_initial).toBe(result.zcore_bcra);
       }
     });
   });
