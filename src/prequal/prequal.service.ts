@@ -9,6 +9,7 @@ import { PoolClient } from 'pg';
 import { DbService } from '../db/db.service';
 import {
   type BcraClassification,
+  type BcraHistoricalPeriodo,
   type BcraHistoricalResponse,
   type BcraLatestResponse,
   type NormalizedHistorical,
@@ -393,6 +394,83 @@ export class PrequalService {
     };
   }
 
+  /** Ordena periodos por YYYYMM ascendente (más antiguo primero). */
+  private sortHistoricalPeriods(
+    periodos: BcraHistoricalPeriodo[],
+  ): BcraHistoricalPeriodo[] {
+    return [...periodos].sort(
+      (a, b) =>
+        Number(String(a.periodo ?? '0')) - Number(String(b.periodo ?? '0')),
+    );
+  }
+
+  /** Suma total de montos de un período (escala BCRA, miles). */
+  private computeDebtTotalForPeriodo(p: BcraHistoricalPeriodo): number {
+    const entidades = p.entidades ?? [];
+    return entidades.reduce((sum, e) => sum + (Number(e.monto) || 0), 0);
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  /**
+   * Umbral mínimo de deuda (miles) para considerar "relevante".
+   * Si deuda ref = 0 y actual > umbral => suba fuerte/brusca (castigo).
+   */
+  private readonly DEBT_RELEVANT_THRESHOLD_M = 0.1;
+
+  private computeTrendAdjustmentPoints(
+    historical: NormalizedHistorical,
+  ): number {
+    const curr = historical.debt_total_current;
+    const d3 = historical.debt_total_3m_ago;
+    const d6 = historical.debt_total_6m_ago;
+    const consecutiveDown = historical.consecutive_months_down_6m ?? 0;
+    const consecutiveUp = historical.consecutive_months_up_6m ?? 0;
+
+    if (curr === undefined || d3 === undefined || d6 === undefined) {
+      return 0;
+    }
+
+    let adj6 = 0;
+    let adj3 = 0;
+    let adjConsistency = 0;
+
+    /* Regla deuda 0: si ref=0 y actual relevante => suba fuerte/brusca. */
+    const isRelevant = curr >= this.DEBT_RELEVANT_THRESHOLD_M;
+
+    if (d6 === 0) {
+      adj6 = isRelevant ? -15 : 0;
+    } else {
+      const pct6 = ((curr - d6) / d6) * 100;
+      if (pct6 <= -25) adj6 = 15;
+      else if (pct6 <= -10) adj6 = 10;
+      else if (pct6 <= -5) adj6 = 5;
+      else if (pct6 >= 25) adj6 = -15;
+      else if (pct6 >= 10) adj6 = -10;
+      else if (pct6 >= 5) adj6 = -5;
+    }
+
+    if (d3 === 0) {
+      adj3 = isRelevant ? -8 : 0;
+    } else {
+      const pct3 = ((curr - d3) / d3) * 100;
+      if (pct3 <= -15) adj3 = 5;
+      else if (pct3 <= -5) adj3 = 3;
+      else if (pct3 >= 15) adj3 = -8;
+      else if (pct3 >= 5) adj3 = -4;
+    }
+
+    if (consecutiveDown >= 5) adjConsistency = 4;
+    else if (consecutiveDown >= 4) adjConsistency = 2;
+    else if (consecutiveUp >= 5) adjConsistency = -4;
+    else if (consecutiveUp >= 4) adjConsistency = -2;
+
+    const raw = adj6 + adj3 + adjConsistency;
+    return this.clamp(raw, -20, 20);
+  }
+
   private normalizeHistorical(
     res: BcraHistoricalResponse | null,
   ): NormalizedHistorical {
@@ -405,12 +483,14 @@ export class PrequalService {
     };
     if (!res?.results?.periodos?.length) return defaultVal;
 
-    const periodos = res.results.periodos;
+    const periodos = this.sortHistoricalPeriods(res.results.periodos);
     let worst = 0;
     let months_2plus = 0;
     let months_3plus = 0;
     let clean_months = 0;
     let months_since_bad = 24;
+
+    const debtTotals = periodos.map((p) => this.computeDebtTotalForPeriodo(p));
 
     for (const p of periodos) {
       const entidades = p.entidades ?? [];
@@ -439,13 +519,53 @@ export class PrequalService {
       }
     }
 
-    return {
+    const out: NormalizedHistorical = {
       worst_historical_situation_24m: worst,
       months_any_sit_2plus_24m: months_2plus,
       months_any_sit_3plus_24m: months_3plus,
       clean_months_24m: clean_months,
       months_since_last_bad_event: months_since_bad,
     };
+
+    if (periodos.length >= 7) {
+      const lastIdx = periodos.length - 1;
+      const curr = debtTotals[lastIdx];
+      const d3 = debtTotals[lastIdx - 3];
+      const d6 = debtTotals[lastIdx - 6];
+      out.debt_total_current = curr;
+      out.debt_total_3m_ago = d3;
+      out.debt_total_6m_ago = d6;
+
+      if (d6 > 0) {
+        out.pct_change_6m = ((curr - d6) / d6) * 100;
+      }
+      if (d3 > 0) {
+        out.pct_change_3m = ((curr - d3) / d3) * 100;
+      }
+
+      let consecutiveDown = 0;
+      let consecutiveUp = 0;
+      for (let i = lastIdx; i >= 1 && i > lastIdx - 6; i--) {
+        const diff = debtTotals[i] - debtTotals[i - 1];
+        if (diff < 0) {
+          if (consecutiveUp > 0) break;
+          consecutiveDown++;
+        } else if (diff > 0) {
+          if (consecutiveDown > 0) break;
+          consecutiveUp++;
+        } else {
+          break;
+        }
+      }
+      if (consecutiveDown > 0) {
+        out.consecutive_months_down_6m = consecutiveDown;
+      }
+      if (consecutiveUp > 0) {
+        out.consecutive_months_up_6m = consecutiveUp;
+      }
+    }
+
+    return out;
   }
 
   private parseDenominacion(denominacion: string): ParsedDenominacion {
@@ -505,7 +625,7 @@ export class PrequalService {
       latest.has_proceso_jud ||
       latest.has_situacion_juridica ||
       latest.has_irrec_disposicion_tecnica ||
-      latest.max_situacion >= 5;
+      latest.max_situacion >= 4;
 
     if (hardReject) {
       return {
@@ -600,7 +720,10 @@ export class PrequalService {
       0.095 * R_structure +
       0.185 * R_debt_load;
 
-    const zcore_bcra = Math.round(1000 * (1 - R_total));
+    const zcore_base = Math.round(1000 * (1 - R_total));
+    const trendAdjustmentPoints = this.computeTrendAdjustmentPoints(historical);
+    const zcore_bcra = this.clamp(zcore_base + trendAdjustmentPoints, 0, 1000);
+
     const eligible = zcore_bcra >= 600;
 
     let risk_level: 'LOW' | 'MEDIUM' | 'HIGH' = 'HIGH';
