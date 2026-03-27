@@ -18,6 +18,7 @@ export class SignaturaService implements SignProviderInterface {
   private readonly logger = new Logger(SignaturaService.name);
   private readonly apiBaseUrl: string;
   private readonly apiKey: string;
+  private readonly enablePhoneValidation: boolean;
 
   public constructor(private readonly configService: ConfigService) {
     const apiBaseUrl = this.configService.get<string>('SIGNATURA_API_BASE_URL');
@@ -31,27 +32,22 @@ export class SignaturaService implements SignProviderInterface {
 
     this.apiBaseUrl = apiBaseUrl.replace(/\/+$/, '');
     this.apiKey = apiKey;
+    this.enablePhoneValidation =
+      this.configService.get<string>('SIGNATURA_ENABLE_PHONE_VALIDATION') ===
+      'true';
   }
 
   public async createDocument(
     input: SignaturaCreateDocumentRequest,
   ): Promise<SignaturaCreateDocumentResponse> {
+    const signaturePayload = this.buildSignaturePayload(input);
     const response = await this.request(
       '/documents/create',
       'POST',
       JSON.stringify({
         title: input.fileName,
-        file_content: input.pdfBase64,
-        signatures: [
-          {
-            validations: {
-              AF: this.normalizeDigits(input.signer.cuit),
-              PH: this.normalizePhone(input.signer.phone),
-              BI: this.buildBiometricValidation(input.signer.documentNumber),
-            },
-            invite_channel: ['PH'],
-          },
-        ],
+        file_content: this.normalizePdfContent(input.pdfBase64),
+        signatures: [signaturePayload],
       }),
     );
 
@@ -261,5 +257,58 @@ export class SignaturaService implements SignProviderInterface {
   private normalizePhone(value: string): string | null {
     const normalized = value.trim();
     return normalized.length > 0 ? normalized : null;
+  }
+
+  private normalizePdfContent(pdfBase64: string): string {
+    const trimmed = pdfBase64.trim();
+    const dataUrlPrefix = 'data:application/pdf;base64,';
+
+    if (trimmed.toLowerCase().startsWith(dataUrlPrefix)) {
+      return trimmed.slice(dataUrlPrefix.length);
+    }
+
+    return trimmed;
+  }
+
+  private buildValidations(
+    input: SignaturaCreateDocumentRequest,
+  ): Record<string, string> {
+    const validations: Record<string, string> = {};
+
+    const af = this.normalizeDigits(input.signer.cuit);
+    if (af) validations.AF = af;
+
+    const bi = this.buildBiometricValidation(input.signer.documentNumber);
+    if (bi) validations.BI = bi;
+
+    if (this.enablePhoneValidation) {
+      const ph = this.normalizePhone(input.signer.phone);
+      if (ph) validations.PH = ph;
+    }
+
+    return validations;
+  }
+
+  private buildInviteChannel(): string[] {
+    if (this.enablePhoneValidation) {
+      return ['PH'];
+    }
+
+    return [];
+  }
+
+  private buildSignaturePayload(
+    input: SignaturaCreateDocumentRequest,
+  ): Record<string, unknown> {
+    const payload: Record<string, unknown> = {
+      validations: this.buildValidations(input),
+    };
+
+    const inviteChannel = this.buildInviteChannel();
+    if (inviteChannel.length > 0) {
+      payload.invite_channel = inviteChannel;
+    }
+
+    return payload;
   }
 }
