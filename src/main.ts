@@ -4,7 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors({
     origin: [
@@ -32,4 +32,4 @@ async function bootstrap() {
   const port = Number(process.env.PORT) || 3000;
   await app.listen(port, '0.0.0.0');
 }
-bootstrap();
+void bootstrap();

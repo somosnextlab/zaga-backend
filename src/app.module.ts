@@ -6,6 +6,8 @@ import { ConsentsModule } from './consents/consents.module';
 import { PrequalModule } from './prequal/prequal.module';
 import { OfferEngineModule } from './offerEngine/offer-engine.module';
 import { ConfigModule } from '@nestjs/config';
+import { ContractsModule } from './contracts/contracts.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -13,7 +15,9 @@ import { ConfigModule } from '@nestjs/config';
     ConsentsModule,
     PrequalModule,
     OfferEngineModule,
+    ContractsModule,
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService],
