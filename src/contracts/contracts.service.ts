@@ -109,7 +109,7 @@ export class ContractsService {
       context.caseRow.first_name,
       context.caseRow.last_name,
     );
-    const pdf = this.contractPdfService.generateContractPdf({
+    const pdf = await this.contractPdfService.generateContractPdf({
       contractId: context.caseContract.id,
       caseId: context.caseRow.id,
       offerId: context.offerRow.id,

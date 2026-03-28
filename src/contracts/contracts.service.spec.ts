@@ -1,9 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createHmac } from 'crypto';
-import { PoolClient } from 'pg';
 import { DbService } from '../db/db.service';
 import { ContractsRepository } from './contracts.repository';
 import { ContractsService } from './contracts.service';
@@ -28,7 +26,7 @@ const WEBHOOK_RAW_BODY = Buffer.from('{}', 'utf8');
 describe('ContractsService', () => {
   let service: ContractsService;
 
-  const mockClient = {} as PoolClient;
+  const mockClient = {};
 
   const mockContractsRepository = {
     findCaseByIdForUpdate: jest.fn(),
@@ -68,7 +66,7 @@ describe('ContractsService', () => {
 
   const mockDbService = {
     withTransaction: jest.fn(
-      async (fn: (client: PoolClient) => Promise<unknown>) => fn(mockClient),
+      async (fn: (client: unknown) => Promise<unknown>) => fn(mockClient),
     ),
   };
 
@@ -154,7 +152,7 @@ describe('ContractsService', () => {
     mockContractsRepository.insertCaseContractCreated.mockResolvedValue(
       createdContract,
     );
-    mockContractPdfService.generateContractPdf.mockReturnValue({
+    mockContractPdfService.generateContractPdf.mockResolvedValue({
       fileName: 'contract.pdf',
       pdfBase64: 'UEZERGF0YQ==',
       contractVersion: 'MUTUO_ZAGA_V1',

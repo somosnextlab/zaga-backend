@@ -1,16 +1,20 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-import AdmZip from 'adm-zip';
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { existsSync } from 'fs';
+import Docxtemplater from 'docxtemplater';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
+import PizZip from 'pizzip';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
   ContractTemplateInput,
   ContractPdfOutput,
 } from '../interfaces/contracts.interface';
+
+const DEFAULT_MISSING_DATA = 'DATO_FALTANTE';
 
 @Injectable()
 export class ContractPdfService {
@@ -18,19 +22,26 @@ export class ContractPdfService {
 
   public constructor(private readonly configService: ConfigService) {}
 
-  public generateContractPdf(input: ContractTemplateInput): ContractPdfOutput {
+  public async generateContractPdf(
+    input: ContractTemplateInput,
+  ): Promise<ContractPdfOutput> {
     const templateCode = 'CONTRATO_MUTUO_ZAGA_V1';
     const contractVersion = 'MUTUO_ZAGA_V1';
     const fileName = `contrato-${input.caseId}.pdf`;
 
     const contractVariables = this.buildTemplateVariables(input);
-    const templateText = this.loadContractTemplateText();
-    const contractText = this.applyTemplateVariables(
-      templateText,
+    const templateBuffer = this.loadTemplateBuffer();
+    const renderedDocxBuffer = this.renderTemplate(
+      templateBuffer,
       contractVariables,
     );
-    const finalText = this.appendOperationalSummary(contractText, input);
-    const pdfBase64 = this.buildPdfBase64(finalText);
+    const contractText = this.extractRenderedText(renderedDocxBuffer);
+    const finalText = this.normalizeLegacyPlaceholders(
+      contractText,
+      contractVariables,
+    );
+    this.assertNoUnresolvedPlaceholders(finalText);
+    const pdfBase64 = await this.buildPdfBase64(finalText);
 
     return {
       fileName,
@@ -43,7 +54,35 @@ export class ContractPdfService {
   private buildTemplateVariables(
     input: ContractTemplateInput,
   ): Record<string, string> {
+    const missing = this.configService.get<string>(
+      'CONTRACT_RENDER_FALLBACK_VALUE',
+    );
+    const fallback = missing?.trim() || DEFAULT_MISSING_DATA;
+    const today = new Date();
+    const monthName = new Intl.DateTimeFormat('es-AR', {
+      month: 'long',
+    }).format(today);
+
     return {
+      CIUDAD_FIRMA: fallback,
+      DIA_FIRMA: fallback,
+      MES_FIRMA: fallback,
+      ANIO_FIRMA: String(today.getFullYear()),
+      DOMICILIO_ZAGA: fallback,
+      MUTUARIO_NOMBRE_COMPLETO: input.userFullName || fallback,
+      MUTUARIO_DNI: input.userDni ?? fallback,
+      MUTUARIO_CUIT_CUIL: input.userCuit ?? fallback,
+      MUTUARIO_DOMICILIO: fallback,
+      CAPITAL_PRESTADO_TEXTO: fallback,
+      CAPITAL_PRESTADO_NUMERO: String(input.amount),
+      TASA_NOMINAL_ANUAL: String(input.tasaNominalAnual),
+      CANTIDAD_CUOTAS: String(input.installments),
+      TASA_MORATORIA_ANUAL: fallback,
+      FIRMANTE_1_NOMBRE: fallback,
+      FIRMANTE_1_DNI: fallback,
+      FIRMANTE_2_NOMBRE: fallback,
+      FIRMANTE_2_DNI: fallback,
+      MONTH_NAME_ES: monthName,
       CONTRACT_ID: input.contractId,
       CASE_ID: input.caseId,
       OFFER_ID: input.offerId,
@@ -57,13 +96,19 @@ export class ContractPdfService {
     };
   }
 
-  private loadContractTemplateText(): string {
+  private loadTemplateBuffer(): Buffer {
     const configuredPath = this.configService.get<string>(
       'CONTRACT_TEMPLATE_DOCX_PATH',
     );
     const candidates = [
       configuredPath ?? '',
-      resolve(process.cwd(), '..', 'docs', 'Contrato_de_Mutuo_ZAGA_V1.docx'),
+      resolve(
+        process.cwd(),
+        'src',
+        'contracts',
+        'assets',
+        'Contrato_de_Mutuo_ZAGA_V1.docx',
+      ),
       resolve(process.cwd(), 'docs', 'Contrato_de_Mutuo_ZAGA_V1.docx'),
     ].filter((path) => path.length > 0);
 
@@ -73,27 +118,7 @@ export class ContractPdfService {
       }
 
       try {
-        const zip = new AdmZip(path);
-        const documentEntry = zip.getEntry('word/document.xml');
-        if (!documentEntry) {
-          continue;
-        }
-
-        const xml = documentEntry.getData().toString('utf8');
-        const rawText = xml
-          .replace(/<w:tab\/>/g, '\t')
-          .replace(/<w:br[^>]*\/>/g, '\n')
-          .replace(/<\/w:p>/g, '\n')
-          .replace(/<[^>]+>/g, '');
-
-        const normalized = this.decodeXmlEntities(rawText)
-          .replace(/\r\n/g, '\n')
-          .replace(/\n{3,}/g, '\n\n')
-          .trim();
-
-        if (normalized.length > 0) {
-          return normalized;
-        }
+        return readFileSync(path);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.warn(
@@ -102,10 +127,55 @@ export class ContractPdfService {
       }
     }
 
-    this.logger.warn(
-      'No se encontró la plantilla DOCX de contrato. Se utiliza contenido mínimo de fallback.',
+    throw new InternalServerErrorException(
+      'No se encontró la plantilla DOCX de contrato para renderizar.',
     );
-    return 'CONTRATO DE MUTUO - ZAGA';
+  }
+
+  private renderTemplate(
+    templateBuffer: Buffer,
+    data: Record<string, string>,
+  ): Buffer {
+    try {
+      const zip = new PizZip(templateBuffer);
+      const doc = new Docxtemplater(zip, {
+        linebreaks: true,
+        paragraphLoop: true,
+      });
+      doc.render(data);
+      const rendered = doc.getZip().generate({ type: 'nodebuffer' });
+      return Buffer.isBuffer(rendered) ? rendered : Buffer.from(rendered);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `No se pudo renderizar el DOCX de contrato: ${message}`,
+      );
+      throw new InternalServerErrorException(
+        'No fue posible completar la plantilla del contrato.',
+      );
+    }
+  }
+
+  private extractRenderedText(renderedDocxBuffer: Buffer): string {
+    const zip = new PizZip(renderedDocxBuffer);
+    const documentFile = zip.file('word/document.xml');
+    if (!documentFile) {
+      throw new InternalServerErrorException(
+        'Plantilla DOCX inválida: falta word/document.xml.',
+      );
+    }
+
+    const xml = documentFile.asText();
+    const rawText = xml
+      .replace(/<w:tab\/>/g, '\t')
+      .replace(/<w:br[^>]*\/>/g, '\n')
+      .replace(/<\/w:p>/g, '\n')
+      .replace(/<[^>]+>/g, '');
+
+    return this.decodeXmlEntities(rawText)
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   private decodeXmlEntities(value: string): string {
@@ -120,128 +190,139 @@ export class ContractPdfService {
       );
   }
 
-  private applyTemplateVariables(
-    template: string,
+  private normalizeLegacyPlaceholders(
+    text: string,
     variables: Record<string, string>,
   ): string {
-    let result = template;
-
-    for (const [key, value] of Object.entries(variables)) {
-      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const patterns = [
-        new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, 'g'),
-        new RegExp(`\\[\\s*${escapedKey}\\s*\\]`, 'g'),
-        new RegExp(`\\$\\{\\s*${escapedKey}\\s*\\}`, 'g'),
-      ];
-
-      for (const pattern of patterns) {
-        result = result.replace(pattern, value);
-      }
-    }
-
-    return result;
+    return text
+      .replace(
+        /\[Nombre y Apellido del Cliente\]/g,
+        variables.MUTUARIO_NOMBRE_COMPLETO,
+      )
+      .replace(/\[NOMBRE DEL FIRMANTE\]/g, variables.FIRMANTE_1_NOMBRE)
+      .replace(/\[DNI DEL FIRMANTE\]/g, variables.FIRMANTE_1_DNI)
+      .replace(/DNI\s+\[__\]/g, `DNI ${variables.MUTUARIO_DNI}`)
+      .replace(
+        /CUIT\/CUIL\s+\[__\]/g,
+        `CUIT/CUIL ${variables.MUTUARIO_CUIT_CUIL}`,
+      )
+      .replace(
+        /con domicilio en\s+\[__\]/g,
+        `con domicilio en ${variables.MUTUARIO_DOMICILIO}`,
+      )
+      .replace(
+        /la suma de pesos\s+\[__\]\s+\(\$\[__\]\)/g,
+        `la suma de pesos ${variables.CAPITAL_PRESTADO_TEXTO} ($${variables.CAPITAL_PRESTADO_NUMERO})`,
+      )
+      .replace(
+        /fijo del\s+\[__\]%/g,
+        `fijo del ${variables.TASA_NOMINAL_ANUAL}%`,
+      )
+      .replace(
+        /pago de\s+\[__\]\s+cuotas/g,
+        `pago de ${variables.CANTIDAD_CUOTAS} cuotas`,
+      )
+      .replace(
+        /equivalente al\s+\[__\]%/g,
+        `equivalente al ${variables.TASA_MORATORIA_ANUAL}%`,
+      )
+      .replace(/\[__\]/g, variables.CIUDAD_FIRMA);
   }
 
-  private appendOperationalSummary(
-    contractText: string,
-    input: ContractTemplateInput,
-  ): string {
-    const summary = [
-      '',
-      '---',
-      'DATOS OPERATIVOS',
-      `contract_id: ${input.contractId}`,
-      `case_id: ${input.caseId}`,
-      `offer_id: ${input.offerId}`,
-      `mutuario: ${input.userFullName}`,
-      `dni: ${input.userDni ?? ''}`,
-      `cuit: ${input.userCuit ?? ''}`,
-      `telefono: ${input.userPhone}`,
-      `capital_prestado: ${input.amount}`,
-      `cuotas: ${input.installments}`,
-      `tna: ${input.tasaNominalAnual}`,
-    ].join('\n');
+  private assertNoUnresolvedPlaceholders(text: string): void {
+    const unresolvedDouble = text.match(/\{\{[^}]+\}\}/g) ?? [];
+    const unresolvedBracket = text.match(/\[[^\]\n]{1,80}\]/g) ?? [];
+    const unresolved = [...unresolvedDouble, ...unresolvedBracket].filter(
+      (token) =>
+        token.includes('__') ||
+        token.toUpperCase().includes('NOMBRE') ||
+        token.toUpperCase().includes('DNI') ||
+        token.toUpperCase().includes('CUIT') ||
+        token.toUpperCase().includes('DOMICILIO'),
+    );
 
-    return `${contractText}\n${summary}`.trim();
+    if (unresolved.length > 0) {
+      const preview = unresolved.slice(0, 5).join(', ');
+      throw new InternalServerErrorException(
+        `Plantilla contractual incompleta. Placeholders sin resolver: ${preview}`,
+      );
+    }
   }
 
-  private buildPdfBase64(content: string): string {
-    const lines = this.wrapLines(content, 95).slice(0, 58);
-    const escapedLines = lines.map((line) => this.escapePdfText(line));
-    const stream = [
-      'BT',
-      '/F1 10 Tf',
-      '72 800 Td',
-      '14 TL',
-      ...escapedLines.map((line) => `(${line}) Tj T*`),
-      'ET',
-    ].join('\n');
+  private async buildPdfBase64(content: string): Promise<string> {
+    const pdf = await PDFDocument.create();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const fontSize = 10;
+    const pageWidth = 595;
+    const pageHeight = 842;
+    const marginLeft = 48;
+    const marginTop = 48;
+    const maxTextWidth = pageWidth - marginLeft * 2;
+    const lineHeight = 14;
 
-    const streamLength = Buffer.byteLength(stream, 'utf8');
-    const objects = [
-      '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
-      '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
-      '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
-      '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
-      `5 0 obj\n<< /Length ${streamLength} >>\nstream\n${stream}\nendstream\nendobj\n`,
-    ];
+    let page = pdf.addPage([pageWidth, pageHeight]);
+    let cursorY = pageHeight - marginTop;
 
-    let pdf = '%PDF-1.4\n';
-    const offsets = [0];
-    for (const object of objects) {
-      offsets.push(Buffer.byteLength(pdf, 'utf8'));
-      pdf += object;
-    }
+    const normalized = content
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/–/g, '-');
 
-    const xrefStart = Buffer.byteLength(pdf, 'utf8');
-    pdf += 'xref\n0 6\n0000000000 65535 f \n';
-    for (let index = 1; index <= 5; index += 1) {
-      pdf += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
-    }
-    pdf += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-
-    return Buffer.from(pdf, 'utf8').toString('base64');
-  }
-
-  private wrapLines(content: string, maxChars: number): string[] {
-    const paragraphs = content
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-
-    const lines: string[] = [];
+    const paragraphs = normalized.split('\n');
     for (const paragraph of paragraphs) {
-      if (paragraph.length <= maxChars) {
-        lines.push(paragraph);
+      const lines = this.wrapParagraph(paragraph, font, fontSize, maxTextWidth);
+      for (const line of lines) {
+        if (cursorY <= marginTop) {
+          page = pdf.addPage([pageWidth, pageHeight]);
+          cursorY = pageHeight - marginTop;
+        }
+        page.drawText(line, {
+          x: marginLeft,
+          y: cursorY,
+          size: fontSize,
+          font,
+        });
+        cursorY -= lineHeight;
+      }
+      cursorY -= 2;
+    }
+
+    const bytes = await pdf.save();
+    return Buffer.from(bytes).toString('base64');
+  }
+
+  private wrapParagraph(
+    paragraph: string,
+    font: PDFFontLike,
+    fontSize: number,
+    maxTextWidth: number,
+  ): string[] {
+    const clean = paragraph.trim();
+    if (!clean) return [''];
+    const words = clean.split(/\s+/);
+    const lines: string[] = [];
+    let current = '';
+
+    for (const word of words) {
+      const candidate = current.length > 0 ? `${current} ${word}` : word;
+      const width = font.widthOfTextAtSize(candidate, fontSize);
+      if (width <= maxTextWidth) {
+        current = candidate;
         continue;
       }
 
-      const words = paragraph.split(/\s+/);
-      let current = '';
-      for (const word of words) {
-        const tentative = current.length > 0 ? `${current} ${word}` : word;
-        if (tentative.length <= maxChars) {
-          current = tentative;
-          continue;
-        }
-
-        if (current.length > 0) {
-          lines.push(current);
-        }
-        current = word;
-      }
       if (current.length > 0) {
         lines.push(current);
       }
+      current = word;
     }
-
-    return lines.length > 0 ? lines : ['CONTRATO DE MUTUO - ZAGA'];
+    if (current.length > 0) {
+      lines.push(current);
+    }
+    return lines;
   }
+}
 
-  private escapePdfText(value: string): string {
-    return value
-      .replace(/\\/g, '\\\\')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)');
-  }
+interface PDFFontLike {
+  widthOfTextAtSize(text: string, size: number): number;
 }
