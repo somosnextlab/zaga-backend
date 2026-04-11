@@ -292,7 +292,7 @@ export class ContractsRepository {
           provider_signature_status = $4,
           biometric_status = $5,
           biometric_payload = $6::jsonb,
-          biometric_fetched_at = now(),
+          biometric_fetched_at = CASE WHEN $6::jsonb IS NOT NULL THEN now() ELSE biometric_fetched_at END,
           signed_document_url = $7,
           audit_certificate_url = $8,
           evidence_zip_url = $9,
@@ -366,6 +366,10 @@ export class ContractsRepository {
     return row;
   }
 
+  /**
+   * Prioriza contrato activo (`CREATED` / `SIGN_PENDING`); si no hay, el más reciente por `created_at`
+   * (cualquier estado, p. ej. `FAILED` / `CANCELED` / `SIGNED`).
+   */
   public async findCaseContractByCaseId(
     caseId: string,
   ): Promise<CaseContractRow | null> {

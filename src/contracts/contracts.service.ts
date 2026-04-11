@@ -26,6 +26,7 @@ import {
 import { SignaturaService } from './providers/signatura.service';
 import { ContractPdfService } from './templates/contract-pdf.service';
 import { ContractsErrors } from './utils/contracts-errors';
+import { isActiveCaseContractUniqueViolation } from './utils/postgres-active-contract.util';
 import { DbClient, DbService } from '../db/db.service';
 import {
   StartCaseContractResponse,
@@ -94,12 +95,22 @@ export class ContractsService {
           );
         }
 
-        const caseContract =
-          await this.contractsRepository.insertCaseContractCreated(client, {
-            caseId,
-            offerId: offerRow.id,
-            provider,
-          });
+        let caseContract: CaseContractRow;
+        try {
+          caseContract =
+            await this.contractsRepository.insertCaseContractCreated(client, {
+              caseId,
+              offerId: offerRow.id,
+              provider,
+            });
+        } catch (error: unknown) {
+          if (isActiveCaseContractUniqueViolation(error)) {
+            throw new ConflictException(
+              ContractsErrors.ACTIVE_CONTRACT_ALREADY_EXISTS,
+            );
+          }
+          throw error;
+        }
 
         return { caseRow, offerRow, caseContract };
       },
@@ -196,6 +207,10 @@ export class ContractsService {
     }
   }
 
+  /**
+   * Estado contractual para consulta: contrato activo si existe; si no, el último por fecha de creación.
+   * El campo `status` indica si aplica flujo de firma (`CREATED` / `SIGN_PENDING`) u otro resultado.
+   */
   public async getCaseContractStatus(
     caseId: string,
   ): Promise<CaseContractStatusResponse> {

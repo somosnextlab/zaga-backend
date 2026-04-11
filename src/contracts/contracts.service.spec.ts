@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createHmac } from 'crypto';
@@ -13,6 +17,7 @@ import type {
 } from './interfaces/contracts.interface';
 import { SignaturaService } from './providers/signatura.service';
 import { ContractPdfService } from './templates/contract-pdf.service';
+import { ContractsErrors } from './utils/contracts-errors';
 
 const VALID_CASE_ID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_OFFER_ID = '550e8400-e29b-41d4-a716-446655440001';
@@ -193,6 +198,44 @@ describe('ContractsService', () => {
       NotFoundException,
     );
     expect(mockSignaturaService.createDocument).not.toHaveBeenCalled();
+  });
+
+  it('startCaseContract mapea violación única de índice activo (23505) a ConflictException', async () => {
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue(caseRow);
+    mockContractsRepository.findAcceptedOfferByCaseIdForUpdate.mockResolvedValue(
+      {
+        id: VALID_OFFER_ID,
+        case_id: VALID_CASE_ID,
+        status: 'ACCEPTED',
+        amount: 100000,
+        installments: 12,
+        tasa_nominal_anual: 210,
+      },
+    );
+    mockContractsRepository.findActiveCaseContractByCaseIdForUpdate.mockResolvedValue(
+      null,
+    );
+    const pgError = Object.assign(
+      new Error('duplicate key value violates unique constraint'),
+      {
+        code: '23505',
+        constraint: 'uq_case_contracts_one_active_per_case',
+      },
+    );
+    mockContractsRepository.insertCaseContractCreated.mockRejectedValue(
+      pgError,
+    );
+
+    try {
+      await service.startCaseContract(VALID_CASE_ID);
+      throw new Error('expected ConflictException');
+    } catch (e: unknown) {
+      expect(e).toBeInstanceOf(ConflictException);
+      expect((e as ConflictException).message).toBe(
+        ContractsErrors.ACTIVE_CONTRACT_ALREADY_EXISTS,
+      );
+    }
+    expect(mockContractPdfService.generateContractPdf).not.toHaveBeenCalled();
   });
 
   it('handleSignaturaWebhook marca FAILED si identidad no coincide', async () => {
