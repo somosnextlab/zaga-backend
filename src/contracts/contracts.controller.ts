@@ -5,6 +5,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   Post,
   Req,
@@ -27,6 +28,8 @@ interface RequestWithRawBody extends Request {
 @ApiTags('CaseContracts')
 @Controller('case-contracts')
 export class ContractsController {
+  private readonly logger = new Logger(ContractsController.name);
+
   public constructor(private readonly contractsService: ContractsService) {}
 
   @Post('start')
@@ -99,6 +102,9 @@ export class ContractsController {
   private extractRawBody(req: RequestWithRawBody, body: unknown): Buffer {
     const incomingRawBody = req.rawBody;
     if (Buffer.isBuffer(incomingRawBody)) return incomingRawBody;
+    this.logger.warn(
+      'Signatura webhook: req.rawBody ausente; se usa JSON.stringify(body). El HMAC de Signatura se calcula sobre el cuerpo crudo: sin rawBody el hash casi nunca coincidirá.',
+    );
     return Buffer.from(JSON.stringify(body), 'utf8');
   }
 }

@@ -57,12 +57,14 @@ describe('ContractsService', () => {
     cancelDocument: jest.fn(),
   };
 
+  const defaultConfigGet = (key: string): string | undefined => {
+    if (key === 'SIGN_PROVIDER') return 'SIGNATURA';
+    if (key === 'SIGNATURA_WEBHOOK_SECRET') return 'test-secret';
+    return undefined;
+  };
+
   const mockConfigService = {
-    get: jest.fn((key: string) => {
-      if (key === 'SIGN_PROVIDER') return 'SIGNATURA';
-      if (key === 'SIGNATURA_WEBHOOK_SECRET') return 'test-secret';
-      return undefined;
-    }),
+    get: jest.fn(defaultConfigGet),
   };
 
   const mockDbService = {
@@ -118,6 +120,7 @@ describe('ContractsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockConfigService.get.mockImplementation(defaultConfigGet);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContractsService,
@@ -475,6 +478,34 @@ describe('ContractsService', () => {
 
     expect(result.status).toBe(CaseContractStatus.SIGNED);
     expect(result.loanId).toBe(VALID_LOAN_ID);
+  });
+
+  it('handleSignaturaWebhook acepta HMAC cuando el secret son 64 hex y la clave HMAC es binaria (32 bytes)', async () => {
+    const hexSecret = 'ab'.repeat(32);
+    mockConfigService.get.mockImplementation((key: string) => {
+      if (key === 'SIGN_PROVIDER') return 'SIGNATURA';
+      if (key === 'SIGNATURA_WEBHOOK_SECRET') return hexSecret;
+      return undefined;
+    });
+
+    const body = { document_id: VALID_DOCUMENT_ID };
+    const rawBody = Buffer.from(JSON.stringify(body), 'utf8');
+    const signatureHeader = createHmac('sha256', Buffer.from(hexSecret, 'hex'))
+      .update(rawBody)
+      .digest('hex');
+
+    mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
+      null,
+    );
+
+    const result = await service.handleSignaturaWebhook(
+      signatureHeader,
+      rawBody,
+      body,
+    );
+
+    expect(result.contractFound).toBe(false);
+    expect(result.accepted).toBe(true);
   });
 
   it('handleSignaturaWebhook SD lleva contrato a FAILED aun sin providerSignatureStatus explícito', async () => {
