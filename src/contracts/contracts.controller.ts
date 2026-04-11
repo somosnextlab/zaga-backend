@@ -12,7 +12,7 @@ import {
 import type { Request } from 'express';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ContractQueryDto } from './dto/contract-query.dto';
-import { SignaturaWebhookDto } from './dto/signatura-webhook.dto';
+//import { SignaturaWebhookDto } from './dto/signatura-webhook.dto';
 import { StartCaseContractDto } from './dto/start-case-contract.dto';
 import { ContractsService } from './contracts.service';
 import type {
@@ -64,17 +64,29 @@ export class ContractsController {
 
   @Post('webhooks/signatura')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Webhook Signatura para actualizar estado contractual',
-  })
-  @ApiResponse({ status: 200, description: 'Webhook procesado' })
-  @ApiResponse({ status: 400, description: 'Webhook inválido' })
   public async receiveSignaturaWebhook(
-    @Headers('x-signatura-signature') signatureHeader: string | undefined,
-    @Body() body: SignaturaWebhookDto,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() body: any,
     @Req() req: RequestWithRawBody,
   ): Promise<SignaturaWebhookResult> {
     const rawBody = this.extractRawBody(req, body);
+
+    console.log('=== SIGNATURA WEBHOOK HEADERS ===');
+    console.log(headers);
+
+    console.log('=== SIGNATURA WEBHOOK BODY ===');
+    console.log(JSON.stringify(body, null, 2));
+
+    console.log('=== SIGNATURA WEBHOOK RAW BODY LENGTH ===');
+    console.log(rawBody.length);
+
+    const signatureHeader =
+      (headers['x-signatura-signature'] as string | undefined) ??
+      (headers['X-Signatura-Signature'] as string | undefined);
+
+    console.log('=== SIGNATURA WEBHOOK SIGNATURE HEADER ===');
+    console.log(signatureHeader);
+
     return this.contractsService.handleSignaturaWebhook(
       signatureHeader,
       rawBody,
