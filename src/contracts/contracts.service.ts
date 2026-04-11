@@ -762,14 +762,60 @@ export class ContractsService {
     return parsed.providerPayload ?? parsed.raw;
   }
 
+  /**
+   * Secreto del panel / Railway: trim, quitar comillas envolventes y BOM UTF-8 típico de .env.
+   */
+  private normalizeSignaturaWebhookSecret(raw: string): string {
+    let s = raw.replace(/^\uFEFF/, '').trim();
+    if (s.length >= 2) {
+      const first = s[0];
+      const last = s[s.length - 1];
+      if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+        s = s.slice(1, -1).trim();
+      }
+    }
+    return s;
+  }
+
+  /**
+   * Signatura documenta HMAC-SHA256 sobre el cuerpo crudo. La clave puede ser:
+   * - el string UTF-8 del secreto (caso habitual), o
+   * - 64 caracteres hex que representan 32 bytes de clave binaria (algunos paneles).
+   */
+  private buildSignaturaWebhookExpectedDigests(
+    normalizedSecret: string,
+    webhookBody: Buffer,
+  ): Buffer[] {
+    const digests: Buffer[] = [
+      createHmac('sha256', normalizedSecret).update(webhookBody).digest(),
+    ];
+    if (/^[0-9a-fA-F]{64}$/.test(normalizedSecret)) {
+      digests.push(
+        createHmac('sha256', Buffer.from(normalizedSecret, 'hex'))
+          .update(webhookBody)
+          .digest(),
+      );
+    }
+    return digests;
+  }
+
   private assertValidWebhookSignature(
     signatureHeader: string | undefined,
     payloadRaw: Buffer | undefined,
   ): void {
-    const secret = this.configService.get<string>('SIGNATURA_WEBHOOK_SECRET');
-    if (!secret) {
+    const secretRaw = this.configService.get<string>(
+      'SIGNATURA_WEBHOOK_SECRET',
+    );
+    if (!secretRaw) {
       throw new InternalServerErrorException(
         'SIGNATURA_WEBHOOK_SECRET no está configurada.',
+      );
+    }
+
+    const normalizedSecret = this.normalizeSignaturaWebhookSecret(secretRaw);
+    if (normalizedSecret.length === 0) {
+      throw new InternalServerErrorException(
+        'SIGNATURA_WEBHOOK_SECRET está vacía tras normalizar.',
       );
     }
 
@@ -786,23 +832,60 @@ export class ContractsService {
       throw new BadRequestException(ContractsErrors.WEBHOOK_SIGNATURE_INVALID);
     }
 
-    const expectedHmac = createHmac('sha256', secret)
-      .update(webhookBody)
-      .digest('hex');
+    const expectedDigests = this.buildSignaturaWebhookExpectedDigests(
+      normalizedSecret,
+      webhookBody,
+    );
 
-    const expectedBuffer = Buffer.from(expectedHmac, 'utf8');
-
-    for (const candidate of signatureCandidates) {
-      const providedBuffer = Buffer.from(candidate, 'utf8');
-      if (
-        providedBuffer.length === expectedBuffer.length &&
-        timingSafeEqual(providedBuffer, expectedBuffer)
-      ) {
-        return;
+    for (const expected of expectedDigests) {
+      for (const candidate of signatureCandidates) {
+        if (this.timingSafeEqualSignatureDigest(expected, candidate)) {
+          return;
+        }
       }
     }
 
+    this.logger.warn(
+      `Signatura webhook: HMAC no coincide (bodyBytes=${webhookBody.length}, digestVariants=${expectedDigests.length}, candidates=${signatureCandidates.length}). Revisar SIGNATURA_WEBHOOK_SECRET en Railway vs panel de webhooks y que el cuerpo sea el rawBody original.`,
+    );
+
     throw new BadRequestException(ContractsErrors.WEBHOOK_SIGNATURE_INVALID);
+  }
+
+  /**
+   * Compara el digest binario (32 bytes) con el header en hex (64 chars) o base64 estándar.
+   */
+  private timingSafeEqualSignatureDigest(
+    expectedDigest: Buffer,
+    candidateRaw: string,
+  ): boolean {
+    const candidate = candidateRaw.trim();
+    if (candidate.length === 0) return false;
+
+    const hexNormalized = candidate.replace(/\s/g, '').toLowerCase();
+    if (/^[0-9a-f]{64}$/.test(hexNormalized)) {
+      const provided = Buffer.from(hexNormalized, 'hex');
+      return (
+        provided.length === expectedDigest.length &&
+        timingSafeEqual(provided, expectedDigest)
+      );
+    }
+
+    try {
+      const fromBase64 = Buffer.from(candidate, 'base64');
+      if (fromBase64.length === expectedDigest.length) {
+        return timingSafeEqual(fromBase64, expectedDigest);
+      }
+    } catch {
+      /* base64 inválido */
+    }
+
+    const asUtf8Hex = Buffer.from(candidate, 'utf8');
+    const expectedHexUtf8 = expectedDigest.toString('hex');
+    return (
+      asUtf8Hex.length === Buffer.byteLength(expectedHexUtf8, 'utf8') &&
+      timingSafeEqual(asUtf8Hex, Buffer.from(expectedHexUtf8, 'utf8'))
+    );
   }
 
   private extractSignatureCandidates(signatureHeader: string): string[] {
