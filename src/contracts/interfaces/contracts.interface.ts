@@ -40,6 +40,26 @@ export interface SignaturaWebhookResult {
   readonly loanId: string | null;
 }
 
+/** Payload normalizado del webhook de Signatura (snake_case y camelCase). */
+export interface SignaturaWebhookParsed {
+  readonly documentId: string | null;
+  readonly signatureId: string | null;
+  readonly notificationId: string | null;
+  readonly notificationAction: string | null;
+  readonly newStatus: string | null;
+  readonly providerDocumentStatus: string | null;
+  readonly providerSignatureStatus: string | null;
+  readonly signatureUrl: string | null;
+  readonly signedDocumentUrl: string | null;
+  readonly auditCertificateUrl: string | null;
+  readonly evidenceZipUrl: string | null;
+  readonly biometricStatus: string | null;
+  readonly errorCode: string | null;
+  readonly errorMessage: string | null;
+  readonly providerPayload: Record<string, unknown> | null;
+  readonly raw: Record<string, unknown>;
+}
+
 export interface CaseForContractRow {
   readonly id: string;
   readonly user_id: string;

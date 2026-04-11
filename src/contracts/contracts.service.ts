@@ -9,7 +9,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { ContractsRepository } from './contracts.repository';
-import { SignaturaWebhookDto } from './dto/signatura-webhook.dto';
 import { CaseContractStatus } from './enums/case-contract-status.enum';
 import { SignProvider } from './enums/sign-provider.enum';
 import type { SignProviderInterface } from './interfaces/sign-provider.interface';
@@ -35,6 +34,7 @@ import {
   SignaturaWebhookResult,
   CaseContractRow,
   LoanRow,
+  SignaturaWebhookParsed,
 } from './interfaces/contracts.interface';
 
 @Injectable()
@@ -239,27 +239,40 @@ export class ContractsService {
   public async handleSignaturaWebhook(
     signatureHeader: string | undefined,
     payloadRaw: Buffer | undefined,
-    dto: SignaturaWebhookDto,
+    body: unknown,
   ): Promise<SignaturaWebhookResult> {
-    this.validateWebhookSignature(signatureHeader, payloadRaw);
+    const secretConfigured = !!this.configService.get<string>(
+      'SIGNATURA_WEBHOOK_SECRET',
+    );
+    this.logger.log(
+      `Signatura webhook: inicio rawBodyBytes=${payloadRaw?.length ?? 0} hasSignatureHeader=${Boolean(signatureHeader?.trim())} secretConfigured=${secretConfigured}`,
+    );
 
-    console.log('=== HANDLE SIGNATURA WEBHOOK START ===');
-    console.log({
-      hasSignatureHeader: !!signatureHeader,
-      rawBodyLength: payloadRaw?.length ?? 0,
-      secretConfigured: !!this.configService.get<string>(
-        'SIGNATURA_WEBHOOK_SECRET',
-      ),
-    });
-    console.log('Webhook body:', JSON.stringify(dto, null, 2));
+    this.assertValidWebhookSignature(signatureHeader, payloadRaw);
+    this.logger.log('Signatura webhook: firma HMAC verificada correctamente');
 
-    const documentId = dto.externalDocumentId ?? dto.document_id ?? null;
-    const signatureId = dto.externalSignatureId ?? dto.signature_id ?? null;
-    const providerStatuses = this.resolveProviderStatuses(dto);
+    const parsed = this.parseSignaturaWebhookBody(body);
+
+    const actionNorm = (parsed.notificationAction ?? '').trim().toUpperCase();
+    this.logger.log(
+      `Signatura webhook: resumen payload evento=${actionNorm || '—'} documentId=${parsed.documentId ?? '—'} signatureId=${parsed.signatureId ?? '—'} notificationId=${parsed.notificationId ?? '—'}`,
+    );
+
+    const knownActions = new Set(['', 'DS', 'SD', 'DC']);
+    if (actionNorm.length > 0 && !knownActions.has(actionNorm)) {
+      this.logger.warn(
+        `Signatura webhook: notification_action ajena al mapping conocido (DS, SD, DC): ${actionNorm}`,
+      );
+    }
+
+    const documentId = parsed.documentId;
+    const signatureId = parsed.signatureId;
+    const providerStatuses = this.resolveProviderStatuses(parsed);
     const providerDocumentStatus = providerStatuses.providerDocumentStatus;
     const providerSignatureStatus = providerStatuses.providerSignatureStatus;
+    const storedPayload = this.signaturaWebhookStoredPayload(parsed);
 
-    return this.dbService.withTransaction(
+    const result = await this.dbService.withTransaction(
       async (client: DbClient): Promise<SignaturaWebhookResult> => {
         const contract =
           await this.contractsRepository.findCaseContractByExternalIdsForUpdate(
@@ -269,6 +282,9 @@ export class ContractsService {
           );
 
         if (!contract) {
+          this.logger.warn(
+            'Signatura webhook: contrato no encontrado para document_id/signature_id recibidos',
+          );
           return {
             accepted: true,
             contractFound: false,
@@ -277,6 +293,10 @@ export class ContractsService {
             loanId: null,
           };
         }
+
+        this.logger.log(
+          `Signatura webhook: contrato encontrado caseContractId=${contract.id} estado=${contract.status}`,
+        );
 
         if (contract.status === CaseContractStatus.SIGNED) {
           const existingLoan =
@@ -298,9 +318,9 @@ export class ContractsService {
             contractId: contract.id,
             providerDocumentStatus,
             providerSignatureStatus,
-            signatureUrl: dto.signatureUrl ?? null,
-            providerPayload: dto.providerPayload ?? null,
-            providerLastError: dto.errorMessage ?? null,
+            signatureUrl: parsed.signatureUrl,
+            providerPayload: storedPayload,
+            providerLastError: parsed.errorMessage,
           });
 
         const effectiveDocumentStatus =
@@ -330,7 +350,7 @@ export class ContractsService {
               reason: 'PROVIDER_CANCELED_OR_EXPIRED',
               providerDocumentStatus: effectiveDocumentStatus,
               providerSignatureStatus: effectiveSignatureStatus,
-              providerPayload: dto.providerPayload ?? null,
+              providerPayload: storedPayload,
             });
           return {
             accepted: true,
@@ -351,8 +371,9 @@ export class ContractsService {
               reason: ContractsErrors.PROVIDER_BLOCKING_ERROR,
               providerDocumentStatus: effectiveDocumentStatus,
               providerSignatureStatus: effectiveSignatureStatus,
-              providerPayload: dto.providerPayload ?? null,
-              providerLastError: dto.errorMessage ?? dto.errorCode ?? null,
+              providerPayload: storedPayload,
+              providerLastError:
+                parsed.errorMessage ?? parsed.errorCode ?? null,
             },
           );
           return {
@@ -367,6 +388,9 @@ export class ContractsService {
         if (
           !isProviderSigned(effectiveDocumentStatus, effectiveSignatureStatus)
         ) {
+          this.logger.log(
+            `Signatura webhook: evento registrado sin firma completa en proveedor (contrato sigue ${trackedContract.status})`,
+          );
           return {
             accepted: true,
             contractFound: true,
@@ -385,7 +409,7 @@ export class ContractsService {
               reason: ContractsErrors.SIGNATURA_RESPONSE_INVALID,
               providerDocumentStatus: effectiveDocumentStatus,
               providerSignatureStatus: effectiveSignatureStatus,
-              providerPayload: dto.providerPayload ?? null,
+              providerPayload: storedPayload,
             },
           );
           return {
@@ -406,7 +430,7 @@ export class ContractsService {
               reason: ContractsErrors.SIGNATURA_RESPONSE_INVALID,
               providerDocumentStatus: effectiveDocumentStatus,
               providerSignatureStatus: effectiveSignatureStatus,
-              providerPayload: dto.providerPayload ?? null,
+              providerPayload: storedPayload,
             },
           );
           return {
@@ -429,22 +453,26 @@ export class ContractsService {
           trackedContract,
           biometricData,
         );
-        const evidenceValidation = this.evaluateEvidence(documentData, dto);
+        const evidenceValidation = this.evaluateEvidence(documentData, parsed);
 
         if (
           !biometricValidation.ok ||
           !identityValidation.ok ||
           !evidenceValidation.ok
         ) {
+          const failReason =
+            biometricValidation.reason ??
+            identityValidation.reason ??
+            evidenceValidation.reason ??
+            ContractsErrors.PROVIDER_BLOCKING_ERROR;
+          this.logger.warn(
+            `Signatura webhook: validación interna fallida → FAILED motivo=${failReason}`,
+          );
           const failed = await this.contractsRepository.markCaseContractFailed(
             client,
             {
               contractId: trackedContract.id,
-              reason:
-                biometricValidation.reason ??
-                identityValidation.reason ??
-                evidenceValidation.reason ??
-                ContractsErrors.PROVIDER_BLOCKING_ERROR,
+              reason: failReason,
               providerDocumentStatus:
                 normalizeProviderStatus(documentData.documentStatus) ??
                 effectiveDocumentStatus,
@@ -454,12 +482,13 @@ export class ContractsService {
               biometricStatus: biometricData.biometricStatus,
               biometricPayload: biometricData.raw,
               signedDocumentUrl:
-                dto.signedDocumentUrl ?? documentData.signedDocumentUrl,
+                parsed.signedDocumentUrl ?? documentData.signedDocumentUrl,
               auditCertificateUrl:
-                dto.auditCertificateUrl ?? documentData.auditCertificateUrl,
-              evidenceZipUrl: dto.evidenceZipUrl ?? documentData.evidenceZipUrl,
+                parsed.auditCertificateUrl ?? documentData.auditCertificateUrl,
+              evidenceZipUrl:
+                parsed.evidenceZipUrl ?? documentData.evidenceZipUrl,
               providerPayload: {
-                webhook: dto.providerPayload ?? {},
+                webhook: storedPayload,
                 document: documentData.raw,
                 biometrics: biometricData.raw,
               },
@@ -488,13 +517,14 @@ export class ContractsService {
             biometricStatus: biometricData.biometricStatus,
             biometricPayload: biometricData.raw,
             signedDocumentUrl:
-              dto.signedDocumentUrl ?? documentData.signedDocumentUrl,
+              parsed.signedDocumentUrl ?? documentData.signedDocumentUrl,
             auditCertificateUrl:
-              dto.auditCertificateUrl ?? documentData.auditCertificateUrl,
-            evidenceZipUrl: dto.evidenceZipUrl ?? documentData.evidenceZipUrl,
-            signatureUrl: dto.signatureUrl ?? documentData.signatureUrl,
+              parsed.auditCertificateUrl ?? documentData.auditCertificateUrl,
+            evidenceZipUrl:
+              parsed.evidenceZipUrl ?? documentData.evidenceZipUrl,
+            signatureUrl: parsed.signatureUrl ?? documentData.signatureUrl,
             providerPayload: {
-              webhook: dto.providerPayload ?? {},
+              webhook: storedPayload,
               document: documentData.raw,
               biometrics: biometricData.raw,
             },
@@ -502,6 +532,10 @@ export class ContractsService {
         );
 
         const loan = await this.createLoanIfEligible(client, signed);
+
+        this.logger.log(
+          `Signatura webhook: contrato SIGNED loanCreado=${loan ? 'sí' : 'no'} loanId=${loan?.id ?? '—'}`,
+        );
 
         return {
           accepted: true,
@@ -512,6 +546,12 @@ export class ContractsService {
         };
       },
     );
+
+    this.logger.log(
+      `Signatura webhook: fin contractFound=${result.contractFound} status=${result.status ?? '—'} loanId=${result.loanId ?? '—'}`,
+    );
+
+    return result;
   }
 
   private async createLoanIfEligible(
@@ -649,13 +689,13 @@ export class ContractsService {
 
   private evaluateEvidence(
     documentData: SignaturaDocumentResponse,
-    dto: SignaturaWebhookDto,
+    parsed: SignaturaWebhookParsed,
   ): { readonly ok: boolean; readonly reason: string | null } {
     const signedDocumentUrl =
-      dto.signedDocumentUrl ?? documentData.signedDocumentUrl;
+      parsed.signedDocumentUrl ?? documentData.signedDocumentUrl;
     const auditCertificateUrl =
-      dto.auditCertificateUrl ?? documentData.auditCertificateUrl;
-    const evidenceZipUrl = dto.evidenceZipUrl ?? documentData.evidenceZipUrl;
+      parsed.auditCertificateUrl ?? documentData.auditCertificateUrl;
+    const evidenceZipUrl = parsed.evidenceZipUrl ?? documentData.evidenceZipUrl;
 
     if (!signedDocumentUrl || !auditCertificateUrl || !evidenceZipUrl) {
       return { ok: false, reason: ContractsErrors.EVIDENCE_INCOMPLETE };
@@ -664,7 +704,65 @@ export class ContractsService {
     return { ok: true, reason: null };
   }
 
-  private validateWebhookSignature(
+  private parseSignaturaWebhookBody(body: unknown): SignaturaWebhookParsed {
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      throw new BadRequestException(ContractsErrors.WEBHOOK_PAYLOAD_INVALID);
+    }
+    const o = body as Record<string, unknown>;
+    const optString = (value: unknown): string | null => {
+      if (typeof value !== 'string') return null;
+      const t = value.trim();
+      return t.length > 0 ? t : null;
+    };
+
+    const documentId =
+      optString(o.document_id) ?? optString(o.externalDocumentId);
+    const signatureId =
+      optString(o.signature_id) ?? optString(o.externalSignatureId);
+
+    if (!documentId && !signatureId) {
+      throw new BadRequestException(ContractsErrors.WEBHOOK_PAYLOAD_INVALID);
+    }
+
+    let providerPayload: Record<string, unknown> | null = null;
+    if (
+      o.providerPayload !== undefined &&
+      o.providerPayload !== null &&
+      typeof o.providerPayload === 'object' &&
+      !Array.isArray(o.providerPayload)
+    ) {
+      providerPayload = o.providerPayload as Record<string, unknown>;
+    }
+
+    const raw = { ...o } as Record<string, unknown>;
+
+    return {
+      documentId,
+      signatureId,
+      notificationId: optString(o.notification_id),
+      notificationAction: optString(o.notification_action),
+      newStatus: optString(o.new_status),
+      providerDocumentStatus: optString(o.providerDocumentStatus),
+      providerSignatureStatus: optString(o.providerSignatureStatus),
+      signatureUrl: optString(o.signatureUrl),
+      signedDocumentUrl: optString(o.signedDocumentUrl),
+      auditCertificateUrl: optString(o.auditCertificateUrl),
+      evidenceZipUrl: optString(o.evidenceZipUrl),
+      biometricStatus: optString(o.biometricStatus),
+      errorCode: optString(o.errorCode),
+      errorMessage: optString(o.errorMessage),
+      providerPayload,
+      raw,
+    };
+  }
+
+  private signaturaWebhookStoredPayload(
+    parsed: SignaturaWebhookParsed,
+  ): Record<string, unknown> {
+    return parsed.providerPayload ?? parsed.raw;
+  }
+
+  private assertValidWebhookSignature(
     signatureHeader: string | undefined,
     payloadRaw: Buffer | undefined,
   ): void {
@@ -676,14 +774,16 @@ export class ContractsService {
     }
 
     if (!signatureHeader || signatureHeader.trim().length === 0) {
-      throw new BadRequestException(ContractsErrors.WEBHOOK_NOT_AUTHENTIC);
+      throw new BadRequestException(
+        ContractsErrors.WEBHOOK_SIGNATURE_HEADER_MISSING,
+      );
     }
 
     const webhookBody = payloadRaw ?? Buffer.alloc(0);
-    const signatureCandidates =
-      this.extractSignatureCandidates(signatureHeader);
+    const trimmedHeader = signatureHeader.trim();
+    const signatureCandidates = this.extractSignatureCandidates(trimmedHeader);
     if (signatureCandidates.length === 0) {
-      throw new BadRequestException(ContractsErrors.WEBHOOK_NOT_AUTHENTIC);
+      throw new BadRequestException(ContractsErrors.WEBHOOK_SIGNATURE_INVALID);
     }
 
     const expectedHmac = createHmac('sha256', secret)
@@ -702,7 +802,7 @@ export class ContractsService {
       }
     }
 
-    throw new BadRequestException(ContractsErrors.WEBHOOK_NOT_AUTHENTIC);
+    throw new BadRequestException(ContractsErrors.WEBHOOK_SIGNATURE_INVALID);
   }
 
   private extractSignatureCandidates(signatureHeader: string): string[] {
@@ -733,17 +833,17 @@ export class ContractsService {
     return candidates;
   }
 
-  private resolveProviderStatuses(dto: SignaturaWebhookDto): {
+  private resolveProviderStatuses(parsed: SignaturaWebhookParsed): {
     readonly providerDocumentStatus: string | null;
     readonly providerSignatureStatus: string | null;
   } {
-    const action = (dto.notification_action ?? '').trim().toUpperCase();
+    const action = (parsed.notificationAction ?? '').trim().toUpperCase();
 
     const baseDocumentStatus = normalizeProviderStatus(
-      dto.providerDocumentStatus ?? dto.new_status,
+      parsed.providerDocumentStatus ?? parsed.newStatus,
     );
     const baseSignatureStatus = normalizeProviderStatus(
-      dto.providerSignatureStatus,
+      parsed.providerSignatureStatus,
     );
 
     if (action === 'DS') {

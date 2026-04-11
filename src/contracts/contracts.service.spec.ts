@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createHmac } from 'crypto';
@@ -375,7 +371,110 @@ describe('ContractsService', () => {
       service.handleSignaturaWebhook('invalid-signature', WEBHOOK_RAW_BODY, {
         externalDocumentId: VALID_DOCUMENT_ID,
       }),
-    ).rejects.toThrow(BadRequestException);
+    ).rejects.toMatchObject({
+      response: { message: ContractsErrors.WEBHOOK_SIGNATURE_INVALID },
+    });
+  });
+
+  it('handleSignaturaWebhook rechaza header de firma ausente', async () => {
+    await expect(
+      service.handleSignaturaWebhook(undefined, WEBHOOK_RAW_BODY, {
+        externalDocumentId: VALID_DOCUMENT_ID,
+      }),
+    ).rejects.toMatchObject({
+      response: { message: ContractsErrors.WEBHOOK_SIGNATURE_HEADER_MISSING },
+    });
+  });
+
+  it('handleSignaturaWebhook rechaza payload sin document_id ni signature_id', async () => {
+    await expect(
+      service.handleSignaturaWebhook(
+        buildValidSignatureHeader(),
+        WEBHOOK_RAW_BODY,
+        { notification_action: 'DS' },
+      ),
+    ).rejects.toMatchObject({
+      response: { message: ContractsErrors.WEBHOOK_PAYLOAD_INVALID },
+    });
+  });
+
+  it('handleSignaturaWebhook acepta payload mínimo real Signatura (snake_case + DS)', async () => {
+    const insertedLoan: LoanRow = {
+      id: VALID_LOAN_ID,
+      case_id: VALID_CASE_ID,
+      offer_id: VALID_OFFER_ID,
+      user_id: caseRow.user_id,
+      loan_type: 'NEW',
+      refinances_loan_id: null,
+      status: 'CREATED',
+    };
+
+    mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
+      {
+        ...createdContract,
+        status: CaseContractStatus.SIGN_PENDING,
+        external_document_id: VALID_DOCUMENT_ID,
+        external_signature_id: VALID_SIGNATURE_ID,
+      },
+    );
+    mockContractsRepository.updateProviderTracking.mockResolvedValue({
+      ...createdContract,
+      status: CaseContractStatus.SIGN_PENDING,
+      external_document_id: VALID_DOCUMENT_ID,
+      external_signature_id: VALID_SIGNATURE_ID,
+      provider_document_status: 'CO',
+      provider_signature_status: 'CO',
+    });
+    mockSignaturaService.getDocument.mockResolvedValue({
+      externalDocumentId: VALID_DOCUMENT_ID,
+      documentStatus: 'CO',
+      signatureStatus: 'CO',
+      signatureUrl: 'https://signatura/sign',
+      signedDocumentUrl: 'https://signatura/doc.pdf',
+      auditCertificateUrl: 'https://signatura/cert.pdf',
+      evidenceZipUrl: 'https://signatura/evidence.zip',
+      raw: {},
+    });
+    mockSignaturaService.getBiometrics.mockResolvedValue({
+      biometricStatus: 'CO',
+      identityScore: null,
+      fullName: 'Juan Perez',
+      documentNumber: '12345678',
+      cuit: '20123456789',
+      raw: {},
+    });
+    mockContractsRepository.findCaseByIdForUpdate
+      .mockResolvedValueOnce(caseRow)
+      .mockResolvedValueOnce(caseRow);
+    mockContractsRepository.markCaseContractSigned.mockResolvedValue({
+      ...createdContract,
+      status: CaseContractStatus.SIGNED,
+      external_document_id: VALID_DOCUMENT_ID,
+      external_signature_id: VALID_SIGNATURE_ID,
+      signed_at: new Date().toISOString(),
+    });
+    mockContractsRepository.findLoanByCaseIdForUpdate.mockResolvedValue(null);
+    mockContractsRepository.insertLoan.mockResolvedValue(insertedLoan);
+
+    const rawJson = JSON.stringify({
+      document_id: VALID_DOCUMENT_ID,
+      signature_id: VALID_SIGNATURE_ID,
+      notification_id: '019d7eb8-1dee-7899-87bb-afe30fa38881',
+      notification_action: 'DS',
+    });
+    const rawBody = Buffer.from(rawJson, 'utf8');
+    const signatureHeader = createHmac('sha256', WEBHOOK_SECRET)
+      .update(rawBody)
+      .digest('hex');
+
+    const result = await service.handleSignaturaWebhook(
+      signatureHeader,
+      rawBody,
+      JSON.parse(rawJson) as Record<string, unknown>,
+    );
+
+    expect(result.status).toBe(CaseContractStatus.SIGNED);
+    expect(result.loanId).toBe(VALID_LOAN_ID);
   });
 
   it('handleSignaturaWebhook SD lleva contrato a FAILED aun sin providerSignatureStatus explícito', async () => {
