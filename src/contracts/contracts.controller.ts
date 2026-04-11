@@ -47,7 +47,9 @@ export class ContractsController {
 
   @Get(':caseId')
   @ApiOperation({
-    summary: 'Obtiene estado contractual oficial por case_id',
+    summary: 'Obtiene estado contractual por case_id',
+    description:
+      'Si hay contrato activo (CREATED o SIGN_PENDING), devuelve ese; si no, el más reciente por created_at (cualquier estado). Interpretar el campo status en la respuesta.',
   })
   @ApiResponse({
     status: 200,
