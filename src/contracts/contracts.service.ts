@@ -243,6 +243,16 @@ export class ContractsService {
   ): Promise<SignaturaWebhookResult> {
     this.validateWebhookSignature(signatureHeader, payloadRaw);
 
+    console.log('=== HANDLE SIGNATURA WEBHOOK START ===');
+    console.log({
+      hasSignatureHeader: !!signatureHeader,
+      rawBodyLength: payloadRaw?.length ?? 0,
+      secretConfigured: !!this.configService.get<string>(
+        'SIGNATURA_WEBHOOK_SECRET',
+      ),
+    });
+    console.log('Webhook body:', JSON.stringify(dto, null, 2));
+
     const documentId = dto.externalDocumentId ?? dto.document_id ?? null;
     const signatureId = dto.externalSignatureId ?? dto.signature_id ?? null;
     const providerStatuses = this.resolveProviderStatuses(dto);
