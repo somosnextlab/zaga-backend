@@ -241,22 +241,11 @@ export class ContractsService {
     payloadRaw: Buffer | undefined,
     body: unknown,
   ): Promise<SignaturaWebhookResult> {
-    const secretConfigured = !!this.configService.get<string>(
-      'SIGNATURA_WEBHOOK_SECRET',
-    );
-    this.logger.log(
-      `Signatura webhook: inicio rawBodyBytes=${payloadRaw?.length ?? 0} hasSignatureHeader=${Boolean(signatureHeader?.trim())} secretConfigured=${secretConfigured}`,
-    );
-
     this.assertValidWebhookSignature(signatureHeader, payloadRaw);
-    this.logger.log('Signatura webhook: firma HMAC verificada correctamente');
 
     const parsed = this.parseSignaturaWebhookBody(body);
 
     const actionNorm = (parsed.notificationAction ?? '').trim().toUpperCase();
-    this.logger.log(
-      `Signatura webhook: resumen payload evento=${actionNorm || '—'} documentId=${parsed.documentId ?? '—'} signatureId=${parsed.signatureId ?? '—'} notificationId=${parsed.notificationId ?? '—'}`,
-    );
 
     const knownActions = new Set(['', 'DS', 'SD', 'DC']);
     if (actionNorm.length > 0 && !knownActions.has(actionNorm)) {
@@ -293,10 +282,6 @@ export class ContractsService {
             loanId: null,
           };
         }
-
-        this.logger.log(
-          `Signatura webhook: contrato encontrado caseContractId=${contract.id} estado=${contract.status}`,
-        );
 
         if (contract.status === CaseContractStatus.SIGNED) {
           const existingLoan =
@@ -388,9 +373,6 @@ export class ContractsService {
         if (
           !isProviderSigned(effectiveDocumentStatus, effectiveSignatureStatus)
         ) {
-          this.logger.log(
-            `Signatura webhook: evento registrado sin firma completa en proveedor (contrato sigue ${trackedContract.status})`,
-          );
           return {
             accepted: true,
             contractFound: true,
@@ -533,10 +515,6 @@ export class ContractsService {
 
         const loan = await this.createLoanIfEligible(client, signed);
 
-        this.logger.log(
-          `Signatura webhook: contrato SIGNED loanCreado=${loan ? 'sí' : 'no'} loanId=${loan?.id ?? '—'}`,
-        );
-
         return {
           accepted: true,
           contractFound: true,
@@ -548,7 +526,7 @@ export class ContractsService {
     );
 
     this.logger.log(
-      `Signatura webhook: fin contractFound=${result.contractFound} status=${result.status ?? '—'} loanId=${result.loanId ?? '—'}`,
+      `Signatura webhook handled action=${actionNorm || '—'} contractFound=${result.contractFound} caseContractId=${result.caseContractId ?? '—'} status=${result.status ?? '—'} loanId=${result.loanId ?? '—'}`,
     );
 
     return result;
