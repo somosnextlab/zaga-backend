@@ -141,7 +141,7 @@ describe('ContractsController (e2e)', () => {
   it('POST /case-contracts/webhooks/signatura acepta payload webhook Signatura', () => {
     return request(app.getHttpServer())
       .post('/case-contracts/webhooks/signatura')
-      .set('x-signatura-signature', 'test-signature')
+      .set('x-signature-sha256', 'test-signature')
       .send({
         notification_action: 'DS',
         document_id: '550e8400-e29b-41d4-a716-446655440011',

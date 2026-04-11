@@ -1,16 +1,13 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsISO8601,
-  IsNotEmpty,
-  IsObject,
-  IsOptional,
-  IsString,
-  ValidateIf,
-} from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsISO8601, IsObject, IsOptional, IsString } from 'class-validator';
 
+/**
+ * Esquema documental flexible: el endpoint real usa `body: unknown` y valida en servicio.
+ * Sin reglas cruzadas obligatorias para no bloquear payloads mínimos de Signatura.
+ */
 export class SignaturaWebhookDto {
   @ApiPropertyOptional({
-    description: 'Acción del webhook de Signatura (ej: DS, SD, DC, TU)',
+    description: 'Acción del webhook de Signatura (ej: DS, SD, DC)',
   })
   @IsOptional()
   @IsString()
@@ -29,6 +26,13 @@ export class SignaturaWebhookDto {
   @IsOptional()
   @IsString()
   public signature_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'notification_id del webhook de Signatura',
+  })
+  @IsOptional()
+  @IsString()
+  public notification_id?: string;
 
   @ApiPropertyOptional({
     description: 'new_status del webhook de Signatura',
@@ -51,25 +55,18 @@ export class SignaturaWebhookDto {
   @IsString()
   public eventType?: string;
 
-  @ApiProperty({
-    description: 'Id externo del documento en Signatura',
+  @ApiPropertyOptional({
+    description: 'Id externo del documento en Signatura (alias camelCase)',
   })
-  @ValidateIf(
-    (dto: SignaturaWebhookDto) =>
-      !(dto.externalSignatureId || dto.signature_id),
-  )
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   public externalDocumentId?: string;
 
-  @ApiProperty({
-    description: 'Id externo del flujo de firma en Signatura',
+  @ApiPropertyOptional({
+    description: 'Id externo del flujo de firma en Signatura (alias camelCase)',
   })
-  @ValidateIf(
-    (dto: SignaturaWebhookDto) => !(dto.externalDocumentId || dto.document_id),
-  )
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   public externalSignatureId?: string;
 
   @ApiPropertyOptional({

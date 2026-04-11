@@ -12,7 +12,6 @@ import {
 import type { Request } from 'express';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ContractQueryDto } from './dto/contract-query.dto';
-//import { SignaturaWebhookDto } from './dto/signatura-webhook.dto';
 import { StartCaseContractDto } from './dto/start-case-contract.dto';
 import { ContractsService } from './contracts.service';
 import type {
@@ -66,32 +65,35 @@ export class ContractsController {
   @HttpCode(HttpStatus.OK)
   public async receiveSignaturaWebhook(
     @Headers() headers: Record<string, string | string[] | undefined>,
-    @Body() body: any,
+    @Body() body: unknown,
     @Req() req: RequestWithRawBody,
   ): Promise<SignaturaWebhookResult> {
     const rawBody = this.extractRawBody(req, body);
-
-    console.log('=== SIGNATURA WEBHOOK HEADERS ===');
-    console.log(headers);
-
-    console.log('=== SIGNATURA WEBHOOK BODY ===');
-    console.log(JSON.stringify(body, null, 2));
-
-    console.log('=== SIGNATURA WEBHOOK RAW BODY LENGTH ===');
-    console.log(rawBody.length);
-
-    const signatureHeader =
-      (headers['x-signatura-signature'] as string | undefined) ??
-      (headers['X-Signatura-Signature'] as string | undefined);
-
-    console.log('=== SIGNATURA WEBHOOK SIGNATURE HEADER ===');
-    console.log(signatureHeader);
+    const signatureHeader = this.readSignatureHeader(headers);
 
     return this.contractsService.handleSignaturaWebhook(
       signatureHeader,
       rawBody,
       body,
     );
+  }
+
+  /**
+   * Signatura envía `x-signature-sha256` (hex del HMAC-SHA256 del cuerpo crudo).
+   * Se mantiene fallback a `x-signatura-signature` por compatibilidad.
+   */
+  private readSignatureHeader(
+    headers: Record<string, string | string[] | undefined>,
+  ): string | undefined {
+    const keys = ['x-signature-sha256', 'x-signatura-signature'] as const;
+    for (const key of keys) {
+      const raw = headers[key];
+      if (raw === undefined) continue;
+      const value = Array.isArray(raw) ? raw[0] : raw;
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      if (trimmed.length > 0) return trimmed;
+    }
+    return undefined;
   }
 
   private extractRawBody(req: RequestWithRawBody, body: unknown): Buffer {
