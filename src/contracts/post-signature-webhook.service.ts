@@ -13,7 +13,7 @@ export class PostSignatureWebhookService {
 
   public constructor(private readonly configService: ConfigService) {
     const url = this.configService.get<string>(
-      'N8N_POST_SIGNATURE_WEBHOOK_URL',
+      'N8N_POST_SIGNATURA_WEBHOOK_URL',
     );
     const trimmed = url?.trim();
     this.webhookUrl = trimmed && trimmed.length > 0 ? trimmed : null;
@@ -34,7 +34,7 @@ export class PostSignatureWebhookService {
   public async notify(payload: PostSignatureN8nPayload): Promise<void> {
     if (!this.webhookUrl) {
       this.logger.debug(
-        'Webhook post-firma n8n omitido: N8N_POST_SIGNATURE_WEBHOOK_URL no está configurada.',
+        'Webhook post-firma n8n omitido: N8N_POST_SIGNATURA_WEBHOOK_URL no está configurada.',
       );
       return;
     }
