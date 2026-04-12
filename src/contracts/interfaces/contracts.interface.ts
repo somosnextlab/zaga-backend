@@ -40,6 +40,16 @@ export interface SignaturaWebhookResult {
   readonly loanId: string | null;
 }
 
+/** Cuerpo enviado al webhook n8n tras crear un loan nuevo por contrato firmado. */
+export interface PostSignatureN8nPayload {
+  readonly case_id: string;
+  readonly loan_id: string;
+  readonly user_id: string;
+  readonly phone: string;
+  readonly case_type: string;
+  readonly trigger_source: 'CONTRACT_SIGNED';
+}
+
 /** Payload normalizado del webhook de Signatura (snake_case y camelCase). */
 export interface SignaturaWebhookParsed {
   readonly documentId: string | null;
