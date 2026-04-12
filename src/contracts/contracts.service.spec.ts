@@ -11,6 +11,7 @@ import type {
   CaseForContractRow,
   LoanRow,
 } from './interfaces/contracts.interface';
+import { PostSignatureWebhookService } from './post-signature-webhook.service';
 import { SignaturaService } from './providers/signatura.service';
 import { ContractPdfService } from './templates/contract-pdf.service';
 import { ContractsErrors } from './utils/contracts-errors';
@@ -73,6 +74,10 @@ describe('ContractsService', () => {
     ),
   };
 
+  const mockPostSignatureWebhookService = {
+    notify: jest.fn().mockResolvedValue(undefined),
+  };
+
   const caseRow: CaseForContractRow = {
     id: VALID_CASE_ID,
     user_id: '550e8400-e29b-41d4-a716-446655440100',
@@ -129,6 +134,10 @@ describe('ContractsService', () => {
         { provide: SignaturaService, useValue: mockSignaturaService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: DbService, useValue: mockDbService },
+        {
+          provide: PostSignatureWebhookService,
+          useValue: mockPostSignatureWebhookService,
+        },
       ],
     }).compile();
 
@@ -367,6 +376,130 @@ describe('ContractsService', () => {
     expect(result.status).toBe(CaseContractStatus.SIGNED);
     expect(result.loanId).toBe(VALID_LOAN_ID);
     expect(mockContractsRepository.insertLoan).toHaveBeenCalledTimes(1);
+    expect(mockPostSignatureWebhookService.notify).toHaveBeenCalledTimes(1);
+    expect(mockPostSignatureWebhookService.notify).toHaveBeenCalledWith({
+      case_id: VALID_CASE_ID,
+      loan_id: VALID_LOAN_ID,
+      user_id: caseRow.user_id,
+      phone: caseRow.phone,
+      case_type: 'NEW',
+      trigger_source: 'CONTRACT_SIGNED',
+    });
+  });
+
+  it('handleSignaturaWebhook no dispara n8n si el contrato ya estaba SIGNED (idempotencia)', async () => {
+    const existingLoan: LoanRow = {
+      id: VALID_LOAN_ID,
+      case_id: VALID_CASE_ID,
+      offer_id: VALID_OFFER_ID,
+      user_id: caseRow.user_id,
+      loan_type: 'NEW',
+      refinances_loan_id: null,
+      status: 'CREATED',
+    };
+
+    mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
+      {
+        ...createdContract,
+        status: CaseContractStatus.SIGNED,
+        external_document_id: VALID_DOCUMENT_ID,
+        external_signature_id: VALID_SIGNATURE_ID,
+        signed_at: new Date().toISOString(),
+      },
+    );
+    mockContractsRepository.findLoanByCaseIdForUpdate.mockResolvedValue(
+      existingLoan,
+    );
+
+    const result = await service.handleSignaturaWebhook(
+      buildValidSignatureHeader(),
+      WEBHOOK_RAW_BODY,
+      {
+        externalDocumentId: VALID_DOCUMENT_ID,
+        externalSignatureId: VALID_SIGNATURE_ID,
+        notification_action: 'DC',
+      },
+    );
+
+    expect(result.status).toBe(CaseContractStatus.SIGNED);
+    expect(result.loanId).toBe(VALID_LOAN_ID);
+    expect(mockPostSignatureWebhookService.notify).not.toHaveBeenCalled();
+    expect(mockContractsRepository.insertLoan).not.toHaveBeenCalled();
+  });
+
+  it('handleSignaturaWebhook no dispara n8n si el loan ya existía en la misma ejecución de firma', async () => {
+    const existingLoan: LoanRow = {
+      id: VALID_LOAN_ID,
+      case_id: VALID_CASE_ID,
+      offer_id: VALID_OFFER_ID,
+      user_id: caseRow.user_id,
+      loan_type: 'NEW',
+      refinances_loan_id: null,
+      status: 'CREATED',
+    };
+
+    mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
+      {
+        ...createdContract,
+        status: CaseContractStatus.SIGN_PENDING,
+        external_document_id: VALID_DOCUMENT_ID,
+        external_signature_id: VALID_SIGNATURE_ID,
+      },
+    );
+    mockContractsRepository.updateProviderTracking.mockResolvedValue({
+      ...createdContract,
+      status: CaseContractStatus.SIGN_PENDING,
+      external_document_id: VALID_DOCUMENT_ID,
+      external_signature_id: VALID_SIGNATURE_ID,
+      provider_document_status: 'CO',
+      provider_signature_status: 'CO',
+    });
+    mockSignaturaService.getDocument.mockResolvedValue({
+      externalDocumentId: VALID_DOCUMENT_ID,
+      documentStatus: 'CO',
+      signatureStatus: 'CO',
+      signatureUrl: 'https://signatura/sign',
+      signedDocumentUrl: 'https://signatura/doc.pdf',
+      auditCertificateUrl: 'https://signatura/cert.pdf',
+      evidenceZipUrl: 'https://signatura/evidence.zip',
+      raw: {},
+    });
+    mockSignaturaService.getBiometrics.mockResolvedValue({
+      biometricStatus: 'CO',
+      identityScore: null,
+      fullName: 'Juan Perez',
+      documentNumber: '12345678',
+      cuit: '20123456789',
+      raw: {},
+    });
+    mockContractsRepository.findCaseByIdForUpdate
+      .mockResolvedValueOnce(caseRow)
+      .mockResolvedValueOnce(caseRow);
+    mockContractsRepository.markCaseContractSigned.mockResolvedValue({
+      ...createdContract,
+      status: CaseContractStatus.SIGNED,
+      external_document_id: VALID_DOCUMENT_ID,
+      external_signature_id: VALID_SIGNATURE_ID,
+      signed_at: new Date().toISOString(),
+    });
+    mockContractsRepository.findLoanByCaseIdForUpdate.mockResolvedValue(
+      existingLoan,
+    );
+
+    const result = await service.handleSignaturaWebhook(
+      buildValidSignatureHeader(),
+      WEBHOOK_RAW_BODY,
+      {
+        externalDocumentId: VALID_DOCUMENT_ID,
+        externalSignatureId: VALID_SIGNATURE_ID,
+        notification_action: 'DS',
+      },
+    );
+
+    expect(result.status).toBe(CaseContractStatus.SIGNED);
+    expect(result.loanId).toBe(VALID_LOAN_ID);
+    expect(mockContractsRepository.insertLoan).not.toHaveBeenCalled();
+    expect(mockPostSignatureWebhookService.notify).not.toHaveBeenCalled();
   });
 
   it('handleSignaturaWebhook rechaza firma inválida', async () => {
@@ -478,6 +611,14 @@ describe('ContractsService', () => {
 
     expect(result.status).toBe(CaseContractStatus.SIGNED);
     expect(result.loanId).toBe(VALID_LOAN_ID);
+    expect(mockPostSignatureWebhookService.notify).toHaveBeenCalledWith({
+      case_id: VALID_CASE_ID,
+      loan_id: VALID_LOAN_ID,
+      user_id: caseRow.user_id,
+      phone: caseRow.phone,
+      case_type: 'NEW',
+      trigger_source: 'CONTRACT_SIGNED',
+    });
   });
 
   it('handleSignaturaWebhook acepta HMAC cuando el secret son 64 hex y la clave HMAC es binaria (32 bytes)', async () => {

@@ -35,7 +35,9 @@ import {
   CaseContractRow,
   LoanRow,
   SignaturaWebhookParsed,
+  PostSignatureN8nPayload,
 } from './interfaces/contracts.interface';
+import { PostSignatureWebhookService } from './post-signature-webhook.service';
 
 @Injectable()
 export class ContractsService {
@@ -48,6 +50,7 @@ export class ContractsService {
     private readonly signaturaService: SignaturaService,
     private readonly configService: ConfigService,
     private readonly dbService: DbService,
+    private readonly postSignatureWebhookService: PostSignatureWebhookService,
   ) {
     this.signProvider = this.signaturaService;
   }
@@ -261,200 +264,253 @@ export class ContractsService {
     const providerSignatureStatus = providerStatuses.providerSignatureStatus;
     const storedPayload = this.signaturaWebhookStoredPayload(parsed);
 
-    const result = await this.dbService.withTransaction(
-      async (client: DbClient): Promise<SignaturaWebhookResult> => {
-        const contract =
-          await this.contractsRepository.findCaseContractByExternalIdsForUpdate(
-            client,
-            documentId,
-            signatureId,
-          );
+    const toTxOutcome = (
+      webhookResult: SignaturaWebhookResult,
+      postSignatureWebhookPayload: PostSignatureN8nPayload | null = null,
+    ): {
+      readonly result: SignaturaWebhookResult;
+      readonly postSignatureWebhookPayload: PostSignatureN8nPayload | null;
+    } => ({ result: webhookResult, postSignatureWebhookPayload });
 
-        if (!contract) {
-          this.logger.warn(
-            'Signatura webhook: contrato no encontrado para document_id/signature_id recibidos',
-          );
-          return {
-            accepted: true,
-            contractFound: false,
-            caseContractId: null,
-            status: null,
-            loanId: null,
-          };
-        }
-
-        if (contract.status === CaseContractStatus.SIGNED) {
-          const existingLoan =
-            await this.contractsRepository.findLoanByCaseIdForUpdate(
+    const { result, postSignatureWebhookPayload } =
+      await this.dbService.withTransaction(
+        async (
+          client: DbClient,
+        ): Promise<{
+          readonly result: SignaturaWebhookResult;
+          readonly postSignatureWebhookPayload: PostSignatureN8nPayload | null;
+        }> => {
+          const contract =
+            await this.contractsRepository.findCaseContractByExternalIdsForUpdate(
               client,
-              contract.case_id,
+              documentId,
+              signatureId,
             );
-          return {
-            accepted: true,
-            contractFound: true,
-            caseContractId: contract.id,
-            status: contract.status,
-            loanId: existingLoan?.id ?? null,
-          };
-        }
 
-        const trackedContract =
-          await this.contractsRepository.updateProviderTracking(client, {
-            contractId: contract.id,
-            providerDocumentStatus,
-            providerSignatureStatus,
-            signatureUrl: parsed.signatureUrl,
-            providerPayload: storedPayload,
-            providerLastError: parsed.errorMessage,
-          });
-
-        const effectiveDocumentStatus =
-          providerDocumentStatus ?? trackedContract.provider_document_status;
-        const effectiveSignatureStatus =
-          providerSignatureStatus ?? trackedContract.provider_signature_status;
-
-        if (
-          trackedContract.status === CaseContractStatus.CANCELED ||
-          trackedContract.status === CaseContractStatus.FAILED
-        ) {
-          return {
-            accepted: true,
-            contractFound: true,
-            caseContractId: trackedContract.id,
-            status: trackedContract.status,
-            loanId: null,
-          };
-        }
-
-        if (
-          isProviderCanceled(effectiveDocumentStatus, effectiveSignatureStatus)
-        ) {
-          const canceled =
-            await this.contractsRepository.markCaseContractCanceled(client, {
-              contractId: trackedContract.id,
-              reason: 'PROVIDER_CANCELED_OR_EXPIRED',
-              providerDocumentStatus: effectiveDocumentStatus,
-              providerSignatureStatus: effectiveSignatureStatus,
-              providerPayload: storedPayload,
+          if (!contract) {
+            this.logger.warn(
+              'Signatura webhook: contrato no encontrado para document_id/signature_id recibidos',
+            );
+            return toTxOutcome({
+              accepted: true,
+              contractFound: false,
+              caseContractId: null,
+              status: null,
+              loanId: null,
             });
-          return {
-            accepted: true,
-            contractFound: true,
-            caseContractId: canceled.id,
-            status: canceled.status,
-            loanId: null,
-          };
-        }
+          }
 
-        if (
-          isProviderRejected(effectiveDocumentStatus, effectiveSignatureStatus)
-        ) {
-          const failed = await this.contractsRepository.markCaseContractFailed(
-            client,
-            {
-              contractId: trackedContract.id,
-              reason: ContractsErrors.PROVIDER_BLOCKING_ERROR,
-              providerDocumentStatus: effectiveDocumentStatus,
-              providerSignatureStatus: effectiveSignatureStatus,
+          if (contract.status === CaseContractStatus.SIGNED) {
+            const existingLoan =
+              await this.contractsRepository.findLoanByCaseIdForUpdate(
+                client,
+                contract.case_id,
+              );
+            return toTxOutcome({
+              accepted: true,
+              contractFound: true,
+              caseContractId: contract.id,
+              status: contract.status,
+              loanId: existingLoan?.id ?? null,
+            });
+          }
+
+          const trackedContract =
+            await this.contractsRepository.updateProviderTracking(client, {
+              contractId: contract.id,
+              providerDocumentStatus,
+              providerSignatureStatus,
+              signatureUrl: parsed.signatureUrl,
               providerPayload: storedPayload,
-              providerLastError:
-                parsed.errorMessage ?? parsed.errorCode ?? null,
-            },
+              providerLastError: parsed.errorMessage,
+            });
+
+          const effectiveDocumentStatus =
+            providerDocumentStatus ?? trackedContract.provider_document_status;
+          const effectiveSignatureStatus =
+            providerSignatureStatus ??
+            trackedContract.provider_signature_status;
+
+          if (
+            trackedContract.status === CaseContractStatus.CANCELED ||
+            trackedContract.status === CaseContractStatus.FAILED
+          ) {
+            return toTxOutcome({
+              accepted: true,
+              contractFound: true,
+              caseContractId: trackedContract.id,
+              status: trackedContract.status,
+              loanId: null,
+            });
+          }
+
+          if (
+            isProviderCanceled(
+              effectiveDocumentStatus,
+              effectiveSignatureStatus,
+            )
+          ) {
+            const canceled =
+              await this.contractsRepository.markCaseContractCanceled(client, {
+                contractId: trackedContract.id,
+                reason: 'PROVIDER_CANCELED_OR_EXPIRED',
+                providerDocumentStatus: effectiveDocumentStatus,
+                providerSignatureStatus: effectiveSignatureStatus,
+                providerPayload: storedPayload,
+              });
+            return toTxOutcome({
+              accepted: true,
+              contractFound: true,
+              caseContractId: canceled.id,
+              status: canceled.status,
+              loanId: null,
+            });
+          }
+
+          if (
+            isProviderRejected(
+              effectiveDocumentStatus,
+              effectiveSignatureStatus,
+            )
+          ) {
+            const failed =
+              await this.contractsRepository.markCaseContractFailed(client, {
+                contractId: trackedContract.id,
+                reason: ContractsErrors.PROVIDER_BLOCKING_ERROR,
+                providerDocumentStatus: effectiveDocumentStatus,
+                providerSignatureStatus: effectiveSignatureStatus,
+                providerPayload: storedPayload,
+                providerLastError:
+                  parsed.errorMessage ?? parsed.errorCode ?? null,
+              });
+            return toTxOutcome({
+              accepted: true,
+              contractFound: true,
+              caseContractId: failed.id,
+              status: failed.status,
+              loanId: null,
+            });
+          }
+
+          if (
+            !isProviderSigned(effectiveDocumentStatus, effectiveSignatureStatus)
+          ) {
+            return toTxOutcome({
+              accepted: true,
+              contractFound: true,
+              caseContractId: trackedContract.id,
+              status: trackedContract.status,
+              loanId: null,
+            });
+          }
+
+          const externalDocumentId = trackedContract.external_document_id;
+          if (!externalDocumentId) {
+            const failed =
+              await this.contractsRepository.markCaseContractFailed(client, {
+                contractId: trackedContract.id,
+                reason: ContractsErrors.SIGNATURA_RESPONSE_INVALID,
+                providerDocumentStatus: effectiveDocumentStatus,
+                providerSignatureStatus: effectiveSignatureStatus,
+                providerPayload: storedPayload,
+              });
+            return toTxOutcome({
+              accepted: true,
+              contractFound: true,
+              caseContractId: failed.id,
+              status: failed.status,
+              loanId: null,
+            });
+          }
+
+          const externalSignatureId = trackedContract.external_signature_id;
+          if (!externalSignatureId) {
+            const failed =
+              await this.contractsRepository.markCaseContractFailed(client, {
+                contractId: trackedContract.id,
+                reason: ContractsErrors.SIGNATURA_RESPONSE_INVALID,
+                providerDocumentStatus: effectiveDocumentStatus,
+                providerSignatureStatus: effectiveSignatureStatus,
+                providerPayload: storedPayload,
+              });
+            return toTxOutcome({
+              accepted: true,
+              contractFound: true,
+              caseContractId: failed.id,
+              status: failed.status,
+              loanId: null,
+            });
+          }
+
+          const [documentData, biometricData] = await Promise.all([
+            this.signProvider.getDocument(externalDocumentId),
+            this.signProvider.getBiometrics(externalSignatureId),
+          ]);
+
+          const biometricValidation =
+            this.evaluateBiometricStatus(biometricData);
+          const identityValidation = await this.evaluateIdentityCoherence(
+            client,
+            trackedContract,
+            biometricData,
           );
-          return {
-            accepted: true,
-            contractFound: true,
-            caseContractId: failed.id,
-            status: failed.status,
-            loanId: null,
-          };
-        }
+          const evidenceValidation = this.evaluateEvidence(
+            documentData,
+            parsed,
+          );
 
-        if (
-          !isProviderSigned(effectiveDocumentStatus, effectiveSignatureStatus)
-        ) {
-          return {
-            accepted: true,
-            contractFound: true,
-            caseContractId: trackedContract.id,
-            status: trackedContract.status,
-            loanId: null,
-          };
-        }
+          if (
+            !biometricValidation.ok ||
+            !identityValidation.ok ||
+            !evidenceValidation.ok
+          ) {
+            const failReason =
+              biometricValidation.reason ??
+              identityValidation.reason ??
+              evidenceValidation.reason ??
+              ContractsErrors.PROVIDER_BLOCKING_ERROR;
+            this.logger.warn(
+              `Signatura webhook: validación interna fallida → FAILED motivo=${failReason}`,
+            );
+            const failed =
+              await this.contractsRepository.markCaseContractFailed(client, {
+                contractId: trackedContract.id,
+                reason: failReason,
+                providerDocumentStatus:
+                  normalizeProviderStatus(documentData.documentStatus) ??
+                  effectiveDocumentStatus,
+                providerSignatureStatus:
+                  normalizeProviderStatus(documentData.signatureStatus) ??
+                  effectiveSignatureStatus,
+                biometricStatus: biometricData.biometricStatus,
+                biometricPayload: biometricData.raw,
+                signedDocumentUrl:
+                  parsed.signedDocumentUrl ?? documentData.signedDocumentUrl,
+                auditCertificateUrl:
+                  parsed.auditCertificateUrl ??
+                  documentData.auditCertificateUrl,
+                evidenceZipUrl:
+                  parsed.evidenceZipUrl ?? documentData.evidenceZipUrl,
+                providerPayload: {
+                  webhook: storedPayload,
+                  document: documentData.raw,
+                  biometrics: biometricData.raw,
+                },
+              });
 
-        const externalDocumentId = trackedContract.external_document_id;
-        if (!externalDocumentId) {
-          const failed = await this.contractsRepository.markCaseContractFailed(
+            return toTxOutcome({
+              accepted: true,
+              contractFound: true,
+              caseContractId: failed.id,
+              status: failed.status,
+              loanId: null,
+            });
+          }
+
+          const signed = await this.contractsRepository.markCaseContractSigned(
             client,
             {
               contractId: trackedContract.id,
-              reason: ContractsErrors.SIGNATURA_RESPONSE_INVALID,
-              providerDocumentStatus: effectiveDocumentStatus,
-              providerSignatureStatus: effectiveSignatureStatus,
-              providerPayload: storedPayload,
-            },
-          );
-          return {
-            accepted: true,
-            contractFound: true,
-            caseContractId: failed.id,
-            status: failed.status,
-            loanId: null,
-          };
-        }
-
-        const externalSignatureId = trackedContract.external_signature_id;
-        if (!externalSignatureId) {
-          const failed = await this.contractsRepository.markCaseContractFailed(
-            client,
-            {
-              contractId: trackedContract.id,
-              reason: ContractsErrors.SIGNATURA_RESPONSE_INVALID,
-              providerDocumentStatus: effectiveDocumentStatus,
-              providerSignatureStatus: effectiveSignatureStatus,
-              providerPayload: storedPayload,
-            },
-          );
-          return {
-            accepted: true,
-            contractFound: true,
-            caseContractId: failed.id,
-            status: failed.status,
-            loanId: null,
-          };
-        }
-
-        const [documentData, biometricData] = await Promise.all([
-          this.signProvider.getDocument(externalDocumentId),
-          this.signProvider.getBiometrics(externalSignatureId),
-        ]);
-
-        const biometricValidation = this.evaluateBiometricStatus(biometricData);
-        const identityValidation = await this.evaluateIdentityCoherence(
-          client,
-          trackedContract,
-          biometricData,
-        );
-        const evidenceValidation = this.evaluateEvidence(documentData, parsed);
-
-        if (
-          !biometricValidation.ok ||
-          !identityValidation.ok ||
-          !evidenceValidation.ok
-        ) {
-          const failReason =
-            biometricValidation.reason ??
-            identityValidation.reason ??
-            evidenceValidation.reason ??
-            ContractsErrors.PROVIDER_BLOCKING_ERROR;
-          this.logger.warn(
-            `Signatura webhook: validación interna fallida → FAILED motivo=${failReason}`,
-          );
-          const failed = await this.contractsRepository.markCaseContractFailed(
-            client,
-            {
-              contractId: trackedContract.id,
-              reason: failReason,
               providerDocumentStatus:
                 normalizeProviderStatus(documentData.documentStatus) ??
                 effectiveDocumentStatus,
@@ -469,6 +525,7 @@ export class ContractsService {
                 parsed.auditCertificateUrl ?? documentData.auditCertificateUrl,
               evidenceZipUrl:
                 parsed.evidenceZipUrl ?? documentData.evidenceZipUrl,
+              signatureUrl: parsed.signatureUrl ?? documentData.signatureUrl,
               providerPayload: {
                 webhook: storedPayload,
                 document: documentData.raw,
@@ -477,57 +534,42 @@ export class ContractsService {
             },
           );
 
-          return {
-            accepted: true,
-            contractFound: true,
-            caseContractId: failed.id,
-            status: failed.status,
-            loanId: null,
-          };
-        }
+          const loanOutcome = await this.createLoanIfEligible(client, signed);
 
-        const signed = await this.contractsRepository.markCaseContractSigned(
-          client,
-          {
-            contractId: trackedContract.id,
-            providerDocumentStatus:
-              normalizeProviderStatus(documentData.documentStatus) ??
-              effectiveDocumentStatus,
-            providerSignatureStatus:
-              normalizeProviderStatus(documentData.signatureStatus) ??
-              effectiveSignatureStatus,
-            biometricStatus: biometricData.biometricStatus,
-            biometricPayload: biometricData.raw,
-            signedDocumentUrl:
-              parsed.signedDocumentUrl ?? documentData.signedDocumentUrl,
-            auditCertificateUrl:
-              parsed.auditCertificateUrl ?? documentData.auditCertificateUrl,
-            evidenceZipUrl:
-              parsed.evidenceZipUrl ?? documentData.evidenceZipUrl,
-            signatureUrl: parsed.signatureUrl ?? documentData.signatureUrl,
-            providerPayload: {
-              webhook: storedPayload,
-              document: documentData.raw,
-              biometrics: biometricData.raw,
+          const postSignatureWebhookPayload: PostSignatureN8nPayload | null =
+            loanOutcome.createdNew &&
+            loanOutcome.loan &&
+            loanOutcome.notifyContext
+              ? {
+                  case_id: signed.case_id,
+                  loan_id: loanOutcome.loan.id,
+                  user_id: loanOutcome.notifyContext.userId,
+                  phone: loanOutcome.notifyContext.phone,
+                  case_type: loanOutcome.notifyContext.caseType,
+                  trigger_source: 'CONTRACT_SIGNED',
+                }
+              : null;
+
+          return toTxOutcome(
+            {
+              accepted: true,
+              contractFound: true,
+              caseContractId: signed.id,
+              status: signed.status,
+              loanId: loanOutcome.loan?.id ?? null,
             },
-          },
-        );
-
-        const loan = await this.createLoanIfEligible(client, signed);
-
-        return {
-          accepted: true,
-          contractFound: true,
-          caseContractId: signed.id,
-          status: signed.status,
-          loanId: loan?.id ?? null,
-        };
-      },
-    );
+            postSignatureWebhookPayload,
+          );
+        },
+      );
 
     this.logger.log(
       `Signatura webhook handled action=${actionNorm || '—'} contractFound=${result.contractFound} caseContractId=${result.caseContractId ?? '—'} status=${result.status ?? '—'} loanId=${result.loanId ?? '—'}`,
     );
+
+    if (postSignatureWebhookPayload) {
+      void this.postSignatureWebhookService.notify(postSignatureWebhookPayload);
+    }
 
     return result;
   }
@@ -535,9 +577,27 @@ export class ContractsService {
   private async createLoanIfEligible(
     client: DbClient,
     contract: CaseContractRow,
-  ): Promise<LoanRow | null> {
+  ): Promise<{
+    readonly loan: LoanRow | null;
+    readonly createdNew: boolean;
+    readonly notifyContext: {
+      readonly userId: string;
+      readonly phone: string;
+      readonly caseType: string;
+    } | null;
+  }> {
+    const none = {
+      loan: null as LoanRow | null,
+      createdNew: false,
+      notifyContext: null as {
+        readonly userId: string;
+        readonly phone: string;
+        readonly caseType: string;
+      } | null,
+    };
+
     if (contract.status !== CaseContractStatus.SIGNED) {
-      return null;
+      return none;
     }
 
     const existingLoan =
@@ -546,7 +606,11 @@ export class ContractsService {
         contract.case_id,
       );
     if (existingLoan) {
-      return existingLoan;
+      return {
+        loan: existingLoan,
+        createdNew: false,
+        notifyContext: null,
+      };
     }
 
     const caseData = await this.contractsRepository.findCaseByIdForUpdate(
@@ -573,7 +637,7 @@ export class ContractsService {
       }
     }
 
-    return this.contractsRepository.insertLoan(client, {
+    const loan = await this.contractsRepository.insertLoan(client, {
       userId: caseData.user_id,
       phone: caseData.phone,
       loanType,
@@ -581,6 +645,16 @@ export class ContractsService {
       caseId: contract.case_id,
       offerId: contract.offer_id,
     });
+
+    return {
+      loan,
+      createdNew: true,
+      notifyContext: {
+        userId: caseData.user_id,
+        phone: caseData.phone,
+        caseType: caseData.case_type,
+      },
+    };
   }
 
   private evaluateBiometricStatus(input: SignaturaBiometricResponse): {
