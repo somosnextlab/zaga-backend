@@ -8,6 +8,7 @@ import { OfferEngineModule } from './offerEngine/offer-engine.module';
 import { ConfigModule } from '@nestjs/config';
 import { ContractsModule } from './contracts/contracts.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { CaseGuarantorsModule } from './case-guarantors/case-guarantors.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     PrequalModule,
     OfferEngineModule,
     ContractsModule,
+    CaseGuarantorsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
   ],
