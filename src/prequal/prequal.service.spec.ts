@@ -5,6 +5,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { PoolClient } from 'pg';
 import { DbService } from '../db/db.service';
+import { BcraZcoreEngineService } from './bcra-zcore-engine.service';
 import { PrequalService } from './prequal.service';
 
 const VALID_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -121,6 +122,7 @@ describe('PrequalService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PrequalService,
+        BcraZcoreEngineService,
         { provide: DbService, useValue: mockDbService },
         { provide: ConfigService, useValue: mockConfigService },
       ],
