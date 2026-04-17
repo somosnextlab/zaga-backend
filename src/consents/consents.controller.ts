@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ConsentTokenUuidPipe } from './consent-token-uuid.pipe';
 import { AcceptConsentDto } from './dto/accept-consent.dto';
 import { ConsentsService } from './consents.service';
 
@@ -34,8 +35,11 @@ export class ConsentsController {
   @ApiOperation({ summary: 'Obtener consentimiento por token' })
   @ApiParam({ name: 'token', description: 'Token UUID del consentimiento' })
   @ApiResponse({ status: 200, description: 'Datos del consentimiento' })
+  @ApiResponse({ status: 400, description: 'Token con formato inválido' })
   @ApiResponse({ status: 404, description: 'Token no encontrado' })
-  public async getConsentByToken(@Param('token') token: string): Promise<{
+  public async getConsentByToken(
+    @Param('token', ConsentTokenUuidPipe) token: string,
+  ): Promise<{
     token: string;
     status: 'PENDING' | 'ACCEPTED';
     terms_version: string;
