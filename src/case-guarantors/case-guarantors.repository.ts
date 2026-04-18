@@ -77,6 +77,15 @@ export class CaseGuarantorsRepository {
     );
   }
 
+  public async deleteCandidateById(
+    client: DbClient,
+    candidateId: string,
+  ): Promise<void> {
+    await client.query(`DELETE FROM case_guarantors WHERE id = $1`, [
+      candidateId,
+    ]);
+  }
+
   public async finalizeEvaluation(
     client: DbClient,
     input: FinalizeCaseGuarantorEvaluationInput,

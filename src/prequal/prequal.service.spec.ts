@@ -561,7 +561,7 @@ describe('PrequalService', () => {
 
       expect(result).toEqual({
         ok: false,
-        error_type: 'BUSINESS',
+        error_type: 'TECHNICAL',
         error_code: 'BCRA_INVALID_PAYLOAD',
         bypass_allowed: false,
       });

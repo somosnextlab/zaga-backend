@@ -12,8 +12,10 @@ import { CaseGuarantorsRepository } from './case-guarantors.repository';
 import type { EvaluateCaseGuarantorDto } from './dto/evaluate-case-guarantor.dto';
 import type {
   CaseGuarantorCandidateStatus,
-  EvaluateCaseGuarantorErrorResponse,
+  CaseGuarantorTechnicalErrorCode,
+  EvaluateCaseGuarantorBusinessErrorResponse,
   EvaluateCaseGuarantorResponse,
+  EvaluateCaseGuarantorTechnicalErrorResponse,
 } from './interfaces/case-guarantors.interface';
 
 @Injectable()
@@ -94,6 +96,24 @@ export class CaseGuarantorsService {
           await this.bcraZcoreEngineService.evaluateNormalizedCuit(
             normalizedCuit,
           );
+
+        if (!evaluation.ok && evaluation.error_type === 'TECHNICAL') {
+          await this.caseGuarantorsRepository.deleteCandidateById(
+            client,
+            inserted.id,
+          );
+          const technicalCode = evaluation.error_code;
+          if (
+            technicalCode !== 'BCRA_UNAVAILABLE' &&
+            technicalCode !== 'BCRA_INVALID_PAYLOAD'
+          ) {
+            throw new Error(
+              `Case guarantors: código técnico inesperado: ${String(technicalCode)}`,
+            );
+          }
+          return this.technicalError(technicalCode);
+        }
+
         const eligible = evaluation.ok ? evaluation.score.eligible : false;
         const candidateStatus: Exclude<
           CaseGuarantorCandidateStatus,
@@ -142,12 +162,23 @@ export class CaseGuarantorsService {
   }
 
   private businessError(
-    errorCode: EvaluateCaseGuarantorErrorResponse['error_code'],
-  ): EvaluateCaseGuarantorErrorResponse {
+    errorCode: EvaluateCaseGuarantorBusinessErrorResponse['error_code'],
+  ): EvaluateCaseGuarantorBusinessErrorResponse {
     return {
       ok: false,
       error_type: 'BUSINESS',
       error_code: errorCode,
+    };
+  }
+
+  private technicalError(
+    errorCode: CaseGuarantorTechnicalErrorCode,
+  ): EvaluateCaseGuarantorTechnicalErrorResponse {
+    return {
+      ok: false,
+      error_type: 'TECHNICAL',
+      error_code: errorCode,
+      retryable: true,
     };
   }
 }

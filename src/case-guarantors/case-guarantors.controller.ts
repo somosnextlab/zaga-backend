@@ -19,7 +19,7 @@ export class CaseGuarantorsController {
   @ApiResponse({
     status: 200,
     description:
-      'Evaluación procesada. Responde ok: true si se evaluó, u ok: false para errores de negocio controlados.',
+      'Evaluación procesada. ok: true si hubo resultado de negocio. ok: false con error_type BUSINESS (validaciones y duplicados). ok: false con error_type TECHNICAL y retryable: true si falló BCRA/red antes del score (reintentar mismo CUIT sin consumir intento).',
   })
   @ApiResponse({
     status: 400,
