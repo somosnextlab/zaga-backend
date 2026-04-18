@@ -69,7 +69,7 @@ export class BcraZcoreEngineService {
     if (!normalizedLatest) {
       return {
         ok: false,
-        error_type: 'BUSINESS',
+        error_type: 'TECHNICAL',
         error_code: 'BCRA_INVALID_PAYLOAD',
       };
     }
@@ -205,7 +205,7 @@ export class BcraZcoreEngineService {
       return { type: 'BUSINESS', code: 'BCRA_NO_DATA' };
     }
     if (!hasValidPeriodo) {
-      return { type: 'BUSINESS', code: 'BCRA_INVALID_PAYLOAD' };
+      return { type: 'TECHNICAL', code: 'BCRA_INVALID_PAYLOAD' };
     }
     return { type: 'SUCCESS' };
   }

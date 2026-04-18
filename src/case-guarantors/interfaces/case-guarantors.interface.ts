@@ -62,12 +62,26 @@ export interface EvaluateCaseGuarantorSuccessResponse {
 export type CaseGuarantorBusinessErrorCode =
   (typeof CASE_GUARANTOR_ERRORS)[keyof typeof CASE_GUARANTOR_ERRORS];
 
-export interface EvaluateCaseGuarantorErrorResponse {
+export interface EvaluateCaseGuarantorBusinessErrorResponse {
   ok: false;
   error_type: 'BUSINESS';
   error_code: CaseGuarantorBusinessErrorCode;
 }
 
+/** Códigos devueltos cuando falla BCRA u otra dependencia antes del score final. */
+export type CaseGuarantorTechnicalErrorCode =
+  | 'BCRA_UNAVAILABLE'
+  | 'BCRA_INVALID_PAYLOAD';
+
+export interface EvaluateCaseGuarantorTechnicalErrorResponse {
+  ok: false;
+  error_type: 'TECHNICAL';
+  error_code: CaseGuarantorTechnicalErrorCode;
+  /** Indica que n8n u orquestadores pueden reintentar con el mismo CUIT sin consumir cupo. */
+  retryable: true;
+}
+
 export type EvaluateCaseGuarantorResponse =
   | EvaluateCaseGuarantorSuccessResponse
-  | EvaluateCaseGuarantorErrorResponse;
+  | EvaluateCaseGuarantorBusinessErrorResponse
+  | EvaluateCaseGuarantorTechnicalErrorResponse;
