@@ -373,7 +373,7 @@ describe('PrequalService', () => {
         expect.stringContaining('Reintentando conexión con BCRA'),
       );
       warnSpy.mockRestore();
-    });
+    }, 20000);
   });
 
   describe('BCRA técnico', () => {

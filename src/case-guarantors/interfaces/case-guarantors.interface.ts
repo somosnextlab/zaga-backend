@@ -9,6 +9,7 @@ export interface CaseForGuarantorEvaluationRow {
   id: string;
   status: string;
   requires_guarantor: boolean;
+  applicant_cuit: string | null;
 }
 
 export interface CaseGuarantorAttemptRow {

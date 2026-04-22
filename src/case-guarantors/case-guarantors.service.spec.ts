@@ -52,7 +52,10 @@ describe('CaseGuarantorsService', () => {
     }).compile();
 
     service = module.get(CaseGuarantorsService);
-    mockBcraEngine.normalizeCuit.mockReturnValue(NORMALIZED_CUIT);
+    mockBcraEngine.normalizeCuit.mockImplementation((cuit: string) => {
+      const digits = cuit.replace(/\D/g, '');
+      return digits.length === 11 ? digits : null;
+    });
   });
 
   function stubReadyCaseAndEmptyAttempts(): void {
@@ -60,6 +63,7 @@ describe('CaseGuarantorsService', () => {
       id: CASE_ID,
       status: ALLOWED_CASE_STATUSES_FOR_GUARANTOR_EVALUATION[0],
       requires_guarantor: true,
+      applicant_cuit: '20999888776',
     });
     mockRepository.findCaseGuarantorsByCaseIdForUpdate.mockResolvedValue([]);
     mockRepository.insertEvaluatingCandidate.mockResolvedValue({
@@ -166,6 +170,7 @@ describe('CaseGuarantorsService', () => {
       id: CASE_ID,
       status: ALLOWED_CASE_STATUSES_FOR_GUARANTOR_EVALUATION[0],
       requires_guarantor: true,
+      applicant_cuit: '20999888776',
     });
     mockRepository.findCaseGuarantorsByCaseIdForUpdate.mockResolvedValue([
       { id: 'other-id', cuit: NORMALIZED_CUIT },
@@ -182,5 +187,30 @@ describe('CaseGuarantorsService', () => {
       error_code: CASE_GUARANTOR_ERRORS.DUPLICATE_GUARANTOR_CUIT,
     });
     expect(mockRepository.insertEvaluatingCandidate).not.toHaveBeenCalled();
+  });
+
+  it('rechaza si el CUIT candidato coincide con el CUIT del solicitante y corta antes de BCRA', async () => {
+    mockRepository.findCaseByIdForUpdate.mockResolvedValue({
+      id: CASE_ID,
+      status: ALLOWED_CASE_STATUSES_FOR_GUARANTOR_EVALUATION[0],
+      requires_guarantor: true,
+      applicant_cuit: NORMALIZED_CUIT,
+    });
+
+    const result = await service.evaluateCaseGuarantor({
+      caseId: CASE_ID,
+      cuit: '20-12345678-6',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error_type: 'BUSINESS',
+      error_code: CASE_GUARANTOR_ERRORS.GUARANTOR_CUIT_MATCHES_APPLICANT_CUIT,
+    });
+    expect(
+      mockRepository.findCaseGuarantorsByCaseIdForUpdate,
+    ).not.toHaveBeenCalled();
+    expect(mockRepository.insertEvaluatingCandidate).not.toHaveBeenCalled();
+    expect(mockBcraEngine.evaluateNormalizedCuit).not.toHaveBeenCalled();
   });
 });
