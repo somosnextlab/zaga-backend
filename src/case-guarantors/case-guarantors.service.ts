@@ -45,6 +45,18 @@ export class CaseGuarantorsService {
           return this.businessError(CASE_GUARANTOR_ERRORS.CASE_NOT_FOUND);
         }
 
+        const normalizedApplicantCuit = caseRow.applicant_cuit
+          ? this.bcraZcoreEngineService.normalizeCuit(caseRow.applicant_cuit)
+          : null;
+        if (
+          normalizedApplicantCuit !== null &&
+          normalizedApplicantCuit === normalizedCuit
+        ) {
+          return this.businessError(
+            CASE_GUARANTOR_ERRORS.GUARANTOR_CUIT_MATCHES_APPLICANT_CUIT,
+          );
+        }
+
         if (!caseRow.requires_guarantor) {
           return this.businessError(
             CASE_GUARANTOR_ERRORS.CASE_NOT_REQUIRING_GUARANTOR,

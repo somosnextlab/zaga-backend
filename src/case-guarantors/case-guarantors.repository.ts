@@ -28,9 +28,10 @@ export class CaseGuarantorsRepository {
   ): Promise<CaseForGuarantorEvaluationRow | null> {
     const result = await client.query<CaseForGuarantorEvaluationRow>(
       `
-      SELECT id, status, requires_guarantor
-      FROM cases
-      WHERE id = $1
+      SELECT c.id, c.status, c.requires_guarantor, u.cuit AS applicant_cuit
+      FROM cases c
+      INNER JOIN users u ON u.id = c.user_id
+      WHERE c.id = $1
       FOR UPDATE
       `,
       [caseId],
