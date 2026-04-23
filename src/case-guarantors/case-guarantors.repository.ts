@@ -45,7 +45,7 @@ export class CaseGuarantorsRepository {
   ): Promise<CaseGuarantorAttemptRow[]> {
     const result = await client.query<CaseGuarantorAttemptRow>(
       `
-      SELECT id, cuit
+      SELECT id, cuit, attempt_no, status, reviewed_by
       FROM case_guarantors
       WHERE case_id = $1
       ORDER BY attempt_no ASC
@@ -54,6 +54,109 @@ export class CaseGuarantorsRepository {
       [caseId],
     );
     return result.rows;
+  }
+
+  public async updateCaseStatus(
+    client: DbClient,
+    caseId: string,
+    status: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE cases SET status = $2, updated_at = now() WHERE id = $1`,
+      [caseId, status],
+    );
+  }
+
+  public async markGuarantorApprovedByCeoForNosis(
+    client: DbClient,
+    input: { readonly candidateId: string; readonly reviewedBy: string },
+  ): Promise<boolean> {
+    const result = await client.query(
+      `
+      UPDATE case_guarantors
+      SET reviewed_at = now(),
+          reviewed_by = $2,
+          updated_at = now()
+      WHERE id = $1 AND status = 'APPROVED'
+      RETURNING id
+      `,
+      [input.candidateId, input.reviewedBy],
+    );
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  public async rejectGuarantorCandidateByCeo(
+    client: DbClient,
+    input: {
+      readonly candidateId: string;
+      readonly reviewedBy: string;
+      readonly reviewReason: string;
+    },
+  ): Promise<boolean> {
+    const result = await client.query(
+      `
+      UPDATE case_guarantors
+      SET status = 'REJECTED',
+          eligible = false,
+          reviewed_at = now(),
+          reviewed_by = $2,
+          review_reason = $3,
+          updated_at = now()
+      WHERE id = $1 AND status = 'APPROVED'
+      RETURNING id
+      `,
+      [input.candidateId, input.reviewedBy, input.reviewReason],
+    );
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  public async applyAprobadoFinalFromPendingNosis(
+    client: DbClient,
+    caseId: string,
+  ): Promise<
+    | { readonly outcome: 'SUCCESS' }
+    | {
+        readonly outcome:
+          | 'CASE_NOT_FOUND'
+          | 'CASE_STATUS_INVALID'
+          | 'CURRENT_OFFER_NOT_FOUND';
+      }
+  > {
+    const locked = await client.query<{
+      id: string;
+      status: string;
+      current_offer_id: string | null;
+    }>(
+      `SELECT id, status, current_offer_id FROM cases WHERE id = $1 FOR UPDATE`,
+      [caseId],
+    );
+    const caseRow = locked.rows[0];
+    if (!caseRow) {
+      return { outcome: 'CASE_NOT_FOUND' };
+    }
+    if (caseRow.status !== 'PENDING_NOSIS') {
+      return { outcome: 'CASE_STATUS_INVALID' };
+    }
+    if (!caseRow.current_offer_id) {
+      return { outcome: 'CURRENT_OFFER_NOT_FOUND' };
+    }
+
+    await client.query(
+      `UPDATE cases SET status = 'APROBADO_FINAL', updated_at = now() WHERE id = $1`,
+      [caseId],
+    );
+    await client.query(
+      `
+      UPDATE case_offers
+      SET status = 'ACCEPTED',
+          accepted_at = COALESCE(accepted_at, now()),
+          updated_at = now()
+      WHERE id = $1 AND case_id = $2
+      `,
+      [caseRow.current_offer_id, caseId],
+    );
+
+    return { outcome: 'SUCCESS' };
   }
 
   public async insertEvaluatingCandidate(

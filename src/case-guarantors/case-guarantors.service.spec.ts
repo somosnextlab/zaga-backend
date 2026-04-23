@@ -5,6 +5,7 @@ import { CaseGuarantorsRepository } from './case-guarantors.repository';
 import { CaseGuarantorsService } from './case-guarantors.service';
 import {
   ALLOWED_CASE_STATUSES_FOR_GUARANTOR_EVALUATION,
+  CASE_APROBADO_FINAL_ERRORS,
   CASE_GUARANTOR_ERRORS,
   CASE_GUARANTOR_EVALUATION_ENGINE,
   MAX_GUARANTOR_ATTEMPTS,
@@ -26,6 +27,10 @@ describe('CaseGuarantorsService', () => {
     insertEvaluatingCandidate: jest.fn(),
     deleteCandidateById: jest.fn(),
     finalizeEvaluation: jest.fn(),
+    updateCaseStatus: jest.fn(),
+    markGuarantorApprovedByCeoForNosis: jest.fn(),
+    rejectGuarantorCandidateByCeo: jest.fn(),
+    applyAprobadoFinalFromPendingNosis: jest.fn(),
   };
 
   const mockBcraEngine = {
@@ -95,6 +100,11 @@ describe('CaseGuarantorsService', () => {
       CANDIDATE_ID,
     );
     expect(mockRepository.finalizeEvaluation).not.toHaveBeenCalled();
+    expect(mockRepository.updateCaseStatus).toHaveBeenCalledWith(
+      mockClient,
+      CASE_ID,
+      'PENDING_GUARANTOR_ANALYSIS',
+    );
   });
 
   it('ante payload inválido externo (técnico) borra candidato y no consume intento vía finalize', async () => {
@@ -121,6 +131,11 @@ describe('CaseGuarantorsService', () => {
       CANDIDATE_ID,
     );
     expect(mockRepository.finalizeEvaluation).not.toHaveBeenCalled();
+    expect(mockRepository.updateCaseStatus).toHaveBeenCalledWith(
+      mockClient,
+      CASE_ID,
+      'PENDING_GUARANTOR_ANALYSIS',
+    );
   });
 
   it('ante BCRA_NO_DATA finaliza como REJECTED de negocio y consume intento', async () => {
@@ -163,6 +178,94 @@ describe('CaseGuarantorsService', () => {
         scoreReason: 'BCRA_NO_DATA',
       }),
     );
+    expect(mockRepository.updateCaseStatus).toHaveBeenCalledTimes(1);
+    expect(mockRepository.updateCaseStatus).toHaveBeenCalledWith(
+      mockClient,
+      CASE_ID,
+      'PENDING_GUARANTOR_ANALYSIS',
+    );
+  });
+
+  it('devuelve CASE_STATUS_INVALID si el caso está en PENDING_NOSIS', async () => {
+    mockRepository.findCaseByIdForUpdate.mockResolvedValue({
+      id: CASE_ID,
+      status: 'PENDING_NOSIS',
+      requires_guarantor: true,
+      applicant_cuit: '20999888776',
+    });
+
+    const result = await service.evaluateCaseGuarantor({
+      caseId: CASE_ID,
+      cuit: VALID_CUIT,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error_type: 'BUSINESS',
+      error_code: CASE_GUARANTOR_ERRORS.CASE_STATUS_INVALID,
+    });
+    expect(mockRepository.insertEvaluatingCandidate).not.toHaveBeenCalled();
+    expect(mockRepository.updateCaseStatus).not.toHaveBeenCalled();
+  });
+
+  it('desde PENDING_GUARANTOR_ANALYSIS ante TECHNICAL borra candidato y deja caso en PENDING_GUARANTOR_ANALYSIS', async () => {
+    mockRepository.findCaseByIdForUpdate.mockResolvedValue({
+      id: CASE_ID,
+      status: 'PENDING_GUARANTOR_ANALYSIS',
+      requires_guarantor: true,
+      applicant_cuit: '20999888776',
+    });
+    mockRepository.findCaseGuarantorsByCaseIdForUpdate.mockResolvedValue([]);
+    mockRepository.insertEvaluatingCandidate.mockResolvedValue({
+      id: CANDIDATE_ID,
+    });
+    mockBcraEngine.evaluateNormalizedCuit.mockResolvedValue({
+      ok: false,
+      error_type: 'TECHNICAL',
+      error_code: 'BCRA_UNAVAILABLE',
+    });
+
+    const result = await service.evaluateCaseGuarantor({
+      caseId: CASE_ID,
+      cuit: VALID_CUIT,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(mockRepository.updateCaseStatus).toHaveBeenCalledWith(
+      mockClient,
+      CASE_ID,
+      'PENDING_GUARANTOR_ANALYSIS',
+    );
+  });
+
+  it('bloquea nuevo CUIT si hay APPROVED pendiente de decisión CEO (reviewed_by system)', async () => {
+    mockRepository.findCaseByIdForUpdate.mockResolvedValue({
+      id: CASE_ID,
+      status: ALLOWED_CASE_STATUSES_FOR_GUARANTOR_EVALUATION[0],
+      requires_guarantor: true,
+      applicant_cuit: '20999888776',
+    });
+    mockRepository.findCaseGuarantorsByCaseIdForUpdate.mockResolvedValue([
+      {
+        id: 'g1',
+        cuit: '27999888769',
+        attempt_no: 1,
+        status: 'APPROVED',
+        reviewed_by: 'system',
+      },
+    ]);
+
+    const result = await service.evaluateCaseGuarantor({
+      caseId: CASE_ID,
+      cuit: VALID_CUIT,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error_type: 'BUSINESS',
+      error_code: CASE_GUARANTOR_ERRORS.APPROVED_GUARANTOR_PENDING_CEO_DECISION,
+    });
+    expect(mockRepository.insertEvaluatingCandidate).not.toHaveBeenCalled();
   });
 
   it('devuelve DUPLICATE_GUARANTOR_CUIT solo si el CUIT ya está persistido en el caso', async () => {
@@ -173,7 +276,13 @@ describe('CaseGuarantorsService', () => {
       applicant_cuit: '20999888776',
     });
     mockRepository.findCaseGuarantorsByCaseIdForUpdate.mockResolvedValue([
-      { id: 'other-id', cuit: NORMALIZED_CUIT },
+      {
+        id: 'other-id',
+        cuit: NORMALIZED_CUIT,
+        attempt_no: 1,
+        status: 'REJECTED',
+        reviewed_by: 'system',
+      },
     ]);
 
     const result = await service.evaluateCaseGuarantor({
@@ -212,5 +321,153 @@ describe('CaseGuarantorsService', () => {
     ).not.toHaveBeenCalled();
     expect(mockRepository.insertEvaluatingCandidate).not.toHaveBeenCalled();
     expect(mockBcraEngine.evaluateNormalizedCuit).not.toHaveBeenCalled();
+  });
+
+  describe('resolveCaseGuarantor', () => {
+    it('GARANTE_APROBADO marca revisión CEO y mueve el caso a PENDING_NOSIS', async () => {
+      mockRepository.findCaseByIdForUpdate.mockResolvedValue({
+        id: CASE_ID,
+        status: 'PENDING_GUARANTOR_ANALYSIS',
+        requires_guarantor: true,
+        applicant_cuit: '20999888776',
+      });
+      mockRepository.findCaseGuarantorsByCaseIdForUpdate.mockResolvedValue([
+        {
+          id: CANDIDATE_ID,
+          cuit: NORMALIZED_CUIT,
+          attempt_no: 1,
+          status: 'APPROVED',
+          reviewed_by: 'system',
+        },
+      ]);
+      mockRepository.markGuarantorApprovedByCeoForNosis.mockResolvedValue(true);
+
+      const result = await service.resolveCaseGuarantor({
+        caseId: CASE_ID,
+        action: 'GARANTE_APROBADO',
+        actor: 'CEO',
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        action: 'GARANTE_APROBADO',
+        case_id: CASE_ID,
+        case_status: 'PENDING_NOSIS',
+      });
+      expect(
+        mockRepository.markGuarantorApprovedByCeoForNosis,
+      ).toHaveBeenCalledWith(mockClient, {
+        candidateId: CANDIDATE_ID,
+        reviewedBy: 'CEO',
+      });
+      expect(mockRepository.updateCaseStatus).toHaveBeenCalledWith(
+        mockClient,
+        CASE_ID,
+        'PENDING_NOSIS',
+      );
+    });
+
+    it('GARANTE_RECHAZADO reclasifica el candidato y reporta intentos restantes', async () => {
+      mockRepository.findCaseByIdForUpdate.mockResolvedValue({
+        id: CASE_ID,
+        status: 'PENDING_GUARANTOR_ANALYSIS',
+        requires_guarantor: true,
+        applicant_cuit: '20999888776',
+      });
+      mockRepository.findCaseGuarantorsByCaseIdForUpdate.mockResolvedValue([
+        {
+          id: CANDIDATE_ID,
+          cuit: NORMALIZED_CUIT,
+          attempt_no: 1,
+          status: 'APPROVED',
+          reviewed_by: 'system',
+        },
+      ]);
+      mockRepository.rejectGuarantorCandidateByCeo.mockResolvedValue(true);
+
+      const result = await service.resolveCaseGuarantor({
+        caseId: CASE_ID,
+        action: 'GARANTE_RECHAZADO',
+        actor: 'ASESORIA',
+        rejectReason: 'CEO_REQUESTED_NEW_GUARANTOR',
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        action: 'GARANTE_RECHAZADO',
+        case_id: CASE_ID,
+        case_status: 'PENDING_GUARANTOR_ANALYSIS',
+        remaining_attempts: MAX_GUARANTOR_ATTEMPTS - 1,
+        max_attempts_reached: false,
+      });
+      expect(mockRepository.rejectGuarantorCandidateByCeo).toHaveBeenCalledWith(
+        mockClient,
+        {
+          candidateId: CANDIDATE_ID,
+          reviewedBy: 'ASESORIA',
+          reviewReason: 'CEO_REQUESTED_NEW_GUARANTOR',
+        },
+      );
+    });
+
+    it('devuelve NO_APPROVED_GUARANTOR_TO_RESOLVE si no hay APPROVED pendiente de sistema', async () => {
+      mockRepository.findCaseByIdForUpdate.mockResolvedValue({
+        id: CASE_ID,
+        status: 'PENDING_GUARANTOR_ANALYSIS',
+        requires_guarantor: true,
+        applicant_cuit: '20999888776',
+      });
+      mockRepository.findCaseGuarantorsByCaseIdForUpdate.mockResolvedValue([
+        {
+          id: CANDIDATE_ID,
+          cuit: NORMALIZED_CUIT,
+          attempt_no: 1,
+          status: 'APPROVED',
+          reviewed_by: 'CEO',
+        },
+      ]);
+
+      const result = await service.resolveCaseGuarantor({
+        caseId: CASE_ID,
+        action: 'GARANTE_APROBADO',
+        actor: 'CEO',
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error_type: 'BUSINESS',
+        error_code: CASE_GUARANTOR_ERRORS.NO_APPROVED_GUARANTOR_TO_RESOLVE,
+      });
+    });
+  });
+
+  describe('applyAprobadoFinal', () => {
+    it('devuelve ok cuando el caso pasa de PENDING_NOSIS a APROBADO_FINAL', async () => {
+      mockRepository.applyAprobadoFinalFromPendingNosis.mockResolvedValue({
+        outcome: 'SUCCESS',
+      });
+
+      const result = await service.applyAprobadoFinal({ caseId: CASE_ID });
+
+      expect(result).toEqual({
+        ok: true,
+        case_id: CASE_ID,
+        case_status: 'APROBADO_FINAL',
+      });
+    });
+
+    it('devuelve CASE_STATUS_INVALID cuando el caso no está en PENDING_NOSIS', async () => {
+      mockRepository.applyAprobadoFinalFromPendingNosis.mockResolvedValue({
+        outcome: 'CASE_STATUS_INVALID',
+      });
+
+      const result = await service.applyAprobadoFinal({ caseId: CASE_ID });
+
+      expect(result).toEqual({
+        ok: false,
+        error_type: 'BUSINESS',
+        error_code: CASE_APROBADO_FINAL_ERRORS.CASE_STATUS_INVALID,
+      });
+    });
   });
 });

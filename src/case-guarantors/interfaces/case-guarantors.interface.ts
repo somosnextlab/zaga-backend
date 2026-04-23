@@ -1,4 +1,7 @@
-import type { CASE_GUARANTOR_ERRORS } from '../case-guarantors.constants';
+import type {
+  CASE_APROBADO_FINAL_ERRORS,
+  CASE_GUARANTOR_ERRORS,
+} from '../case-guarantors.constants';
 
 export type CaseGuarantorCandidateStatus =
   | 'EVALUATING'
@@ -15,6 +18,9 @@ export interface CaseForGuarantorEvaluationRow {
 export interface CaseGuarantorAttemptRow {
   id: string;
   cuit: string;
+  attempt_no: number;
+  status: CaseGuarantorCandidateStatus;
+  reviewed_by: string | null;
 }
 
 export interface InsertCaseGuarantorInput {
@@ -68,6 +74,65 @@ export interface EvaluateCaseGuarantorBusinessErrorResponse {
   error_type: 'BUSINESS';
   error_code: CaseGuarantorBusinessErrorCode;
 }
+
+export type GuarantorManualResolutionAction =
+  | 'GARANTE_APROBADO'
+  | 'GARANTE_RECHAZADO';
+
+export type GuarantorResolutionActor = 'CEO' | 'ASESORIA';
+
+export type GuarantorCeoRejectReviewReason =
+  | 'DISCARDED_BY_CEO'
+  | 'CEO_REQUESTED_NEW_GUARANTOR';
+
+export interface ResolveGuarantorSuccessApprovedResponse {
+  ok: true;
+  action: 'GARANTE_APROBADO';
+  case_id: string;
+  case_status: 'PENDING_NOSIS';
+}
+
+export interface ResolveGuarantorSuccessRejectedResponse {
+  ok: true;
+  action: 'GARANTE_RECHAZADO';
+  case_id: string;
+  case_status: 'PENDING_GUARANTOR_ANALYSIS';
+  remaining_attempts: number;
+  max_attempts_reached: boolean;
+}
+
+export type ResolveGuarantorSuccessResponse =
+  | ResolveGuarantorSuccessApprovedResponse
+  | ResolveGuarantorSuccessRejectedResponse;
+
+export interface ResolveGuarantorBusinessErrorResponse {
+  ok: false;
+  error_type: 'BUSINESS';
+  error_code: CaseGuarantorBusinessErrorCode;
+}
+
+export type ResolveGuarantorResponse =
+  | ResolveGuarantorSuccessResponse
+  | ResolveGuarantorBusinessErrorResponse;
+
+export type CaseAprobadoFinalBusinessErrorCode =
+  (typeof CASE_APROBADO_FINAL_ERRORS)[keyof typeof CASE_APROBADO_FINAL_ERRORS];
+
+export interface ApplyAprobadoFinalSuccessResponse {
+  ok: true;
+  case_id: string;
+  case_status: 'APROBADO_FINAL';
+}
+
+export interface ApplyAprobadoFinalBusinessErrorResponse {
+  ok: false;
+  error_type: 'BUSINESS';
+  error_code: CaseAprobadoFinalBusinessErrorCode;
+}
+
+export type ApplyAprobadoFinalResponse =
+  | ApplyAprobadoFinalSuccessResponse
+  | ApplyAprobadoFinalBusinessErrorResponse;
 
 /** Códigos devueltos cuando falla BCRA u otra dependencia antes del score final. */
 export type CaseGuarantorTechnicalErrorCode =
