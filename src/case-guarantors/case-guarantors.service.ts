@@ -8,6 +8,7 @@ import {
   CASE_GUARANTOR_ERRORS,
   CASE_GUARANTOR_EVALUATION_ENGINE,
   CASE_GUARANTOR_SYSTEM_REVIEWER,
+  GUARANTOR_MIN_ZCORE_BCRA_FOR_APPROVAL,
   MAX_GUARANTOR_ATTEMPTS,
 } from './case-guarantors.constants';
 import { CaseGuarantorsRepository } from './case-guarantors.repository';
@@ -147,7 +148,13 @@ export class CaseGuarantorsService {
           return this.technicalError(technicalCode);
         }
 
-        const eligible = evaluation.ok ? evaluation.score.eligible : false;
+        const meetsGuarantorZcoreThreshold = evaluation.ok
+          ? evaluation.score.zcore_bcra >= GUARANTOR_MIN_ZCORE_BCRA_FOR_APPROVAL
+          : false;
+        const eligible =
+          evaluation.ok &&
+          evaluation.score.eligible &&
+          meetsGuarantorZcoreThreshold;
         const candidateStatus = eligible ? 'APPROVED' : 'REJECTED';
         const zcoreBcra = evaluation.ok ? evaluation.score.zcore_bcra : 0;
         const riskLevel = evaluation.ok ? evaluation.score.risk_level : 'HIGH';
