@@ -142,7 +142,15 @@ export class CaseGuarantorsRepository {
     }
 
     await client.query(
-      `UPDATE cases SET status = 'APROBADO_FINAL', updated_at = now() WHERE id = $1`,
+      `
+      UPDATE cases
+      SET status = 'APROBADO_FINAL',
+          final_decision = 'APROBADO_FINAL',
+          final_decision_at = now(),
+          final_decision_by = 'CEO',
+          updated_at = now()
+      WHERE id = $1
+      `,
       [caseId],
     );
     await client.query(
