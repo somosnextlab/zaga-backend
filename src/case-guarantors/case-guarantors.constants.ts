@@ -1,5 +1,6 @@
 export const MAX_GUARANTOR_ATTEMPTS = 3;
 export const CASE_GUARANTOR_EVALUATION_ENGINE = 'ZCORE_BCRA_V1';
+export const GUARANTOR_MIN_ZCORE_BCRA_FOR_APPROVAL = 800;
 
 /** Solo antes/después del riel de análisis; post-NOSIS debe pasar primero por otro flujo a PENDING_GUARANTOR_ANALYSIS. */
 export const ALLOWED_CASE_STATUSES_FOR_GUARANTOR_EVALUATION = [

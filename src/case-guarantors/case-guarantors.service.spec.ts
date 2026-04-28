@@ -186,6 +186,88 @@ describe('CaseGuarantorsService', () => {
     );
   });
 
+  it('con zcore_bcra = 799 finaliza como REJECTED automático', async () => {
+    stubReadyCaseAndEmptyAttempts();
+    mockBcraEngine.evaluateNormalizedCuit.mockResolvedValue({
+      ok: true,
+      normalized_latest: { periodo: '202601' },
+      score: {
+        zcore_bcra: 799,
+        eligible: true,
+        risk_level: 'MEDIUM',
+        score_reason: 'ZCORE_BCRA_V1',
+      },
+    });
+    mockRepository.finalizeEvaluation.mockResolvedValue({
+      case_id: CASE_ID,
+      attempt_no: 1,
+      status: 'REJECTED',
+      eligible: false,
+      zcore_bcra: 799,
+      risk_level: 'MEDIUM',
+      score_reason: 'ZCORE_BCRA_V1',
+      periodo: '202601',
+    });
+
+    const result = await service.evaluateCaseGuarantor({
+      caseId: CASE_ID,
+      cuit: VALID_CUIT,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockRepository.finalizeEvaluation).toHaveBeenCalledWith(
+      mockClient,
+      expect.objectContaining({
+        candidateId: CANDIDATE_ID,
+        candidateStatus: 'REJECTED',
+        eligible: false,
+        zcoreBcra: 799,
+        scoreReason: 'ZCORE_BCRA_V1',
+      }),
+    );
+  });
+
+  it('con zcore_bcra = 800 puede finalizar como APPROVED según la lógica vigente', async () => {
+    stubReadyCaseAndEmptyAttempts();
+    mockBcraEngine.evaluateNormalizedCuit.mockResolvedValue({
+      ok: true,
+      normalized_latest: { periodo: '202601' },
+      score: {
+        zcore_bcra: 800,
+        eligible: true,
+        risk_level: 'LOW',
+        score_reason: 'ZCORE_BCRA_V1',
+      },
+    });
+    mockRepository.finalizeEvaluation.mockResolvedValue({
+      case_id: CASE_ID,
+      attempt_no: 1,
+      status: 'APPROVED',
+      eligible: true,
+      zcore_bcra: 800,
+      risk_level: 'LOW',
+      score_reason: 'ZCORE_BCRA_V1',
+      periodo: '202601',
+    });
+
+    const result = await service.evaluateCaseGuarantor({
+      caseId: CASE_ID,
+      cuit: VALID_CUIT,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockRepository.finalizeEvaluation).toHaveBeenCalledWith(
+      mockClient,
+      expect.objectContaining({
+        candidateId: CANDIDATE_ID,
+        candidateStatus: 'APPROVED',
+        eligible: true,
+        zcoreBcra: 800,
+        scoreReason: 'ZCORE_BCRA_V1',
+      }),
+    );
+  });
+
   it('devuelve CASE_STATUS_INVALID si el caso está en PENDING_NOSIS', async () => {
     mockRepository.findCaseByIdForUpdate.mockResolvedValue({
       id: CASE_ID,
