@@ -149,8 +149,7 @@ export class CaseGuarantorsRepository {
       `
       UPDATE case_offers
       SET status = 'ACCEPTED',
-          accepted_at = COALESCE(accepted_at, now()),
-          updated_at = now()
+          accepted_at = COALESCE(accepted_at, now())
       WHERE id = $1 AND case_id = $2
       `,
       [caseRow.current_offer_id, caseId],
