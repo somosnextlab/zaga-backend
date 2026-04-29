@@ -5,6 +5,8 @@
 import { Injectable } from '@nestjs/common';
 import type { DbClient } from '../db/db.service';
 import type {
+  ManualIdentityUpdatedRow,
+  ManualIdentityUserRow,
   CaseForGuarantorEvaluationRow,
   CaseGuarantorAttemptRow,
   CaseGuarantorEvaluationPersisted,
@@ -22,6 +24,64 @@ function firstRowOrThrow<T>(rows: T[], message: string): T {
 
 @Injectable()
 export class CaseGuarantorsRepository {
+  public async findManualIdentityCaseByIdForUpdate(
+    client: DbClient,
+    caseId: string,
+  ): Promise<{
+    id: string;
+    user_id: string;
+    prequal_mode: string | null;
+    manual_review_reason: string | null;
+  } | null> {
+    const result = await client.query<{
+      id: string;
+      user_id: string;
+      prequal_mode: string | null;
+      manual_review_reason: string | null;
+    }>(
+      `
+      SELECT id, user_id, prequal_mode, manual_review_reason
+      FROM cases
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [caseId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  public async updateUserManualIdentity(
+    client: DbClient,
+    input: {
+      readonly caseId: string;
+      readonly userId: string;
+      readonly firstName: string;
+      readonly lastName: string;
+    },
+  ): Promise<ManualIdentityUpdatedRow> {
+    const result = await client.query<ManualIdentityUserRow>(
+      `
+      UPDATE users
+      SET first_name = $2,
+          last_name = $3,
+          updated_at = now()
+      WHERE id = $1
+      RETURNING id AS user_id, first_name, last_name
+      `,
+      [input.userId, input.firstName, input.lastName],
+    );
+    const updatedUser = firstRowOrThrow<ManualIdentityUserRow>(
+      result.rows,
+      'No se pudo actualizar la identidad manual del solicitante.',
+    );
+    return {
+      case_id: input.caseId,
+      user_id: updatedUser.user_id,
+      first_name: updatedUser.first_name,
+      last_name: updatedUser.last_name,
+    };
+  }
+
   public async findCaseByIdForUpdate(
     client: DbClient,
     caseId: string,

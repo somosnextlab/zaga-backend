@@ -7,6 +7,7 @@ describe('CasesInternalController', () => {
 
   const mockService = {
     applyAprobadoFinal: jest.fn(),
+    applyManualIdentity: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -30,5 +31,25 @@ describe('CasesInternalController', () => {
       ok: true,
     });
     expect(mockService.applyAprobadoFinal).toHaveBeenCalledWith(dto);
+  });
+
+  it('applyManualIdentity delega en el servicio', async () => {
+    mockService.applyManualIdentity.mockResolvedValue({
+      ok: true,
+      case_id: '550e8400-e29b-41d4-a716-446655440000',
+      user_id: '550e8400-e29b-41d4-a716-446655440001',
+      first_name: 'CRISTIAN DENIS',
+      last_name: 'GIANOBOLI',
+    });
+    const dto = {
+      caseId: '550e8400-e29b-41d4-a716-446655440000',
+      firstName: 'CRISTIAN DENIS',
+      lastName: 'GIANOBOLI',
+      actor: 'CEO' as const,
+    };
+    await expect(controller.applyManualIdentity(dto)).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(mockService.applyManualIdentity).toHaveBeenCalledWith(dto);
   });
 });
