@@ -5,6 +5,7 @@ import { isValidCuitChecksum } from '../prequal/cuit-checksum';
 import {
   ALLOWED_CASE_STATUSES_FOR_GUARANTOR_EVALUATION,
   CASE_APROBADO_FINAL_ERRORS,
+  CASE_MANUAL_IDENTITY_ERRORS,
   CASE_GUARANTOR_ERRORS,
   CASE_GUARANTOR_EVALUATION_ENGINE,
   CASE_GUARANTOR_SYSTEM_REVIEWER,
@@ -13,12 +14,16 @@ import {
 } from './case-guarantors.constants';
 import { CaseGuarantorsRepository } from './case-guarantors.repository';
 import type { ApplyAprobadoFinalDto } from './dto/apply-aprobado-final.dto';
+import type { ApplyManualIdentityDto } from './dto/apply-manual-identity.dto';
 import type { EvaluateCaseGuarantorDto } from './dto/evaluate-case-guarantor.dto';
 import type { ResolveCaseGuarantorDto } from './dto/resolve-case-guarantor.dto';
 import type {
   ApplyAprobadoFinalBusinessErrorResponse,
   ApplyAprobadoFinalResponse,
   ApplyAprobadoFinalSuccessResponse,
+  ApplyManualIdentityBusinessErrorResponse,
+  ApplyManualIdentityResponse,
+  ApplyManualIdentitySuccessResponse,
   CaseGuarantorAttemptRow,
   CaseGuarantorTechnicalErrorCode,
   EvaluateCaseGuarantorBusinessErrorResponse,
@@ -342,6 +347,61 @@ export class CaseGuarantorsService {
     );
   }
 
+  public async applyManualIdentity(
+    dto: ApplyManualIdentityDto,
+  ): Promise<ApplyManualIdentityResponse> {
+    const normalizedFirstName = this.normalizeIdentityName(dto.firstName);
+    const normalizedLastName = this.normalizeIdentityName(dto.lastName);
+
+    if (!normalizedFirstName || !normalizedLastName) {
+      return this.manualIdentityBusinessError(
+        CASE_MANUAL_IDENTITY_ERRORS.INVALID_MANUAL_IDENTITY_INPUT,
+      );
+    }
+
+    return this.dbService.withTransaction(
+      async (client: DbClient): Promise<ApplyManualIdentityResponse> => {
+        const caseRow =
+          await this.caseGuarantorsRepository.findManualIdentityCaseByIdForUpdate(
+            client,
+            dto.caseId,
+          );
+        if (!caseRow) {
+          return this.manualIdentityBusinessError(
+            CASE_MANUAL_IDENTITY_ERRORS.CASE_NOT_FOUND,
+          );
+        }
+
+        const isManualReview =
+          caseRow.prequal_mode === 'MANUAL_REVIEW' ||
+          caseRow.manual_review_reason === 'BCRA_UNAVAILABLE' ||
+          caseRow.manual_review_reason === 'BCRA_NO_DATA';
+        if (!isManualReview) {
+          return this.manualIdentityBusinessError(
+            CASE_MANUAL_IDENTITY_ERRORS.CASE_NOT_IN_MANUAL_REVIEW,
+          );
+        }
+
+        const updated =
+          await this.caseGuarantorsRepository.updateUserManualIdentity(client, {
+            caseId: dto.caseId,
+            userId: caseRow.user_id,
+            firstName: normalizedFirstName,
+            lastName: normalizedLastName,
+          });
+
+        const success: ApplyManualIdentitySuccessResponse = {
+          ok: true,
+          case_id: updated.case_id,
+          user_id: updated.user_id,
+          first_name: updated.first_name,
+          last_name: updated.last_name,
+        };
+        return success;
+      },
+    );
+  }
+
   private findPendingSystemApprovedCandidateId(
     attempts: CaseGuarantorAttemptRow[],
   ): string | null {
@@ -390,5 +450,19 @@ export class CaseGuarantorsService {
       error_code: errorCode,
       retryable: true,
     };
+  }
+
+  private manualIdentityBusinessError(
+    errorCode: ApplyManualIdentityBusinessErrorResponse['error_code'],
+  ): ApplyManualIdentityBusinessErrorResponse {
+    return {
+      ok: false,
+      error_type: 'BUSINESS',
+      error_code: errorCode,
+    };
+  }
+
+  private normalizeIdentityName(value: string): string {
+    return value.trim().replace(/\s+/g, ' ');
   }
 }

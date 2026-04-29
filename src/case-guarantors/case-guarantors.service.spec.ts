@@ -6,6 +6,7 @@ import { CaseGuarantorsService } from './case-guarantors.service';
 import {
   ALLOWED_CASE_STATUSES_FOR_GUARANTOR_EVALUATION,
   CASE_APROBADO_FINAL_ERRORS,
+  CASE_MANUAL_IDENTITY_ERRORS,
   CASE_GUARANTOR_ERRORS,
   CASE_GUARANTOR_EVALUATION_ENGINE,
   MAX_GUARANTOR_ATTEMPTS,
@@ -31,6 +32,8 @@ describe('CaseGuarantorsService', () => {
     markGuarantorApprovedByCeoForNosis: jest.fn(),
     rejectGuarantorCandidateByCeo: jest.fn(),
     applyAprobadoFinalFromPendingNosis: jest.fn(),
+    findManualIdentityCaseByIdForUpdate: jest.fn(),
+    updateUserManualIdentity: jest.fn(),
   };
 
   const mockBcraEngine = {
@@ -550,6 +553,125 @@ describe('CaseGuarantorsService', () => {
         error_type: 'BUSINESS',
         error_code: CASE_APROBADO_FINAL_ERRORS.CASE_STATUS_INVALID,
       });
+    });
+  });
+
+  describe('applyManualIdentity', () => {
+    it('actualiza identidad en caso manual válido', async () => {
+      mockRepository.findManualIdentityCaseByIdForUpdate.mockResolvedValue({
+        id: CASE_ID,
+        user_id: '550e8400-e29b-41d4-a716-446655440999',
+        prequal_mode: 'MANUAL_REVIEW',
+        manual_review_reason: null,
+      });
+      mockRepository.updateUserManualIdentity.mockResolvedValue({
+        case_id: CASE_ID,
+        user_id: '550e8400-e29b-41d4-a716-446655440999',
+        first_name: 'CRISTIAN DENIS',
+        last_name: 'GIANOBOLI',
+      });
+
+      const result = await service.applyManualIdentity({
+        caseId: CASE_ID,
+        firstName: 'CRISTIAN DENIS',
+        lastName: 'GIANOBOLI',
+        actor: 'CEO',
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        case_id: CASE_ID,
+        user_id: '550e8400-e29b-41d4-a716-446655440999',
+        first_name: 'CRISTIAN DENIS',
+        last_name: 'GIANOBOLI',
+      });
+      expect(mockRepository.updateUserManualIdentity).toHaveBeenCalledWith(
+        mockClient,
+        {
+          caseId: CASE_ID,
+          userId: '550e8400-e29b-41d4-a716-446655440999',
+          firstName: 'CRISTIAN DENIS',
+          lastName: 'GIANOBOLI',
+        },
+      );
+    });
+
+    it('devuelve CASE_NOT_FOUND cuando el caso no existe', async () => {
+      mockRepository.findManualIdentityCaseByIdForUpdate.mockResolvedValue(
+        null,
+      );
+
+      const result = await service.applyManualIdentity({
+        caseId: CASE_ID,
+        firstName: 'CRISTIAN',
+        lastName: 'GIANOBOLI',
+        actor: 'CEO',
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error_type: 'BUSINESS',
+        error_code: CASE_MANUAL_IDENTITY_ERRORS.CASE_NOT_FOUND,
+      });
+      expect(mockRepository.updateUserManualIdentity).not.toHaveBeenCalled();
+    });
+
+    it('devuelve CASE_NOT_IN_MANUAL_REVIEW cuando no está en carril manual', async () => {
+      mockRepository.findManualIdentityCaseByIdForUpdate.mockResolvedValue({
+        id: CASE_ID,
+        user_id: '550e8400-e29b-41d4-a716-446655440999',
+        prequal_mode: 'AUTOMATIC',
+        manual_review_reason: null,
+      });
+
+      const result = await service.applyManualIdentity({
+        caseId: CASE_ID,
+        firstName: 'CRISTIAN',
+        lastName: 'GIANOBOLI',
+        actor: 'CEO',
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error_type: 'BUSINESS',
+        error_code: CASE_MANUAL_IDENTITY_ERRORS.CASE_NOT_IN_MANUAL_REVIEW,
+      });
+      expect(mockRepository.updateUserManualIdentity).not.toHaveBeenCalled();
+    });
+
+    it('normaliza espacios múltiples en firstName y lastName', async () => {
+      mockRepository.findManualIdentityCaseByIdForUpdate.mockResolvedValue({
+        id: CASE_ID,
+        user_id: '550e8400-e29b-41d4-a716-446655440999',
+        prequal_mode: null,
+        manual_review_reason: 'BCRA_NO_DATA',
+      });
+      mockRepository.updateUserManualIdentity.mockResolvedValue({
+        case_id: CASE_ID,
+        user_id: '550e8400-e29b-41d4-a716-446655440999',
+        first_name: 'CRISTIAN DENIS',
+        last_name: 'GIANOBOLI PEREZ',
+      });
+
+      const result = await service.applyManualIdentity({
+        caseId: CASE_ID,
+        firstName: '  CRISTIAN    DENIS  ',
+        lastName: '  GIANOBOLI   PEREZ   ',
+        actor: 'CEO',
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        first_name: 'CRISTIAN DENIS',
+        last_name: 'GIANOBOLI PEREZ',
+      });
+      expect(mockRepository.updateUserManualIdentity).toHaveBeenCalledWith(
+        mockClient,
+        expect.objectContaining({
+          firstName: 'CRISTIAN DENIS',
+          lastName: 'GIANOBOLI PEREZ',
+        }),
+      );
     });
   });
 });

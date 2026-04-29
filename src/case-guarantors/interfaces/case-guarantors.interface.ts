@@ -1,5 +1,6 @@
 import type {
   CASE_APROBADO_FINAL_ERRORS,
+  CASE_MANUAL_IDENTITY_ERRORS,
   CASE_GUARANTOR_ERRORS,
 } from '../case-guarantors.constants';
 
@@ -133,6 +134,40 @@ export interface ApplyAprobadoFinalBusinessErrorResponse {
 export type ApplyAprobadoFinalResponse =
   | ApplyAprobadoFinalSuccessResponse
   | ApplyAprobadoFinalBusinessErrorResponse;
+
+export interface ManualIdentityUpdatedRow {
+  case_id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+}
+
+export interface ManualIdentityUserRow {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+}
+
+export interface ApplyManualIdentitySuccessResponse {
+  ok: true;
+  case_id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+}
+
+export type CaseManualIdentityBusinessErrorCode =
+  (typeof CASE_MANUAL_IDENTITY_ERRORS)[keyof typeof CASE_MANUAL_IDENTITY_ERRORS];
+
+export interface ApplyManualIdentityBusinessErrorResponse {
+  ok: false;
+  error_type: 'BUSINESS';
+  error_code: CaseManualIdentityBusinessErrorCode;
+}
+
+export type ApplyManualIdentityResponse =
+  | ApplyManualIdentitySuccessResponse
+  | ApplyManualIdentityBusinessErrorResponse;
 
 /** Códigos devueltos cuando falla BCRA u otra dependencia antes del score final. */
 export type CaseGuarantorTechnicalErrorCode =
