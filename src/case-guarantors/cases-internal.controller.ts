@@ -1,5 +1,8 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { CasesFromRequestedAmountService } from '../cases/cases-from-requested-amount.service';
+import { CreateCaseFromRequestedAmountDto } from '../cases/dto/create-case-from-requested-amount.dto';
+import type { CreateCaseFromRequestedAmountResponse } from '../cases/interfaces/create-case-from-requested-amount.interface';
 import { ApplyAprobadoFinalDto } from './dto/apply-aprobado-final.dto';
 import { ApplyManualIdentityDto } from './dto/apply-manual-identity.dto';
 import type {
@@ -13,6 +16,7 @@ import { CaseGuarantorsService } from './case-guarantors.service';
 export class CasesInternalController {
   public constructor(
     private readonly caseGuarantorsService: CaseGuarantorsService,
+    private readonly casesFromRequestedAmountService: CasesFromRequestedAmountService,
   ) {}
 
   @Post('aprobado-final')
@@ -48,5 +52,31 @@ export class CasesInternalController {
     @Body() body: ApplyManualIdentityDto,
   ): Promise<ApplyManualIdentityResponse> {
     return this.caseGuarantorsService.applyManualIdentity(body);
+  }
+
+  @Post('from-requested-amount')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Crea un CASE con monto solicitado discreto y avanza el lead a WAITING_CEO (reemplazo de inserts SQL desde n8n).',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Caso creado (ok: true) o error de negocio (ok: false, error_code). INVALID_REQUESTED_AMOUNT puede devolver 400 si la validación falla antes de la transacción.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validación DTO o monto no permitido.',
+  })
+  @ApiResponse({
+    status: 500,
+    description:
+      'CASE_CREATION_FAILED u error interno inesperado en persistencia.',
+  })
+  public async createFromRequestedAmount(
+    @Body() body: CreateCaseFromRequestedAmountDto,
+  ): Promise<CreateCaseFromRequestedAmountResponse> {
+    return this.casesFromRequestedAmountService.createFromRequestedAmount(body);
   }
 }
