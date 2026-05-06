@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { CasesFromRequestedAmountService } from '../cases/cases-from-requested-amount.service';
 import { CasesInternalController } from './cases-internal.controller';
 import { CaseGuarantorsService } from './case-guarantors.service';
 
@@ -10,11 +11,21 @@ describe('CasesInternalController', () => {
     applyManualIdentity: jest.fn(),
   };
 
+  const mockCasesFromRequestedAmount = {
+    createFromRequestedAmount: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CasesInternalController],
-      providers: [{ provide: CaseGuarantorsService, useValue: mockService }],
+      providers: [
+        { provide: CaseGuarantorsService, useValue: mockService },
+        {
+          provide: CasesFromRequestedAmountService,
+          useValue: mockCasesFromRequestedAmount,
+        },
+      ],
     }).compile();
 
     controller = module.get(CasesInternalController);
@@ -51,5 +62,26 @@ describe('CasesInternalController', () => {
       ok: true,
     });
     expect(mockService.applyManualIdentity).toHaveBeenCalledWith(dto);
+  });
+
+  it('createFromRequestedAmount delega en CasesFromRequestedAmountService', async () => {
+    mockCasesFromRequestedAmount.createFromRequestedAmount.mockResolvedValue({
+      ok: true,
+      case_id: '550e8400-e29b-41d4-a716-446655440000',
+      phone: '+5493516639755',
+      user_id: '550e8400-e29b-41d4-a716-446655440001',
+      requested_amount: 300000,
+      case_status: 'WAITING_CEO',
+      lead_stage: 'WAITING_CEO',
+      prequal_mode: 'AUTO_OK',
+      manual_review_reason: null,
+    });
+    const dto = { phone: '+5493516639755', requested_amount: 300000 };
+    await expect(
+      controller.createFromRequestedAmount(dto),
+    ).resolves.toMatchObject({ ok: true });
+    expect(
+      mockCasesFromRequestedAmount.createFromRequestedAmount,
+    ).toHaveBeenCalledWith(dto);
   });
 });
