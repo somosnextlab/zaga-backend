@@ -122,9 +122,9 @@ describe('PrequalController (e2e)', () => {
     await app.close();
   });
 
-  it('POST /internal/prequal/run con body válido debe devolver ok:true', () => {
+  it('POST /prequal/run con body válido debe devolver ok:true', () => {
     return request(app.getHttpServer())
-      .post('/internal/prequal/run')
+      .post('/prequal/run')
       .send({
         userId: VALID_USER_ID,
         phone: VALID_PHONE,
@@ -147,9 +147,9 @@ describe('PrequalController (e2e)', () => {
       });
   });
 
-  it('POST /internal/prequal/run con userId inválido (no UUID) debe devolver 400', () => {
+  it('POST /prequal/run con userId inválido (no UUID) debe devolver 400', () => {
     return request(app.getHttpServer())
-      .post('/internal/prequal/run')
+      .post('/prequal/run')
       .send({
         userId: 'not-a-uuid',
         phone: VALID_PHONE,
@@ -158,9 +158,9 @@ describe('PrequalController (e2e)', () => {
       .expect(400);
   });
 
-  it('POST /internal/prequal/run con phone vacío debe devolver 400', () => {
+  it('POST /prequal/run con phone vacío debe devolver 400', () => {
     return request(app.getHttpServer())
-      .post('/internal/prequal/run')
+      .post('/prequal/run')
       .send({
         userId: VALID_USER_ID,
         phone: '',
@@ -169,9 +169,9 @@ describe('PrequalController (e2e)', () => {
       .expect(400);
   });
 
-  it('POST /internal/prequal/run con cuit vacío debe devolver 400', () => {
+  it('POST /prequal/run con cuit vacío debe devolver 400', () => {
     return request(app.getHttpServer())
-      .post('/internal/prequal/run')
+      .post('/prequal/run')
       .send({
         userId: VALID_USER_ID,
         phone: VALID_PHONE,
@@ -180,18 +180,18 @@ describe('PrequalController (e2e)', () => {
       .expect(400);
   });
 
-  it('POST /internal/prequal/run con body incompleto debe devolver 400', () => {
+  it('POST /prequal/run con body incompleto debe devolver 400', () => {
     return request(app.getHttpServer())
-      .post('/internal/prequal/run')
+      .post('/prequal/run')
       .send({ userId: VALID_USER_ID })
       .expect(400);
   });
 
-  it('POST /internal/prequal/run con usuario inexistente debe devolver 200, ok:false, USER_NOT_FOUND', () => {
+  it('POST /prequal/run con usuario inexistente debe devolver 200, ok:false, USER_NOT_FOUND', () => {
     mockDbService.query.mockResolvedValue({ rows: [] });
 
     return request(app.getHttpServer())
-      .post('/internal/prequal/run')
+      .post('/prequal/run')
       .send({
         userId: VALID_USER_ID,
         phone: VALID_PHONE,

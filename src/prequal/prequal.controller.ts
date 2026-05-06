@@ -5,7 +5,7 @@ import type { PrequalResponse } from './prequal.types';
 import { PrequalService } from './prequal.service';
 
 @ApiTags('Prequal')
-@Controller('internal/prequal')
+@Controller('prequal')
 export class PrequalController {
   public constructor(private readonly prequalService: PrequalService) {}
 

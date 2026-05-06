@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { CasesFromRequestedAmountService } from '../cases/cases-from-requested-amount.service';
-import { CasesInternalController } from './cases-internal.controller';
-import { CaseGuarantorsService } from './case-guarantors.service';
+import { CaseGuarantorsService } from '../case-guarantors/case-guarantors.service';
+import { CasesFromRequestedAmountService } from './cases-from-requested-amount.service';
+import { CasesController } from './cases.controller';
 
-describe('CasesInternalController', () => {
-  let controller: CasesInternalController;
+describe('CasesController', () => {
+  let controller: CasesController;
 
-  const mockService = {
+  const mockCaseGuarantors = {
     applyAprobadoFinal: jest.fn(),
     applyManualIdentity: jest.fn(),
   };
@@ -18,9 +18,9 @@ describe('CasesInternalController', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [CasesInternalController],
+      controllers: [CasesController],
       providers: [
-        { provide: CaseGuarantorsService, useValue: mockService },
+        { provide: CaseGuarantorsService, useValue: mockCaseGuarantors },
         {
           provide: CasesFromRequestedAmountService,
           useValue: mockCasesFromRequestedAmount,
@@ -28,40 +28,47 @@ describe('CasesInternalController', () => {
       ],
     }).compile();
 
-    controller = module.get(CasesInternalController);
+    controller = module.get(CasesController);
   });
 
-  it('applyAprobadoFinal delega en el servicio', async () => {
-    mockService.applyAprobadoFinal.mockResolvedValue({
+  it('applyAprobadoFinal delega en el servicio con caseId del path', async () => {
+    mockCaseGuarantors.applyAprobadoFinal.mockResolvedValue({
       ok: true,
       case_id: '550e8400-e29b-41d4-a716-446655440000',
       case_status: 'APROBADO_FINAL',
     });
-    const dto = { caseId: '550e8400-e29b-41d4-a716-446655440000' };
-    await expect(controller.applyAprobadoFinal(dto)).resolves.toMatchObject({
+    const caseId = '550e8400-e29b-41d4-a716-446655440000';
+    await expect(controller.applyAprobadoFinal(caseId)).resolves.toMatchObject({
       ok: true,
     });
-    expect(mockService.applyAprobadoFinal).toHaveBeenCalledWith(dto);
+    expect(mockCaseGuarantors.applyAprobadoFinal).toHaveBeenCalledWith({
+      caseId,
+    });
   });
 
-  it('applyManualIdentity delega en el servicio', async () => {
-    mockService.applyManualIdentity.mockResolvedValue({
+  it('applyManualIdentity delega en el servicio combinando path y body', async () => {
+    mockCaseGuarantors.applyManualIdentity.mockResolvedValue({
       ok: true,
       case_id: '550e8400-e29b-41d4-a716-446655440000',
       user_id: '550e8400-e29b-41d4-a716-446655440001',
       first_name: 'CRISTIAN DENIS',
       last_name: 'GIANOBOLI',
     });
-    const dto = {
-      caseId: '550e8400-e29b-41d4-a716-446655440000',
+    const caseId = '550e8400-e29b-41d4-a716-446655440000';
+    const body = {
       firstName: 'CRISTIAN DENIS',
       lastName: 'GIANOBOLI',
       actor: 'CEO' as const,
     };
-    await expect(controller.applyManualIdentity(dto)).resolves.toMatchObject({
+    await expect(
+      controller.applyManualIdentity(caseId, body),
+    ).resolves.toMatchObject({
       ok: true,
     });
-    expect(mockService.applyManualIdentity).toHaveBeenCalledWith(dto);
+    expect(mockCaseGuarantors.applyManualIdentity).toHaveBeenCalledWith({
+      caseId,
+      ...body,
+    });
   });
 
   it('createFromRequestedAmount delega en CasesFromRequestedAmountService', async () => {

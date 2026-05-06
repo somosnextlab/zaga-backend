@@ -12,7 +12,7 @@ const USER_ID = '550e8400-e29b-41d4-a716-446655440000';
 const CASE_ID = '660e8400-e29b-41d4-a716-446655440001';
 const LEAD_ID = '770e8400-e29b-41d4-a716-446655440002';
 
-describe('CasesInternal from-requested-amount (e2e)', () => {
+describe('Cases create-from-requested-amount (e2e)', () => {
   let app: INestApplication<App>;
 
   const mockClient = {
@@ -114,9 +114,9 @@ describe('CasesInternal from-requested-amount (e2e)', () => {
     await app.close();
   });
 
-  it('POST /internal/cases/from-requested-amount body válido → 200 ok:true', () => {
+  it('POST /cases/create-from-requested-amount body válido → 200 ok:true', () => {
     return request(app.getHttpServer())
-      .post('/internal/cases/from-requested-amount')
+      .post('/cases/create-from-requested-amount')
       .send({ phone: PHONE, requested_amount: 300000 })
       .expect(200)
       .expect((res) => {
@@ -129,9 +129,9 @@ describe('CasesInternal from-requested-amount (e2e)', () => {
       });
   });
 
-  it('POST /internal/cases/from-requested-amount tolera prefijo whatsapp:', () => {
+  it('POST /cases/create-from-requested-amount tolera prefijo whatsapp:', () => {
     return request(app.getHttpServer())
-      .post('/internal/cases/from-requested-amount')
+      .post('/cases/create-from-requested-amount')
       .send({ phone: `whatsapp:${PHONE}`, requested_amount: 300000 })
       .expect(200)
       .expect((res) => {
@@ -139,14 +139,14 @@ describe('CasesInternal from-requested-amount (e2e)', () => {
       });
   });
 
-  it('POST /internal/cases/from-requested-amount monto inválido → 400', () => {
+  it('POST /cases/create-from-requested-amount monto inválido → 400', () => {
     return request(app.getHttpServer())
-      .post('/internal/cases/from-requested-amount')
+      .post('/cases/create-from-requested-amount')
       .send({ phone: PHONE, requested_amount: 150000 })
       .expect(400);
   });
 
-  it('POST /internal/cases/from-requested-amount sin lead → 200 ok:false LEAD_NOT_FOUND', () => {
+  it('POST /cases/create-from-requested-amount sin lead → 200 ok:false LEAD_NOT_FOUND', () => {
     mockClient.query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM leads')) {
         return { rows: [] };
@@ -155,7 +155,7 @@ describe('CasesInternal from-requested-amount (e2e)', () => {
     });
 
     return request(app.getHttpServer())
-      .post('/internal/cases/from-requested-amount')
+      .post('/cases/create-from-requested-amount')
       .send({ phone: PHONE, requested_amount: 200000 })
       .expect(200)
       .expect((res) => {

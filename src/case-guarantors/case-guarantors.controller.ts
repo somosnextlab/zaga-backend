@@ -1,22 +1,31 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { EvaluateCaseGuarantorDto } from './dto/evaluate-case-guarantor.dto';
-import { ResolveCaseGuarantorDto } from './dto/resolve-case-guarantor.dto';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { EvaluateCaseGuarantorBodyDto } from './dto/evaluate-case-guarantor-body.dto';
+import { ResolveCaseGuarantorBodyDto } from './dto/resolve-case-guarantor-body.dto';
 import type {
   EvaluateCaseGuarantorResponse,
   ResolveGuarantorResponse,
 } from './interfaces/case-guarantors.interface';
 import { CaseGuarantorsService } from './case-guarantors.service';
 
-@ApiTags('CaseGuarantors')
-@Controller('internal/case-guarantors')
+@ApiTags('Guarantors')
+@Controller('cases')
 export class CaseGuarantorsController {
   public constructor(
     private readonly caseGuarantorsService: CaseGuarantorsService,
   ) {}
 
-  @Post('evaluate')
+  @Post(':caseId/evaluate-guarantor')
   @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'caseId', format: 'uuid' })
   @ApiOperation({
     summary: 'Evalúa un candidato de garante para un CASE',
     description:
@@ -33,13 +42,18 @@ export class CaseGuarantorsController {
       'Validación DTO fallida (ej. caseId inválido o campos faltantes).',
   })
   public async evaluate(
-    @Body() body: EvaluateCaseGuarantorDto,
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Body() body: EvaluateCaseGuarantorBodyDto,
   ): Promise<EvaluateCaseGuarantorResponse> {
-    return this.caseGuarantorsService.evaluateCaseGuarantor(body);
+    return this.caseGuarantorsService.evaluateCaseGuarantor({
+      caseId,
+      cuit: body.cuit,
+    });
   }
 
-  @Post('resolve')
+  @Post(':caseId/resolve-guarantor')
   @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'caseId', format: 'uuid' })
   @ApiOperation({
     summary:
       'Resolución manual del garante por CEO/Asesoría (aprobación hacia NOSIS o rechazo del candidato APPROVED)',
@@ -55,8 +69,14 @@ export class CaseGuarantorsController {
       'Validación DTO (ej. falta rejectReason en GARANTE_RECHAZADO).',
   })
   public async resolve(
-    @Body() body: ResolveCaseGuarantorDto,
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Body() body: ResolveCaseGuarantorBodyDto,
   ): Promise<ResolveGuarantorResponse> {
-    return this.caseGuarantorsService.resolveCaseGuarantor(body);
+    return this.caseGuarantorsService.resolveCaseGuarantor({
+      caseId,
+      action: body.action,
+      actor: body.actor,
+      rejectReason: body.rejectReason,
+    });
   }
 }

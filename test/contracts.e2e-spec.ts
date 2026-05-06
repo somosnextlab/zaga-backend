@@ -10,7 +10,7 @@ import { DbService } from '../src/db/db.service';
 
 const VALID_CASE_ID = '550e8400-e29b-41d4-a716-446655440000';
 
-describe('ContractsController (e2e)', () => {
+describe('Contracts case routes y webhook Signatura (e2e)', () => {
   let app: INestApplication<App>;
 
   const mockContractsService = {
@@ -103,10 +103,10 @@ describe('ContractsController (e2e)', () => {
     return typeof fieldValue === 'boolean' ? fieldValue : undefined;
   };
 
-  it('POST /case-contracts/start retorna 200 con body válido', () => {
+  it('POST /cases/:caseId/start-contract retorna 200', () => {
     return request(app.getHttpServer())
-      .post('/case-contracts/start')
-      .send({ caseId: VALID_CASE_ID })
+      .post(`/cases/${VALID_CASE_ID}/start-contract`)
+      .send({})
       .expect(200)
       .expect((res) => {
         expect(readStringField(res.body, 'caseId')).toBe(VALID_CASE_ID);
@@ -116,31 +116,31 @@ describe('ContractsController (e2e)', () => {
       });
   });
 
-  it('POST /case-contracts/start retorna 400 con caseId inválido', () => {
+  it('POST /cases/:caseId/start-contract retorna 400 con caseId inválido', () => {
     return request(app.getHttpServer())
-      .post('/case-contracts/start')
-      .send({ caseId: 'invalid-case-id' })
+      .post('/cases/invalid-case-id/start-contract')
+      .send({})
       .expect(400);
   });
 
-  it('GET /case-contracts/:caseId retorna 200 con caseId válido', () => {
+  it('GET /cases/:caseId/get-current-contract retorna 200 con caseId válido', () => {
     return request(app.getHttpServer())
-      .get(`/case-contracts/${VALID_CASE_ID}`)
+      .get(`/cases/${VALID_CASE_ID}/get-current-contract`)
       .expect(200)
       .expect((res) => {
         expect(readStringField(res.body, 'caseId')).toBe(VALID_CASE_ID);
       });
   });
 
-  it('GET /case-contracts/:caseId retorna 400 con caseId inválido', () => {
+  it('GET /cases/:caseId/get-current-contract retorna 400 con caseId inválido', () => {
     return request(app.getHttpServer())
-      .get('/case-contracts/not-a-uuid')
+      .get('/cases/not-a-uuid/get-current-contract')
       .expect(400);
   });
 
-  it('POST /case-contracts/webhooks/signatura acepta payload webhook Signatura', () => {
+  it('POST /webhooks/signatura/case-contract acepta payload webhook Signatura', () => {
     return request(app.getHttpServer())
-      .post('/case-contracts/webhooks/signatura')
+      .post('/webhooks/signatura/case-contract')
       .set('x-signature-sha256', 'test-signature')
       .send({
         notification_action: 'DS',

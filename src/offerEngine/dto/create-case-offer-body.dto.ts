@@ -5,17 +5,9 @@ import {
   IsOptional,
   IsPositive,
   IsString,
-  IsUUID,
 } from 'class-validator';
 
-export class CreateCaseOfferDto {
-  @ApiProperty({
-    description: 'UUID del caso',
-    example: '550e8400-e29b-41d4-a716-446655440000',
-  })
-  @IsUUID()
-  public case_id!: string;
-
+export class CreateCaseOfferBodyDto {
   @ApiProperty({
     description: 'Monto pre-aprobado del préstamo',
     example: 500000,

@@ -4,20 +4,18 @@ import { AppService } from './app.service';
 import { DbModule } from './db/db.module';
 import { ConsentsModule } from './consents/consents.module';
 import { PrequalModule } from './prequal/prequal.module';
-import { OfferEngineModule } from './offerEngine/offer-engine.module';
 import { ConfigModule } from '@nestjs/config';
 import { ContractsModule } from './contracts/contracts.module';
 import { ScheduleModule } from '@nestjs/schedule';
-import { CaseGuarantorsModule } from './case-guarantors/case-guarantors.module';
+import { CasesModule } from './cases/cases.module';
 
 @Module({
   imports: [
     DbModule,
     ConsentsModule,
     PrequalModule,
-    OfferEngineModule,
     ContractsModule,
-    CaseGuarantorsModule,
+    CasesModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
   ],
