@@ -5,6 +5,7 @@
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DbService } from '../db/db.service';
+import { LeadStage } from '../lead-stage.enum';
 import { BcraZcoreEngineService } from './bcra-zcore-engine.service';
 import type {
   ParsedDenominacion,
@@ -252,20 +253,21 @@ export class PrequalService {
     client: PoolClient,
     phone: string,
   ): Promise<void> {
+    const stagesEligibleForPrequalRejection: LeadStage[] = [
+      LeadStage.DATA_COMPLETE,
+      LeadStage.WAITING_REQUESTED_AMOUNT,
+      LeadStage.WAITING_REQUESTED_AMOUNT_MANUAL_REVIEW,
+      LeadStage.REJECTED,
+    ];
     await client.query(
       `
       UPDATE leads
-      SET stage = 'REJECTED',
+      SET stage = $2,
           updated_at = now()
       WHERE phone = $1
-        AND stage IN (
-          'DATA_COMPLETE',
-          'WAITING_AMOUNT_RANGE',
-          'WAITING_AMOUNT_RANGE_MANUAL_REVIEW',
-          'REJECTED'
-        )
+        AND stage = ANY($3::text[])
       `,
-      [phone],
+      [phone, LeadStage.REJECTED, stagesEligibleForPrequalRejection],
     );
   }
 }
