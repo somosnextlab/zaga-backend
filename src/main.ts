@@ -30,6 +30,15 @@ async function bootstrap() {
     .setTitle('Zaga API')
     .setDescription('API del backend de Zaga')
     .setVersion('0.0.1')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'opaque',
+        description: 'Sesión interna backoffice (token opaco)',
+      },
+      'zaga-session',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);

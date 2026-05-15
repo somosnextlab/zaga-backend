@@ -1,8 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, QueryResult, QueryResultRow } from 'pg';
@@ -35,7 +30,7 @@ export class DbService implements OnModuleDestroy {
     text: string,
     params: readonly unknown[] = [],
   ): Promise<QueryResult<T>> {
-    return this.pool.query<T>(text, params);
+    return this.pool.query<T>(text, [...params] as any[]);
   }
 
   public async withTransaction<T>(

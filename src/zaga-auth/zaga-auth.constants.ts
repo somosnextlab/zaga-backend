@@ -1,0 +1,5 @@
+export const ZAGA_AUTH = {
+  SESSION_TTL_HOURS: Number(process.env.ZAGA_ADMIN_SESSION_TTL_HOURS ?? 12),
+  MAX_FAILED_ATTEMPTS: Number(process.env.ZAGA_ADMIN_MAX_FAILED_ATTEMPTS ?? 5),
+  LOCKOUT_MINUTES: Number(process.env.ZAGA_ADMIN_LOCKOUT_MINUTES ?? 15),
+} as const;
