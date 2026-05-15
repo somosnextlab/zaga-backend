@@ -12,6 +12,7 @@ export type AdminAuditLogRow = {
   entity_id: string | null;
   metadata: Record<string, unknown> | null;
   ip: string | null;
+  user_agent: string | null;
   created_at: Date | string;
 };
 
@@ -22,6 +23,8 @@ export type InsertAdminAuditInput = {
   readonly entityId?: string | null;
   readonly metadata?: Record<string, unknown> | null;
   readonly ip?: string | null;
+  /** Algunos esquemas exigen NOT NULL; se envía '' si no hay cabecera. */
+  readonly userAgent?: string | null;
 };
 
 @Injectable()
@@ -29,19 +32,22 @@ export class AdminAuditRepository {
   public constructor(private readonly dbService: DbService) {}
 
   public async insert(row: InsertAdminAuditInput): Promise<void> {
+    const metadataJson = JSON.stringify(row.metadata ?? {});
+    const userAgent = row.userAgent?.trim() ? row.userAgent : '';
     await this.dbService.query(
       `
       INSERT INTO admin_audit_logs (
-        admin_user_id, action, entity_type, entity_id, metadata, ip
-      ) VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+        admin_user_id, action, entity_type, entity_id, metadata, ip, user_agent
+      ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
       `,
       [
         row.adminUserId,
         row.action,
         row.entityType ?? null,
         row.entityId ?? null,
-        row.metadata ? JSON.stringify(row.metadata) : null,
+        metadataJson,
         row.ip ?? null,
+        userAgent,
       ],
     );
   }
@@ -82,7 +88,7 @@ export class AdminAuditRepository {
     if (input.q) {
       const like = `%${input.q}%`;
       conditions.push(
-        `(a.action ILIKE $${p} OR a.entity_id ILIKE $${p} OR COALESCE(u.email, '') ILIKE $${p})`,
+        `(a.action ILIKE $${p} OR a.entity_id::text ILIKE $${p} OR COALESCE(u.email, '') ILIKE $${p})`,
       );
       params.push(like);
       p += 1;
@@ -104,6 +110,7 @@ export class AdminAuditRepository {
         a.entity_id,
         a.metadata,
         a.ip,
+        a.user_agent,
         a.created_at
       FROM admin_audit_logs a
       LEFT JOIN admin_users u ON u.id = a.admin_user_id

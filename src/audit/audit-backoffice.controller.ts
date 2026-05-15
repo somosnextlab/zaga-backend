@@ -34,6 +34,7 @@ export class AuditBackofficeController {
       entity_id: string | null;
       metadata: Record<string, unknown> | null;
       ip: string | null;
+      user_agent: string | null;
       created_at: string;
     }>;
     page: number;
@@ -72,6 +73,7 @@ export class AuditBackofficeController {
     entity_id: string | null;
     metadata: Record<string, unknown> | null;
     ip: string | null;
+    user_agent: string | null;
     created_at: string;
   } {
     const created =
@@ -90,6 +92,7 @@ export class AuditBackofficeController {
       entity_id: row.entity_id,
       metadata: row.metadata,
       ip: row.ip,
+      user_agent: row.user_agent,
       created_at: created,
     };
   }
