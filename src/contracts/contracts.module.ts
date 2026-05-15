@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ZagaAuthModule } from '../zaga-auth/zaga-auth.module';
+import { ContractsBackofficeController } from './contracts-backoffice.controller';
+import { ContractsBackofficeService } from './contracts-backoffice.service';
 import { ContractsCasesController } from './contracts-cases.controller';
 import { ContractsRepository } from './contracts.repository';
 import { ContractsService } from './contracts.service';
@@ -9,9 +12,15 @@ import { SignaturaWebhookController } from './signatura-webhook.controller';
 import { ContractPdfService } from './templates/contract-pdf.service';
 
 @Module({
-  controllers: [ContractsCasesController, SignaturaWebhookController],
+  imports: [ZagaAuthModule],
+  controllers: [
+    ContractsCasesController,
+    SignaturaWebhookController,
+    ContractsBackofficeController,
+  ],
   providers: [
     ContractsService,
+    ContractsBackofficeService,
     ContractsRepository,
     SignaturaService,
     ContractPdfService,
