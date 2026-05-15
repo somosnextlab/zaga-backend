@@ -23,6 +23,11 @@ import {
   hashSessionToken,
 } from './utils/zaga-token.util';
 
+/** Valores para columnas NOT NULL en esquemas de `admin_audit_logs` más estrictos. */
+const AUDIT_ENTITY_TYPE_AUTH = 'auth';
+const AUDIT_ENTITY_TYPE_ADMIN_USER = 'admin_user';
+const AUDIT_ENTITY_ID_NA = 'n/a';
+
 @Injectable()
 export class ZagaAuthService {
   public constructor(
@@ -44,6 +49,8 @@ export class ZagaAuthService {
       await this.auditRepository.insert({
         adminUserId: null,
         action: AdminAuditAction.ADMIN_LOGIN_FAILED,
+        entityType: AUDIT_ENTITY_TYPE_AUTH,
+        entityId: AUDIT_ENTITY_ID_NA,
         metadata: { reason: 'USER_NOT_FOUND' },
         ip,
       });
@@ -54,6 +61,8 @@ export class ZagaAuthService {
       await this.auditRepository.insert({
         adminUserId: user.id,
         action: AdminAuditAction.ADMIN_LOGIN_FAILED,
+        entityType: AUDIT_ENTITY_TYPE_ADMIN_USER,
+        entityId: user.id,
         metadata: { reason: 'INACTIVE' },
         ip,
       });
@@ -69,6 +78,8 @@ export class ZagaAuthService {
       await this.auditRepository.insert({
         adminUserId: user.id,
         action: AdminAuditAction.ADMIN_LOGIN_FAILED,
+        entityType: AUDIT_ENTITY_TYPE_ADMIN_USER,
+        entityId: user.id,
         metadata: { reason: 'LOCKED' },
         ip,
       });
@@ -90,6 +101,8 @@ export class ZagaAuthService {
       await this.auditRepository.insert({
         adminUserId: user.id,
         action: AdminAuditAction.ADMIN_LOGIN_FAILED,
+        entityType: AUDIT_ENTITY_TYPE_ADMIN_USER,
+        entityId: user.id,
         metadata: { reason: 'BAD_PASSWORD' },
         ip,
       });
@@ -116,6 +129,8 @@ export class ZagaAuthService {
     await this.auditRepository.insert({
       adminUserId: user.id,
       action: AdminAuditAction.ADMIN_LOGIN_SUCCESS,
+      entityType: AUDIT_ENTITY_TYPE_ADMIN_USER,
+      entityId: user.id,
       ip,
     });
 
@@ -153,6 +168,8 @@ export class ZagaAuthService {
     await this.auditRepository.insert({
       adminUserId: sessionUser.id,
       action: AdminAuditAction.ADMIN_LOGOUT,
+      entityType: AUDIT_ENTITY_TYPE_ADMIN_USER,
+      entityId: sessionUser.id,
       ip,
     });
     return { ok: true };
