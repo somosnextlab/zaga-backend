@@ -36,11 +36,16 @@ CREATE TABLE IF NOT EXISTS public.admin_audit_logs (
   admin_user_id uuid NULL REFERENCES public.admin_users (id) ON DELETE SET NULL,
   action text NOT NULL,
   entity_type text NULL,
-  entity_id text NULL,
+  entity_id uuid NULL,
   metadata jsonb NULL,
   ip text NULL,
+  user_agent text NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Tablas creadas antes de user_agent / esquemas externos
+ALTER TABLE public.admin_audit_logs
+  ADD COLUMN IF NOT EXISTS user_agent text NULL;
 
 CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON public.admin_audit_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON public.admin_audit_logs (action);

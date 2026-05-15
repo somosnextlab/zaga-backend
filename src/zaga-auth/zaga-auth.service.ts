@@ -23,10 +23,9 @@ import {
   hashSessionToken,
 } from './utils/zaga-token.util';
 
-/** Valores para columnas NOT NULL en esquemas de `admin_audit_logs` más estrictos. */
+/** `entity_type` NOT NULL en esquemas estrictos; sin usuario no hay `entity_id` uuid. */
 const AUDIT_ENTITY_TYPE_AUTH = 'auth';
 const AUDIT_ENTITY_TYPE_ADMIN_USER = 'admin_user';
-const AUDIT_ENTITY_ID_NA = 'n/a';
 
 @Injectable()
 export class ZagaAuthService {
@@ -50,9 +49,10 @@ export class ZagaAuthService {
         adminUserId: null,
         action: AdminAuditAction.ADMIN_LOGIN_FAILED,
         entityType: AUDIT_ENTITY_TYPE_AUTH,
-        entityId: AUDIT_ENTITY_ID_NA,
+        entityId: null,
         metadata: { reason: 'USER_NOT_FOUND' },
         ip,
+        userAgent,
       });
       throw new UnauthorizedException('Credenciales inválidas');
     }
@@ -65,6 +65,7 @@ export class ZagaAuthService {
         entityId: user.id,
         metadata: { reason: 'INACTIVE' },
         ip,
+        userAgent,
       });
       throw new ForbiddenException('Usuario inactivo');
     }
@@ -82,6 +83,7 @@ export class ZagaAuthService {
         entityId: user.id,
         metadata: { reason: 'LOCKED' },
         ip,
+        userAgent,
       });
       throw new ForbiddenException('Cuenta temporalmente bloqueada');
     }
@@ -105,6 +107,7 @@ export class ZagaAuthService {
         entityId: user.id,
         metadata: { reason: 'BAD_PASSWORD' },
         ip,
+        userAgent,
       });
       throw new UnauthorizedException('Credenciales inválidas');
     }
@@ -132,6 +135,7 @@ export class ZagaAuthService {
       entityType: AUDIT_ENTITY_TYPE_ADMIN_USER,
       entityId: user.id,
       ip,
+      userAgent,
     });
 
     return {
@@ -155,6 +159,7 @@ export class ZagaAuthService {
     req: Request,
   ): Promise<{ ok: true }> {
     const ip = this.extractClientIp(req);
+    const userAgent = this.extractUserAgent(req);
     const revoked = await this.sessionsRepository.revokeSession(sessionId);
     if (revoked) {
       await this.auditRepository.insert({
@@ -163,6 +168,7 @@ export class ZagaAuthService {
         entityType: 'admin_session',
         entityId: sessionId,
         ip,
+        userAgent,
       });
     }
     await this.auditRepository.insert({
@@ -171,6 +177,7 @@ export class ZagaAuthService {
       entityType: AUDIT_ENTITY_TYPE_ADMIN_USER,
       entityId: sessionUser.id,
       ip,
+      userAgent,
     });
     return { ok: true };
   }
