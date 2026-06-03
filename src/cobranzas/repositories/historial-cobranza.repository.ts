@@ -82,7 +82,7 @@ export class HistorialCobranzaRepository {
           : null,
       created_at:
         row['created_at'] instanceof Date
-          ? (row['created_at'] as Date).toISOString()
+          ? row['created_at'].toISOString()
           : String(row['created_at']),
     };
   }

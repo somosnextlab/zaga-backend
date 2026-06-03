@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-base-to-string */
 import { Injectable } from '@nestjs/common';
 import { DbClient, DbService } from '../../db/db.service';
 
@@ -84,7 +85,7 @@ export class CuotasRepository {
       numero_cuota: Number(row['numero_cuota']),
       fecha_vencimiento:
         fechaVen instanceof Date
-          ? fechaVen.toISOString().split('T')[0]!
+          ? fechaVen.toISOString().split('T')[0]
           : String(fechaVen),
       capital: Number(row['capital']),
       interes: Number(row['interes']),
@@ -100,11 +101,11 @@ export class CuotasRepository {
             : String(pagadaAt),
       created_at:
         row['created_at'] instanceof Date
-          ? (row['created_at'] as Date).toISOString()
+          ? row['created_at'].toISOString()
           : String(row['created_at']),
       updated_at:
         row['updated_at'] instanceof Date
-          ? (row['updated_at'] as Date).toISOString()
+          ? row['updated_at'].toISOString()
           : String(row['updated_at']),
     };
   }

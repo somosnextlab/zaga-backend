@@ -112,7 +112,10 @@ export class LoansDesembolsoService {
   private async findOffer(
     client: DbClient,
     offerId: string,
-  ): Promise<{ readonly amount: number; readonly tasa_nominal_anual: number } | null> {
+  ): Promise<{
+    readonly amount: number;
+    readonly tasa_nominal_anual: number;
+  } | null> {
     const result = await client.query<{
       amount: number;
       tasa_nominal_anual: number;
