@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ZagaAuthModule } from '../zaga-auth/zaga-auth.module';
 import { CobranzasBackofficeController } from './cobranzas-backoffice.controller';
+import { CobranzasBackofficeService } from './cobranzas-backoffice.service';
+import { CobranzasInternalController } from './cobranzas-internal.controller';
+import { LoansCobranzasController } from './loans-cobranzas.controller';
 import { CuotasService } from './cuotas.service';
 import { HistorialCobranzaService } from './historial-cobranza.service';
 import { MoraService } from './mora.service';
@@ -12,7 +15,11 @@ import { PagosRepository } from './repositories/pagos.repository';
 
 @Module({
   imports: [ZagaAuthModule],
-  controllers: [CobranzasBackofficeController],
+  controllers: [
+    CobranzasBackofficeController,
+    CobranzasInternalController,
+    LoansCobranzasController,
+  ],
   providers: [
     CuotasRepository,
     PagosRepository,
@@ -22,7 +29,8 @@ import { PagosRepository } from './repositories/pagos.repository';
     MoraService,
     PagosService,
     HistorialCobranzaService,
+    CobranzasBackofficeService,
   ],
-  exports: [CuotasService, HistorialCobranzaService],
+  exports: [CuotasService, MoraService, HistorialCobranzaService],
 })
 export class CobranzasModule {}
