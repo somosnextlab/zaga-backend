@@ -76,6 +76,68 @@ export class CuotasRepository {
     return result.rows.map((r) => this.normalize(r));
   }
 
+  public async findById(cuotaId: string): Promise<CuotaRow | null> {
+    const result = await this.dbService.query<Record<string, unknown>>(
+      'SELECT * FROM cuotas WHERE id = $1',
+      [cuotaId],
+    );
+    return result.rows[0] ? this.normalize(result.rows[0]) : null;
+  }
+
+  public async findByLoanIdForUpdate(
+    client: DbClient,
+    loanId: string,
+  ): Promise<CuotaRow[]> {
+    const result = await client.query<Record<string, unknown>>(
+      `
+      SELECT * FROM cuotas
+      WHERE loan_id = $1
+        AND estado NOT IN ('pagada', 'refinanciada')
+      ORDER BY fecha_vencimiento ASC
+      FOR UPDATE
+      `,
+      [loanId],
+    );
+    return result.rows.map((r) => this.normalize(r));
+  }
+
+  public async updateSaldoAndEstado(
+    client: DbClient,
+    cuotaId: string,
+    saldoPendiente: number,
+    estado: string,
+    pagadaAt: Date | null,
+  ): Promise<CuotaRow> {
+    const result = await client.query<Record<string, unknown>>(
+      `
+      UPDATE cuotas
+      SET saldo_pendiente = $2,
+          estado          = $3,
+          pagada_at       = $4,
+          updated_at      = now()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [cuotaId, saldoPendiente, estado, pagadaAt],
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error(`Cuota ${cuotaId} no encontrada al actualizar.`);
+    return this.normalize(row);
+  }
+
+  public async marcarVencidas(): Promise<number> {
+    const result = await this.dbService.query(
+      `
+      UPDATE cuotas
+      SET estado     = 'vencida',
+          updated_at = now()
+      WHERE estado           = 'pendiente'
+        AND fecha_vencimiento < CURRENT_DATE
+      `,
+    );
+    return result.rowCount ?? 0;
+  }
+
   private normalize(row: Record<string, unknown>): CuotaRow {
     const fechaVen = row['fecha_vencimiento'];
     const pagadaAt = row['pagada_at'];

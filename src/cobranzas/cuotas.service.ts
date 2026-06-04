@@ -132,6 +132,11 @@ export class CuotasService {
     return schedule;
   }
 
+  public async marcarVencidas(): Promise<{ cuotas_marcadas: number }> {
+    const count = await this.cuotasRepository.marcarVencidas();
+    return { cuotas_marcadas: count };
+  }
+
   private round2(value: number): number {
     return Math.round(value * 100) / 100;
   }

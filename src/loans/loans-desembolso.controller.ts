@@ -1,27 +1,20 @@
-import { Controller, Param, Post, UseGuards } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
-import { ZagaSessionGuard } from '../zaga-auth/guards/zaga-session.guard';
+import { Controller, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { LoansDesembolsoService } from './loans-desembolso.service';
 
-@ApiTags('Backoffice — Loans')
-@ApiBearerAuth('zaga-session')
-@UseGuards(ZagaSessionGuard)
-@Controller('private/loans')
+@ApiTags('Loans')
+@Controller('loans')
 export class LoansDesembolsoController {
   public constructor(
     private readonly loansDesembolsoService: LoansDesembolsoService,
   ) {}
 
   @Post(':loanId/desembolso')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Registrar desembolso',
+    summary: 'Registrar desembolso (comando CEO vía n8n)',
     description:
-      'Asigna public_loan_number, registra disbursed_at y genera el schedule de 12 cuotas semanales.',
+      'Llamado por n8n al recibir comando DESEMBOLSO del CEO por WhatsApp. Asigna public_loan_number, registra disbursed_at y genera el schedule de 12 cuotas semanales.',
   })
   @ApiParam({ name: 'loanId', description: 'UUID del préstamo' })
   public registrarDesembolso(@Param('loanId') loanId: string) {
