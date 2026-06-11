@@ -21,7 +21,8 @@ export class ContractsRepository {
     const result = await client.query<CaseForContractRow>(
       `
       SELECT c.id, c.user_id, c.phone, c.status, c.case_type, c.refinances_loan_id,
-             c.current_offer_id, u.first_name, u.last_name, u.dni, u.cuit
+             c.current_offer_id, u.first_name, u.last_name, u.dni, u.cuit,
+             u.email, u.domicilio_calle, u.domicilio_numero, u.domicilio_localidad, u.domicilio_provincia
       FROM cases c
       INNER JOIN users u ON u.id = c.user_id
       WHERE c.id = $1
@@ -38,7 +39,7 @@ export class ContractsRepository {
   ): Promise<CaseOfferRow | null> {
     const result = await client.query<CaseOfferRow>(
       `
-      SELECT co.id, co.case_id, co.status, co.amount, co.installments, co.tasa_nominal_anual
+      SELECT co.id, co.case_id, co.status, co.amount, co.installments, co.tasa_nominal_anual, co.tasa_moratoria
       FROM case_offers co
       INNER JOIN cases c ON c.id = co.case_id
       WHERE co.case_id = $1

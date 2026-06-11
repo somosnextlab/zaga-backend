@@ -82,6 +82,11 @@ export interface CaseForContractRow {
   readonly last_name: string | null;
   readonly dni: string | null;
   readonly cuit: string | null;
+  readonly email: string | null;
+  readonly domicilio_calle: string | null;
+  readonly domicilio_numero: string | null;
+  readonly domicilio_localidad: string | null;
+  readonly domicilio_provincia: string | null;
 }
 
 export interface CaseOfferRow {
@@ -91,6 +96,7 @@ export interface CaseOfferRow {
   readonly amount: number;
   readonly installments: number;
   readonly tasa_nominal_anual: number;
+  readonly tasa_moratoria: number | null;
 }
 
 export interface CaseContractRow {
@@ -151,6 +157,9 @@ export interface ContractTemplateInput {
   readonly userDni: string | null;
   readonly userCuit: string | null;
   readonly userPhone: string;
+  readonly userDomicilio?: string;
+  readonly tasaMoratoria?: number | null;
+  readonly userEmail?: string;
 }
 
 export interface ContractPdfOutput {
