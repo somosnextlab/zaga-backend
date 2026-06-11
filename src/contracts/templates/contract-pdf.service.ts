@@ -64,20 +64,22 @@ export class ContractPdfService {
     }).format(today);
 
     return {
-      CIUDAD_FIRMA: fallback,
-      DIA_FIRMA: fallback,
-      MES_FIRMA: fallback,
+      CIUDAD_FIRMA: 'Córdoba',
+      DIA_FIRMA: String(today.getDate()),
+      MES_FIRMA: monthName,
       ANIO_FIRMA: String(today.getFullYear()),
-      DOMICILIO_ZAGA: fallback,
+      DOMICILIO_ZAGA:
+        'Mayor Arruabarrena 1895 Oficina 11 B, Córdoba, Argentina',
       MUTUARIO_NOMBRE_COMPLETO: input.userFullName || fallback,
       MUTUARIO_DNI: input.userDni ?? fallback,
       MUTUARIO_CUIT_CUIL: input.userCuit ?? fallback,
-      MUTUARIO_DOMICILIO: fallback,
+      MUTUARIO_DOMICILIO: input.userDomicilio ?? fallback,
       CAPITAL_PRESTADO_TEXTO: fallback,
       CAPITAL_PRESTADO_NUMERO: String(input.amount),
       TASA_NOMINAL_ANUAL: String(input.tasaNominalAnual),
       CANTIDAD_CUOTAS: String(input.installments),
-      TASA_MORATORIA_ANUAL: fallback,
+      TASA_MORATORIA_ANUAL:
+        input.tasaMoratoria != null ? String(input.tasaMoratoria) : fallback,
       FIRMANTE_1_NOMBRE: fallback,
       FIRMANTE_1_DNI: fallback,
       FIRMANTE_2_NOMBRE: fallback,

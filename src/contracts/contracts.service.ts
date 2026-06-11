@@ -70,7 +70,7 @@ export class ContractsService {
           throw new NotFoundException(ContractsErrors.CASE_NOT_FOUND);
         }
 
-        if (caseRow.status !== 'APROBADO_FINAL') {
+        if (caseRow.status !== 'CONTRACT_DATA_COMPLETED') {
           throw new BadRequestException(
             ContractsErrors.CASE_NOT_READY_FOR_CONTRACT,
           );
@@ -123,6 +123,19 @@ export class ContractsService {
       context.caseRow.first_name,
       context.caseRow.last_name,
     );
+    const {
+      domicilio_calle,
+      domicilio_numero,
+      domicilio_localidad,
+      domicilio_provincia,
+    } = context.caseRow;
+    const userDomicilio =
+      domicilio_calle &&
+      domicilio_numero &&
+      domicilio_localidad &&
+      domicilio_provincia
+        ? `${domicilio_calle} ${domicilio_numero}, ${domicilio_localidad}, ${domicilio_provincia}`
+        : undefined;
     const pdf = await this.contractPdfService.generateContractPdf({
       contractId: context.caseContract.id,
       caseId: context.caseRow.id,
@@ -134,6 +147,9 @@ export class ContractsService {
       userDni: context.caseRow.dni,
       userCuit: context.caseRow.cuit,
       userPhone: context.caseRow.phone,
+      userDomicilio,
+      tasaMoratoria: context.offerRow.tasa_moratoria,
+      userEmail: context.caseRow.email ?? undefined,
     });
 
     try {

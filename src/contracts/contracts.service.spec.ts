@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -82,7 +84,7 @@ describe('ContractsService', () => {
     id: VALID_CASE_ID,
     user_id: '550e8400-e29b-41d4-a716-446655440100',
     phone: '+5493511234567',
-    status: 'APROBADO_FINAL',
+    status: 'CONTRACT_DATA_COMPLETED',
     case_type: 'NEW',
     refinances_loan_id: null,
     current_offer_id: VALID_OFFER_ID,
@@ -90,6 +92,11 @@ describe('ContractsService', () => {
     last_name: 'Perez',
     dni: '12345678',
     cuit: '20123456789',
+    email: 'juan.perez@example.com',
+    domicilio_calle: 'Calle Falsa',
+    domicilio_numero: '123',
+    domicilio_localidad: 'Córdoba',
+    domicilio_provincia: 'Córdoba',
   };
 
   const createdContract: CaseContractRow = {
@@ -157,6 +164,7 @@ describe('ContractsService', () => {
         amount: 100000,
         installments: 12,
         tasa_nominal_anual: 210,
+        tasa_moratoria: 120,
       },
     );
     mockContractsRepository.findActiveCaseContractByCaseIdForUpdate.mockResolvedValue(
@@ -218,6 +226,7 @@ describe('ContractsService', () => {
         amount: 100000,
         installments: 12,
         tasa_nominal_anual: 210,
+        tasa_moratoria: 120,
       },
     );
     mockContractsRepository.findActiveCaseContractByCaseIdForUpdate.mockResolvedValue(
