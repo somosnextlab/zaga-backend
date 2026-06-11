@@ -1,140 +1,101 @@
+/// <reference types="jest" />
+
 import { InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Test, TestingModule } from '@nestjs/testing';
 import { ContractPdfService } from './contract-pdf.service';
-
-interface ContractPdfServiceTestAccess {
-  loadTemplateBuffer(): Buffer;
-  renderTemplate(templateBuffer: Buffer, data: Record<string, string>): Buffer;
-  extractRenderedText(renderedDocxBuffer: Buffer): string;
-  buildPdfBase64(content: string): Promise<string>;
-}
+import { GotenbergPdfConverter } from '../providers/gotenberg-pdf.converter';
+import type { ContractTemplateInput } from '../interfaces/contracts.interface';
 
 describe('ContractPdfService', () => {
-  let service: ContractPdfService;
+  const dummyPdf = Buffer.from('%PDF-1.4 dummy');
 
-  const mockConfigService = {
-    get: jest.fn(),
+  const gotenberg = {
+    convertDocxToPdf: jest.fn().mockResolvedValue(dummyPdf),
   };
 
-  beforeEach(async () => {
-    jest.clearAllMocks();
-    mockConfigService.get.mockImplementation((key: string) => {
-      if (key === 'CONTRACT_RENDER_FALLBACK_VALUE') return undefined;
-      return undefined;
-    });
+  const configService = {
+    get: jest.fn().mockReturnValue(undefined),
+  } as unknown as ConfigService;
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ContractPdfService,
-        { provide: ConfigService, useValue: mockConfigService },
-      ],
-    }).compile();
+  const service = new ContractPdfService(
+    configService,
+    gotenberg as unknown as GotenbergPdfConverter,
+  );
 
-    service = module.get<ContractPdfService>(ContractPdfService);
+  const baseInput: ContractTemplateInput = {
+    kind: 'MUTUO',
+    contractId: 'c-1',
+    caseId: 'case-1',
+    offerId: 'offer-1',
+    amount: 300000,
+    installments: 12,
+    tasaNominalAnual: 210,
+    userFullName: 'Juan Perez',
+    userDni: '12345678',
+    userCuit: '20123456789',
+    userPhone: '+5493510000000',
+    userDomicilio: 'Calle Falsa 123, Córdoba, Córdoba',
+    tasaMoratoria: 120,
+  };
+
+  const codeudorFields = {
+    codeudorFullName: 'Ana Gomez',
+    codeudorDni: '30111222',
+    codeudorCuit: '27301112224',
+    codeudorDomicilio: 'Av Siempre Viva 742, Córdoba, Córdoba',
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('MUTUO titular -> templateCode/contractVersion de mutuo y PDF de Gotenberg', async () => {
+    const out = await service.generateContractPdf(baseInput);
+
+    expect(out.templateCode).toBe('CONTRATO_MUTUO_ZAGA_V1');
+    expect(out.contractVersion).toBe('MUTUO_ZAGA_V1');
+    expect(out.pdfBase64).toBe(dummyPdf.toString('base64'));
+    expect(gotenberg.convertDocxToPdf).toHaveBeenCalledTimes(1);
+    expect(gotenberg.convertDocxToPdf).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'contrato.docx',
+    );
   });
 
-  it('reemplaza placeholders legacy y usa DATO_FALTANTE para faltantes', async () => {
-    const testableService = service as unknown as ContractPdfServiceTestAccess;
-    jest
-      .spyOn(testableService, 'loadTemplateBuffer')
-      .mockReturnValue(Buffer.from('docx', 'utf8'));
-    jest
-      .spyOn(testableService, 'renderTemplate')
-      .mockReturnValue(Buffer.from('rendered-docx', 'utf8'));
-    jest
-      .spyOn(testableService, 'extractRenderedText')
-      .mockReturnValue(
-        '[Nombre y Apellido del Cliente], DNI [__], CUIT/CUIL [__], con domicilio en [__]. [NOMBRE DEL FIRMANTE] [DNI DEL FIRMANTE]',
-      );
-    const buildPdfSpy = jest
-      .spyOn(testableService, 'buildPdfBase64')
-      .mockResolvedValue('PDF_BASE64');
-
-    const output = await service.generateContractPdf({
-      contractId: 'c1',
-      caseId: 'c2',
-      offerId: 'c3',
-      amount: 12345,
-      installments: 12,
-      tasaNominalAnual: 99,
-      userFullName: 'Juan Perez',
-      userDni: null,
-      userCuit: null,
-      userPhone: '+5493510000000',
+  it('MUTUO_CODEUDOR con datos del codeudor -> templateCode de codeudor', async () => {
+    const out = await service.generateContractPdf({
+      ...baseInput,
+      kind: 'MUTUO_CODEUDOR',
+      ...codeudorFields,
     });
 
-    const finalText = buildPdfSpy.mock.calls[0]?.[0];
-
-    expect(output.pdfBase64).toBe('PDF_BASE64');
-    expect(finalText).toContain('Juan Perez');
-    expect(finalText).toContain('DATO_FALTANTE');
-    expect(finalText).not.toContain('[__]');
-    expect(finalText).not.toContain('[NOMBRE DEL FIRMANTE]');
+    expect(out.templateCode).toBe('CONTRATO_MUTUO_CODEUDOR_ZAGA_V1');
+    expect(out.contractVersion).toBe('MUTUO_CODEUDOR_ZAGA_V1');
+    expect(gotenberg.convertDocxToPdf).toHaveBeenCalledTimes(1);
   });
 
-  it('respeta CONTRACT_RENDER_FALLBACK_VALUE cuando está configurado', async () => {
-    const testableService = service as unknown as ContractPdfServiceTestAccess;
-    mockConfigService.get.mockImplementation((key: string) => {
-      if (key === 'CONTRACT_RENDER_FALLBACK_VALUE') return 'VALOR_MOCK';
-      return undefined;
+  it('REFINANCIACION con codeudor -> templateCode de refi (dinámicos pendientes, no falla)', async () => {
+    const out = await service.generateContractPdf({
+      ...baseInput,
+      kind: 'REFINANCIACION',
+      ...codeudorFields,
+      refinancedLoanNumber: 'ZAGA-000123',
     });
 
-    jest
-      .spyOn(testableService, 'loadTemplateBuffer')
-      .mockReturnValue(Buffer.from('docx', 'utf8'));
-    jest
-      .spyOn(testableService, 'renderTemplate')
-      .mockReturnValue(Buffer.from('rendered-docx', 'utf8'));
-    jest
-      .spyOn(testableService, 'extractRenderedText')
-      .mockReturnValue('DNI [__]');
-    const buildPdfSpy = jest
-      .spyOn(testableService, 'buildPdfBase64')
-      .mockResolvedValue('PDF_BASE64');
-
-    await service.generateContractPdf({
-      contractId: 'c1',
-      caseId: 'c2',
-      offerId: 'c3',
-      amount: 12345,
-      installments: 12,
-      tasaNominalAnual: 99,
-      userFullName: 'Juan Perez',
-      userDni: null,
-      userCuit: null,
-      userPhone: '+5493510000000',
-    });
-
-    const finalText = buildPdfSpy.mock.calls[0]?.[0];
-    expect(finalText).toContain('VALOR_MOCK');
+    expect(out.templateCode).toBe('CONTRATO_REFINANCIACION_ZAGA_V1');
+    expect(out.contractVersion).toBe('REFINANCIACION_ZAGA_V1');
+    expect(gotenberg.convertDocxToPdf).toHaveBeenCalledTimes(1);
   });
 
-  it('falla si quedan placeholders sin resolver', async () => {
-    const testableService = service as unknown as ContractPdfServiceTestAccess;
-    jest
-      .spyOn(testableService, 'loadTemplateBuffer')
-      .mockReturnValue(Buffer.from('docx', 'utf8'));
-    jest
-      .spyOn(testableService, 'renderTemplate')
-      .mockReturnValue(Buffer.from('rendered-docx', 'utf8'));
-    jest
-      .spyOn(testableService, 'extractRenderedText')
-      .mockReturnValue('Mutuario: {{MUTUARIO_NOMBRE_COMPLETO}}');
-
+  it('MUTUO_CODEUDOR sin datos del codeudor -> falla y no llama a Gotenberg', async () => {
     await expect(
       service.generateContractPdf({
-        contractId: 'c1',
-        caseId: 'c2',
-        offerId: 'c3',
-        amount: 12345,
-        installments: 12,
-        tasaNominalAnual: 99,
-        userFullName: 'Juan Perez',
-        userDni: null,
-        userCuit: null,
-        userPhone: '+5493510000000',
+        ...baseInput,
+        kind: 'MUTUO_CODEUDOR',
+        codeudorFullName: null,
+        codeudorDni: null,
+        codeudorCuit: null,
+        codeudorDomicilio: null,
       }),
-    ).rejects.toThrow(InternalServerErrorException);
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(gotenberg.convertDocxToPdf).not.toHaveBeenCalled();
   });
 });

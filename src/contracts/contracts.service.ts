@@ -33,6 +33,9 @@ import {
   CaseContractStatusResponse,
   SignaturaWebhookResult,
   CaseContractRow,
+  CaseForContractRow,
+  ContractGuarantorRow,
+  ContractKind,
   LoanRow,
   SignaturaWebhookParsed,
   PostSignatureN8nPayload,
@@ -98,6 +101,31 @@ export class ContractsService {
           );
         }
 
+        const kind = this.resolveContractKind(caseRow);
+        const usesCodeudor =
+          kind === 'MUTUO_CODEUDOR' || kind === 'REFINANCIACION';
+
+        const guarantor = usesCodeudor
+          ? await this.contractsRepository.findApprovedGuarantorForContract(
+              client,
+              caseId,
+            )
+          : null;
+
+        // Invariante: una refinanciación SIEMPRE lleva codeudor con datos
+        // completos. Si no, son datos inconsistentes y no emitimos contrato.
+        if (kind === 'REFINANCIACION') {
+          this.assertRefinanceConsistency(caseRow, guarantor);
+        }
+
+        const refinancedLoan =
+          kind === 'REFINANCIACION' && caseRow.refinances_loan_id
+            ? await this.contractsRepository.findRefinancedLoanForContract(
+                client,
+                caseRow.refinances_loan_id,
+              )
+            : null;
+
         let caseContract: CaseContractRow;
         try {
           caseContract =
@@ -115,7 +143,14 @@ export class ContractsService {
           throw error;
         }
 
-        return { caseRow, offerRow, caseContract };
+        return {
+          caseRow,
+          offerRow,
+          caseContract,
+          kind,
+          guarantor,
+          refinancedLoan,
+        };
       },
     );
 
@@ -129,14 +164,28 @@ export class ContractsService {
       domicilio_localidad,
       domicilio_provincia,
     } = context.caseRow;
-    const userDomicilio =
-      domicilio_calle &&
-      domicilio_numero &&
-      domicilio_localidad &&
-      domicilio_provincia
-        ? `${domicilio_calle} ${domicilio_numero}, ${domicilio_localidad}, ${domicilio_provincia}`
-        : undefined;
+    const userDomicilio = this.buildDomicilio(
+      domicilio_calle,
+      domicilio_numero,
+      domicilio_localidad,
+      domicilio_provincia,
+    );
+
+    const guarantor = context.guarantor;
+    const codeudorFullName = guarantor
+      ? this.buildFullName(guarantor.first_name, guarantor.last_name)
+      : null;
+    const codeudorDomicilio = guarantor
+      ? this.buildDomicilio(
+          guarantor.domicilio_calle,
+          guarantor.domicilio_numero,
+          guarantor.domicilio_localidad,
+          guarantor.domicilio_provincia,
+        )
+      : null;
+
     const pdf = await this.contractPdfService.generateContractPdf({
+      kind: context.kind,
       contractId: context.caseContract.id,
       caseId: context.caseRow.id,
       offerId: context.offerRow.id,
@@ -150,6 +199,11 @@ export class ContractsService {
       userDomicilio,
       tasaMoratoria: context.offerRow.tasa_moratoria,
       userEmail: context.caseRow.email ?? undefined,
+      codeudorFullName,
+      codeudorDni: guarantor?.dni ?? null,
+      codeudorCuit: guarantor?.cuit ?? null,
+      codeudorDomicilio,
+      refinancedLoanNumber: context.refinancedLoan?.public_loan_number ?? null,
     });
 
     try {
@@ -1042,6 +1096,62 @@ export class ContractsService {
       return SignProvider.SIGNATURA;
     }
     throw new BadRequestException(ContractsErrors.INVALID_SIGN_PROVIDER);
+  }
+
+  /**
+   * Tipo de contrato según la operación (precedencia):
+   *   REFINANCE -> REFINANCIACION (siempre con codeudor)
+   *   requires_guarantor -> MUTUO_CODEUDOR
+   *   resto -> MUTUO
+   */
+  private resolveContractKind(caseRow: CaseForContractRow): ContractKind {
+    if (caseRow.case_type === 'REFINANCE') {
+      return 'REFINANCIACION';
+    }
+    if (caseRow.requires_guarantor === true) {
+      return 'MUTUO_CODEUDOR';
+    }
+    return 'MUTUO';
+  }
+
+  /**
+   * Una refinanciación SIEMPRE lleva codeudor con datos completos. Si falta el
+   * flag, el préstamo refinanciado o algún dato del codeudor, son datos
+   * inconsistentes: no emitimos un contrato incompleto.
+   */
+  private assertRefinanceConsistency(
+    caseRow: CaseForContractRow,
+    guarantor: ContractGuarantorRow | null,
+  ): void {
+    const codeudorComplete =
+      !!guarantor &&
+      !!guarantor.first_name &&
+      !!guarantor.last_name &&
+      !!guarantor.dni &&
+      !!guarantor.cuit &&
+      !!guarantor.domicilio_calle &&
+      !!guarantor.domicilio_numero &&
+      !!guarantor.domicilio_localidad &&
+      !!guarantor.domicilio_provincia;
+
+    if (
+      caseRow.requires_guarantor !== true ||
+      !caseRow.refinances_loan_id ||
+      !codeudorComplete
+    ) {
+      throw new BadRequestException(ContractsErrors.REFINANCE_RULE_BROKEN);
+    }
+  }
+
+  private buildDomicilio(
+    calle: string | null,
+    numero: string | null,
+    localidad: string | null,
+    provincia: string | null,
+  ): string | undefined {
+    return calle && numero && localidad && provincia
+      ? `${calle} ${numero}, ${localidad}, ${provincia}`
+      : undefined;
   }
 
   private buildFullName(

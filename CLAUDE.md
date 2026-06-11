@@ -40,7 +40,11 @@ Las claves esperadas (ver `.env` local, nunca commitear valores):
 | `SIGNATURA_WEBHOOK_SECRET` | Secret para validar webhooks de Signatura |
 | `CONTRACTS_EXPIRATION_CRON_ENABLED` | Activa/desactiva el cron de vencimiento de contratos |
 | `CONTRACTS_EXPIRATION_REMOTE_CANCEL_ENABLED` | Activa cancelación remota de contratos vencidos |
-| `CONTRACT_TEMPLATE_DOCX_PATH` | Ruta al template `.docx` del contrato |
+| `CONTRACT_TEMPLATE_DOCX_PATH` | Override opcional de plantilla `.docx` (solo testing) |
+| `GOTENBERG_URL` | URL interna de Gotenberg (docx→PDF). Sin default público |
+| `GOTENBERG_TIMEOUT_MS` | Timeout de Gotenberg en ms (default 30000) |
+| `GOTENBERG_USER` | Usuario Basic Auth de Gotenberg (opcional, si hay proxy con auth) |
+| `GOTENBERG_PASS` | Password Basic Auth de Gotenberg (opcional) |
 | `N8N_POST_SIGNATURA_WEBHOOK_URL` | Webhook n8n que se dispara post-firma |
 
 ## Arquitectura

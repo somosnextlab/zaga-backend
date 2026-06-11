@@ -4,6 +4,9 @@ export interface StartCaseContractContext {
   readonly caseRow: CaseForContractRow;
   readonly offerRow: CaseOfferRow;
   readonly caseContract: CaseContractRow;
+  readonly kind: ContractKind;
+  readonly guarantor: ContractGuarantorRow | null;
+  readonly refinancedLoan: RefinancedLoanRow | null;
 }
 
 export interface StartCaseContractResponse {
@@ -76,6 +79,7 @@ export interface CaseForContractRow {
   readonly phone: string;
   readonly status: string;
   readonly case_type: string;
+  readonly requires_guarantor: boolean;
   readonly refinances_loan_id: string | null;
   readonly current_offer_id: string | null;
   readonly first_name: string | null;
@@ -87,6 +91,25 @@ export interface CaseForContractRow {
   readonly domicilio_numero: string | null;
   readonly domicilio_localidad: string | null;
   readonly domicilio_provincia: string | null;
+}
+
+/** Datos del codeudor (case_guarantors APPROVED) necesarios para el contrato. */
+export interface ContractGuarantorRow {
+  readonly id: string;
+  readonly first_name: string | null;
+  readonly last_name: string | null;
+  readonly dni: string | null;
+  readonly cuit: string | null;
+  readonly domicilio_calle: string | null;
+  readonly domicilio_numero: string | null;
+  readonly domicilio_localidad: string | null;
+  readonly domicilio_provincia: string | null;
+}
+
+/** Préstamo refinanciado: datos que el contrato de refinanciación referencia. */
+export interface RefinancedLoanRow {
+  readonly id: string;
+  readonly public_loan_number: string | null;
 }
 
 export interface CaseOfferRow {
@@ -146,7 +169,11 @@ export interface LoanRow {
   readonly status: string;
 }
 
+/** Tipo de contrato a emitir según la operación. */
+export type ContractKind = 'MUTUO' | 'MUTUO_CODEUDOR' | 'REFINANCIACION';
+
 export interface ContractTemplateInput {
+  readonly kind: ContractKind;
   readonly contractId: string;
   readonly caseId: string;
   readonly offerId: string;
@@ -160,6 +187,14 @@ export interface ContractTemplateInput {
   readonly userDomicilio?: string;
   readonly tasaMoratoria?: number | null;
   readonly userEmail?: string;
+  // Codeudor (MUTUO_CODEUDOR y REFINANCIACION).
+  readonly codeudorFullName?: string | null;
+  readonly codeudorDni?: string | null;
+  readonly codeudorCuit?: string | null;
+  readonly codeudorDomicilio?: string | null;
+  // Refinanciación.
+  readonly refinancedLoanNumber?: string | null;
+  readonly periodicidad?: string | null;
 }
 
 export interface ContractPdfOutput {
