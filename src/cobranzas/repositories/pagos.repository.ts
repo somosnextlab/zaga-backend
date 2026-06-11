@@ -155,16 +155,21 @@ export class PagosRepository {
     return this.normalizePago(row);
   }
 
-  public async markImputado(client: DbClient, pagoId: string): Promise<void> {
+  public async markImputado(
+    client: DbClient,
+    pagoId: string,
+    esParcial: boolean,
+  ): Promise<void> {
     await client.query(
       `
       UPDATE pagos
       SET imputado    = true,
           imputado_at = now(),
+          es_parcial  = $2,
           updated_at  = now()
       WHERE id = $1
       `,
-      [pagoId],
+      [pagoId, esParcial],
     );
   }
 

@@ -187,6 +187,8 @@ export class PagosService {
         );
       }
 
+      const esParcial = round2(pago.monto) < totalAdeudado;
+
       let saldoDisponible = pago.monto;
       let cuotasImputadas = 0;
 
@@ -329,7 +331,7 @@ export class PagosService {
         cuotasImputadas++;
       }
 
-      await this.pagosRepository.markImputado(client, pago.id);
+      await this.pagosRepository.markImputado(client, pago.id, esParcial);
 
       return {
         ok: true,
