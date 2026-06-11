@@ -77,6 +77,7 @@ export class LoansBackofficeService {
       amount: string | number | null;
       status: string;
       created_at: Date | string;
+      disbursed_at: Date | string | null;
     }>(
       `
       SELECT
@@ -87,7 +88,8 @@ export class LoansBackofficeService {
         u.cuit,
         co.amount,
         l.status,
-        l.created_at
+        l.created_at,
+        l.disbursed_at
       FROM loans l
       LEFT JOIN users u ON u.id = l.user_id
       LEFT JOIN case_offers co ON co.id = l.offer_id
@@ -115,7 +117,12 @@ export class LoansBackofficeService {
           r.created_at instanceof Date
             ? r.created_at.toISOString()
             : String(r.created_at),
-        disbursed_at: null,
+        disbursed_at:
+          r.disbursed_at == null
+            ? null
+            : r.disbursed_at instanceof Date
+              ? r.disbursed_at.toISOString()
+              : String(r.disbursed_at),
       })),
     };
   }
