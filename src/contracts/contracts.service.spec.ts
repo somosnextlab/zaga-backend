@@ -46,6 +46,8 @@ describe('ContractsService', () => {
     markCaseContractSigned: jest.fn(),
     findLoanByCaseIdForUpdate: jest.fn(),
     findLoanByRefinancesLoanIdForUpdate: jest.fn(),
+    findApprovedGuarantorForContract: jest.fn(),
+    findRefinancedLoanForContract: jest.fn(),
     insertLoan: jest.fn(),
   };
 
@@ -86,6 +88,7 @@ describe('ContractsService', () => {
     phone: '+5493511234567',
     status: 'CONTRACT_DATA_COMPLETED',
     case_type: 'NEW',
+    requires_guarantor: false,
     refinances_loan_id: null,
     current_offer_id: VALID_OFFER_ID,
     first_name: 'Juan',
@@ -205,6 +208,141 @@ describe('ContractsService', () => {
     expect(result.externalDocumentId).toBe(VALID_DOCUMENT_ID);
     expect(result.externalSignatureId).toBe(VALID_SIGNATURE_ID);
     expect(mockSignaturaService.createDocument).toHaveBeenCalledTimes(1);
+  });
+
+  const guarantorRow = {
+    id: '550e8400-e29b-41d4-a716-446655440200',
+    first_name: 'Ana',
+    last_name: 'Gomez',
+    dni: '30111222',
+    cuit: '27301112224',
+    domicilio_calle: 'Av Siempre Viva',
+    domicilio_numero: '742',
+    domicilio_localidad: 'Córdoba',
+    domicilio_provincia: 'Córdoba',
+  };
+
+  const primeSuccessfulStart = (): void => {
+    mockContractsRepository.findAcceptedOfferByCaseIdForUpdate.mockResolvedValue(
+      {
+        id: VALID_OFFER_ID,
+        case_id: VALID_CASE_ID,
+        status: 'ACCEPTED',
+        amount: 300000,
+        installments: 12,
+        tasa_nominal_anual: 210,
+        tasa_moratoria: 120,
+      },
+    );
+    mockContractsRepository.findActiveCaseContractByCaseIdForUpdate.mockResolvedValue(
+      null,
+    );
+    mockContractsRepository.insertCaseContractCreated.mockResolvedValue(
+      createdContract,
+    );
+    mockContractPdfService.generateContractPdf.mockResolvedValue({
+      fileName: 'contract.pdf',
+      pdfBase64: 'UEZERGF0YQ==',
+      contractVersion: 'X',
+      templateCode: 'X',
+    });
+    mockSignaturaService.createDocument.mockResolvedValue({
+      externalDocumentId: VALID_DOCUMENT_ID,
+      externalSignatureId: VALID_SIGNATURE_ID,
+      documentStatus: 'PE',
+      signatureStatus: 'IN',
+      signatureUrl: 'https://signatura/sign',
+      issuedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      raw: {},
+    });
+    mockContractsRepository.markCaseContractSignPending.mockResolvedValue({
+      ...createdContract,
+      status: CaseContractStatus.SIGN_PENDING,
+      external_document_id: VALID_DOCUMENT_ID,
+      external_signature_id: VALID_SIGNATURE_ID,
+    });
+  };
+
+  it('startCaseContract titular sin garante usa kind MUTUO', async () => {
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue(caseRow);
+    primeSuccessfulStart();
+
+    await service.startCaseContract(VALID_CASE_ID);
+
+    expect(
+      mockContractsRepository.findApprovedGuarantorForContract,
+    ).not.toHaveBeenCalled();
+    expect(mockContractPdfService.generateContractPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'MUTUO' }),
+    );
+  });
+
+  it('startCaseContract con garante usa kind MUTUO_CODEUDOR y carga datos del codeudor', async () => {
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue({
+      ...caseRow,
+      requires_guarantor: true,
+    });
+    mockContractsRepository.findApprovedGuarantorForContract.mockResolvedValue(
+      guarantorRow,
+    );
+    primeSuccessfulStart();
+
+    await service.startCaseContract(VALID_CASE_ID);
+
+    expect(mockContractPdfService.generateContractPdf).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'MUTUO_CODEUDOR',
+        codeudorFullName: 'Ana Gomez',
+        codeudorDni: '30111222',
+        codeudorCuit: '27301112224',
+        codeudorDomicilio: 'Av Siempre Viva 742, Córdoba, Córdoba',
+      }),
+    );
+  });
+
+  it('startCaseContract REFINANCE usa kind REFINANCIACION con codeudor y Nº de préstamo', async () => {
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue({
+      ...caseRow,
+      case_type: 'REFINANCE',
+      requires_guarantor: true,
+      refinances_loan_id: VALID_LOAN_ID,
+    });
+    mockContractsRepository.findApprovedGuarantorForContract.mockResolvedValue(
+      guarantorRow,
+    );
+    mockContractsRepository.findRefinancedLoanForContract.mockResolvedValue({
+      id: VALID_LOAN_ID,
+      public_loan_number: 'ZAGA-000123',
+    });
+    primeSuccessfulStart();
+
+    await service.startCaseContract(VALID_CASE_ID);
+
+    expect(mockContractPdfService.generateContractPdf).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'REFINANCIACION',
+        codeudorFullName: 'Ana Gomez',
+        refinancedLoanNumber: 'ZAGA-000123',
+      }),
+    );
+  });
+
+  it('startCaseContract REFINANCE sin garante lanza REFINANCE_RULE_BROKEN', async () => {
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue({
+      ...caseRow,
+      case_type: 'REFINANCE',
+      requires_guarantor: false,
+      refinances_loan_id: VALID_LOAN_ID,
+    });
+    mockContractsRepository.findApprovedGuarantorForContract.mockResolvedValue(
+      null,
+    );
+
+    await expect(
+      service.startCaseContract(VALID_CASE_ID),
+    ).rejects.toMatchObject({ message: ContractsErrors.REFINANCE_RULE_BROKEN });
+    expect(mockContractPdfService.generateContractPdf).not.toHaveBeenCalled();
   });
 
   it('startCaseContract falla si case no existe', async () => {

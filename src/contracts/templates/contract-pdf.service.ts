@@ -5,63 +5,110 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Docxtemplater from 'docxtemplater';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
 import PizZip from 'pizzip';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
+  ContractKind,
   ContractTemplateInput,
   ContractPdfOutput,
 } from '../interfaces/contracts.interface';
+import { GotenbergPdfConverter } from '../providers/gotenberg-pdf.converter';
+import { numberToSpanishWords } from '../utils/number-to-words';
 
 const DEFAULT_MISSING_DATA = 'DATO_FALTANTE';
+// Marcador neutro para campos de refinanciación que recién se calculan en el
+// desembolso (importe de cuota, fechas). No es un dato obligatorio faltante:
+// el contrato de refi se emite "parcial" con estos blancos a completar.
+const PENDING_FIELD = '__________';
+
+interface ContractKindConfig {
+  readonly templateFile: string;
+  readonly templateCode: string;
+  readonly contractVersion: string;
+}
+
+const CONTRACT_KIND_MAP: Record<ContractKind, ContractKindConfig> = {
+  MUTUO: {
+    templateFile: 'Contrato_de_Mutuo_ZAGA_V1.docx',
+    templateCode: 'CONTRATO_MUTUO_ZAGA_V1',
+    contractVersion: 'MUTUO_ZAGA_V1',
+  },
+  MUTUO_CODEUDOR: {
+    templateFile: 'Contrato_de_Mutuo_Codeudor_ZAGA_V1.docx',
+    templateCode: 'CONTRATO_MUTUO_CODEUDOR_ZAGA_V1',
+    contractVersion: 'MUTUO_CODEUDOR_ZAGA_V1',
+  },
+  REFINANCIACION: {
+    templateFile: 'Contrato_de_Refinanciacion_ZAGA_V1.docx',
+    templateCode: 'CONTRATO_REFINANCIACION_ZAGA_V1',
+    contractVersion: 'REFINANCIACION_ZAGA_V1',
+  },
+};
 
 @Injectable()
 export class ContractPdfService {
   private readonly logger = new Logger(ContractPdfService.name);
 
-  public constructor(private readonly configService: ConfigService) {}
+  public constructor(
+    private readonly configService: ConfigService,
+    private readonly gotenbergPdfConverter: GotenbergPdfConverter,
+  ) {}
 
   public async generateContractPdf(
     input: ContractTemplateInput,
   ): Promise<ContractPdfOutput> {
-    const templateCode = 'CONTRATO_MUTUO_ZAGA_V1';
-    const contractVersion = 'MUTUO_ZAGA_V1';
+    const kindConfig = CONTRACT_KIND_MAP[input.kind];
+    if (!kindConfig) {
+      throw new InternalServerErrorException(
+        `Tipo de contrato no soportado: ${String(input.kind)}`,
+      );
+    }
     const fileName = `contrato-${input.caseId}.pdf`;
 
     const contractVariables = this.buildTemplateVariables(input);
-    const templateBuffer = this.loadTemplateBuffer();
+    const templateBuffer = this.loadTemplateBuffer(kindConfig.templateFile);
     const renderedDocxBuffer = this.renderTemplate(
       templateBuffer,
       contractVariables,
     );
-    const contractText = this.extractRenderedText(renderedDocxBuffer);
-    const finalText = this.normalizeLegacyPlaceholders(
-      contractText,
-      contractVariables,
+    this.assertNoUnresolvedPlaceholders(
+      renderedDocxBuffer,
+      this.resolveFallback(),
     );
-    this.assertNoUnresolvedPlaceholders(finalText);
-    const pdfBase64 = await this.buildPdfBase64(finalText);
+
+    const pdfBuffer = await this.gotenbergPdfConverter.convertDocxToPdf(
+      renderedDocxBuffer,
+      'contrato.docx',
+    );
+    const pdfBase64 = pdfBuffer.toString('base64');
 
     return {
       fileName,
       pdfBase64,
-      contractVersion,
-      templateCode,
+      contractVersion: kindConfig.contractVersion,
+      templateCode: kindConfig.templateCode,
     };
+  }
+
+  private resolveFallback(): string {
+    const missing = this.configService.get<string>(
+      'CONTRACT_RENDER_FALLBACK_VALUE',
+    );
+    return missing?.trim() || DEFAULT_MISSING_DATA;
   }
 
   private buildTemplateVariables(
     input: ContractTemplateInput,
   ): Record<string, string> {
-    const missing = this.configService.get<string>(
-      'CONTRACT_RENDER_FALLBACK_VALUE',
-    );
-    const fallback = missing?.trim() || DEFAULT_MISSING_DATA;
+    const fallback = this.resolveFallback();
     const today = new Date();
     const monthName = new Intl.DateTimeFormat('es-AR', {
       month: 'long',
     }).format(today);
+
+    const usesCodeudor =
+      input.kind === 'MUTUO_CODEUDOR' || input.kind === 'REFINANCIACION';
 
     return {
       CIUDAD_FIRMA: 'Córdoba',
@@ -74,44 +121,57 @@ export class ContractPdfService {
       MUTUARIO_DNI: input.userDni ?? fallback,
       MUTUARIO_CUIT_CUIL: input.userCuit ?? fallback,
       MUTUARIO_DOMICILIO: input.userDomicilio ?? fallback,
-      CAPITAL_PRESTADO_TEXTO: fallback,
-      CAPITAL_PRESTADO_NUMERO: String(input.amount),
+      CAPITAL_PRESTADO_TEXTO: numberToSpanishWords(input.amount),
+      CAPITAL_PRESTADO_NUMERO: this.formatAmount(input.amount),
       TASA_NOMINAL_ANUAL: String(input.tasaNominalAnual),
       CANTIDAD_CUOTAS: String(input.installments),
       TASA_MORATORIA_ANUAL:
         input.tasaMoratoria != null ? String(input.tasaMoratoria) : fallback,
-      FIRMANTE_1_NOMBRE: fallback,
-      FIRMANTE_1_DNI: fallback,
-      FIRMANTE_2_NOMBRE: fallback,
-      FIRMANTE_2_DNI: fallback,
-      MONTH_NAME_ES: monthName,
-      CONTRACT_ID: input.contractId,
-      CASE_ID: input.caseId,
-      OFFER_ID: input.offerId,
-      USER_FULL_NAME: input.userFullName,
-      USER_DNI: input.userDni ?? '',
-      USER_CUIT: input.userCuit ?? '',
-      USER_PHONE: input.userPhone,
-      AMOUNT: String(input.amount),
-      INSTALLMENTS: String(input.installments),
-      TNA: String(input.tasaNominalAnual),
+      PERIODICIDAD: input.periodicidad?.trim() || 'semanales',
+      // Aclaración de firma: se deja en blanco (igual que Codeudor/Refi). La
+      // identidad del firmante la aporta la firma biométrica de Signatura; el
+      // bloque tiene dos columnas (ZAGA / Mutuario) y no debemos imprimir el
+      // nombre del mutuario en la columna de ZAGA.
+      FIRMANTE_NOMBRE: '',
+      FIRMANTE_DNI: '',
+      // Codeudor: solo aplica a MUTUO_CODEUDOR / REFINANCIACION.
+      CODEUDOR_NOMBRE_COMPLETO: usesCodeudor
+        ? input.codeudorFullName || fallback
+        : fallback,
+      CODEUDOR_DNI: usesCodeudor ? (input.codeudorDni ?? fallback) : fallback,
+      CODEUDOR_CUIT_CUIL: usesCodeudor
+        ? (input.codeudorCuit ?? fallback)
+        : fallback,
+      CODEUDOR_DOMICILIO: usesCodeudor
+        ? (input.codeudorDomicilio ?? fallback)
+        : fallback,
+      // Refinanciación: datos del préstamo anterior. Los campos que recién se
+      // calculan en el desembolso (importe de cuota, fechas) quedan como
+      // pendientes (marcador neutro), no como dato obligatorio faltante.
+      REFINANCIA_PRESTAMO_NUMERO: input.refinancedLoanNumber ?? PENDING_FIELD,
+      REFINANCIA_FECHA_ORIGINAL: PENDING_FIELD,
+      REFINANCIA_FECHA_LIQUIDACION: PENDING_FIELD,
+      REFINANCIA_CUOTA_IMPORTE_TEXTO: PENDING_FIELD,
+      REFINANCIA_CUOTA_IMPORTE_NUMERO: PENDING_FIELD,
+      REFINANCIA_PRIMERA_CUOTA_FECHA: PENDING_FIELD,
     };
   }
 
-  private loadTemplateBuffer(): Buffer {
+  private formatAmount(amount: number): string {
+    return new Intl.NumberFormat('es-AR', {
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
+
+  private loadTemplateBuffer(templateFile: string): Buffer {
     const configuredPath = this.configService.get<string>(
       'CONTRACT_TEMPLATE_DOCX_PATH',
     );
     const candidates = [
+      // Override solo para testing local.
       configuredPath ?? '',
-      resolve(
-        process.cwd(),
-        'src',
-        'contracts',
-        'assets',
-        'Contrato_de_Mutuo_ZAGA_V1.docx',
-      ),
-      resolve(process.cwd(), 'docs', 'Contrato_de_Mutuo_ZAGA_V1.docx'),
+      resolve(process.cwd(), 'src', 'contracts', 'assets', templateFile),
+      resolve(process.cwd(), 'docs', templateFile),
     ].filter((path) => path.length > 0);
 
     for (const path of candidates) {
@@ -130,7 +190,7 @@ export class ContractPdfService {
     }
 
     throw new InternalServerErrorException(
-      'No se encontró la plantilla DOCX de contrato para renderizar.',
+      `No se encontró la plantilla DOCX de contrato (${templateFile}).`,
     );
   }
 
@@ -141,6 +201,7 @@ export class ContractPdfService {
     try {
       const zip = new PizZip(templateBuffer);
       const doc = new Docxtemplater(zip, {
+        delimiters: { start: '{{', end: '}}' },
         linebreaks: true,
         paragraphLoop: true,
       });
@@ -158,90 +219,22 @@ export class ContractPdfService {
     }
   }
 
-  private extractRenderedText(renderedDocxBuffer: Buffer): string {
-    const zip = new PizZip(renderedDocxBuffer);
-    const documentFile = zip.file('word/document.xml');
-    if (!documentFile) {
-      throw new InternalServerErrorException(
-        'Plantilla DOCX inválida: falta word/document.xml.',
-      );
+  /**
+   * Falla si el docx renderizado tiene tags `{{...}}` sin resolver, blancos
+   * crudos (`[__]` / `[]`), o el sentinel de dato obligatorio faltante
+   * (p. ej. faltó un dato del codeudor cuando correspondía). Los campos
+   * dinámicos de refinanciación usan un marcador de pendiente distinto, que no
+   * se considera incompleto.
+   */
+  private assertNoUnresolvedPlaceholders(
+    renderedDocxBuffer: Buffer,
+    fallback: string,
+  ): void {
+    const text = this.extractDocxPlainText(renderedDocxBuffer);
+    const unresolved: string[] = text.match(/\{\{[^}]*\}\}|\[__\]|\[\]/g) ?? [];
+    if (text.includes(fallback)) {
+      unresolved.push(fallback);
     }
-
-    const xml = documentFile.asText();
-    const rawText = xml
-      .replace(/<w:tab\/>/g, '\t')
-      .replace(/<w:br[^>]*\/>/g, '\n')
-      .replace(/<\/w:p>/g, '\n')
-      .replace(/<[^>]+>/g, '');
-
-    return this.decodeXmlEntities(rawText)
-      .replace(/\r\n/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-  }
-
-  private decodeXmlEntities(value: string): string {
-    return value
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .replace(/&#(\d+);/g, (_match: string, dec: string) =>
-        String.fromCharCode(Number(dec)),
-      );
-  }
-
-  private normalizeLegacyPlaceholders(
-    text: string,
-    variables: Record<string, string>,
-  ): string {
-    return text
-      .replace(
-        /\[Nombre y Apellido del Cliente\]/g,
-        variables.MUTUARIO_NOMBRE_COMPLETO,
-      )
-      .replace(/\[NOMBRE DEL FIRMANTE\]/g, variables.FIRMANTE_1_NOMBRE)
-      .replace(/\[DNI DEL FIRMANTE\]/g, variables.FIRMANTE_1_DNI)
-      .replace(/DNI\s+\[__\]/g, `DNI ${variables.MUTUARIO_DNI}`)
-      .replace(
-        /CUIT\/CUIL\s+\[__\]/g,
-        `CUIT/CUIL ${variables.MUTUARIO_CUIT_CUIL}`,
-      )
-      .replace(
-        /con domicilio en\s+\[__\]/g,
-        `con domicilio en ${variables.MUTUARIO_DOMICILIO}`,
-      )
-      .replace(
-        /la suma de pesos\s+\[__\]\s+\(\$\[__\]\)/g,
-        `la suma de pesos ${variables.CAPITAL_PRESTADO_TEXTO} ($${variables.CAPITAL_PRESTADO_NUMERO})`,
-      )
-      .replace(
-        /fijo del\s+\[__\]%/g,
-        `fijo del ${variables.TASA_NOMINAL_ANUAL}%`,
-      )
-      .replace(
-        /pago de\s+\[__\]\s+cuotas/g,
-        `pago de ${variables.CANTIDAD_CUOTAS} cuotas`,
-      )
-      .replace(
-        /equivalente al\s+\[__\]%/g,
-        `equivalente al ${variables.TASA_MORATORIA_ANUAL}%`,
-      )
-      .replace(/\[__\]/g, variables.CIUDAD_FIRMA);
-  }
-
-  private assertNoUnresolvedPlaceholders(text: string): void {
-    const unresolvedDouble = text.match(/\{\{[^}]+\}\}/g) ?? [];
-    const unresolvedBracket = text.match(/\[[^\]\n]{1,80}\]/g) ?? [];
-    const unresolved = [...unresolvedDouble, ...unresolvedBracket].filter(
-      (token) =>
-        token.includes('__') ||
-        token.toUpperCase().includes('NOMBRE') ||
-        token.toUpperCase().includes('DNI') ||
-        token.toUpperCase().includes('CUIT') ||
-        token.toUpperCase().includes('DOMICILIO'),
-    );
 
     if (unresolved.length > 0) {
       const preview = unresolved.slice(0, 5).join(', ');
@@ -251,80 +244,18 @@ export class ContractPdfService {
     }
   }
 
-  private async buildPdfBase64(content: string): Promise<string> {
-    const pdf = await PDFDocument.create();
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const fontSize = 10;
-    const pageWidth = 595;
-    const pageHeight = 842;
-    const marginLeft = 48;
-    const marginTop = 48;
-    const maxTextWidth = pageWidth - marginLeft * 2;
-    const lineHeight = 14;
-
-    let page = pdf.addPage([pageWidth, pageHeight]);
-    let cursorY = pageHeight - marginTop;
-
-    const normalized = content
-      .replace(/[“”]/g, '"')
-      .replace(/[‘’]/g, "'")
-      .replace(/–/g, '-');
-
-    const paragraphs = normalized.split('\n');
-    for (const paragraph of paragraphs) {
-      const lines = this.wrapParagraph(paragraph, font, fontSize, maxTextWidth);
-      for (const line of lines) {
-        if (cursorY <= marginTop) {
-          page = pdf.addPage([pageWidth, pageHeight]);
-          cursorY = pageHeight - marginTop;
-        }
-        page.drawText(line, {
-          x: marginLeft,
-          y: cursorY,
-          size: fontSize,
-          font,
-        });
-        cursorY -= lineHeight;
-      }
-      cursorY -= 2;
+  private extractDocxPlainText(renderedDocxBuffer: Buffer): string {
+    const zip = new PizZip(renderedDocxBuffer);
+    const documentFile = zip.file('word/document.xml');
+    if (!documentFile) {
+      throw new InternalServerErrorException(
+        'Plantilla DOCX inválida: falta word/document.xml.',
+      );
     }
 
-    const bytes = await pdf.save();
-    return Buffer.from(bytes).toString('base64');
+    const xml = documentFile.asText();
+    return [...xml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)]
+      .map((match) => match[1])
+      .join('');
   }
-
-  private wrapParagraph(
-    paragraph: string,
-    font: PDFFontLike,
-    fontSize: number,
-    maxTextWidth: number,
-  ): string[] {
-    const clean = paragraph.trim();
-    if (!clean) return [''];
-    const words = clean.split(/\s+/);
-    const lines: string[] = [];
-    let current = '';
-
-    for (const word of words) {
-      const candidate = current.length > 0 ? `${current} ${word}` : word;
-      const width = font.widthOfTextAtSize(candidate, fontSize);
-      if (width <= maxTextWidth) {
-        current = candidate;
-        continue;
-      }
-
-      if (current.length > 0) {
-        lines.push(current);
-      }
-      current = word;
-    }
-    if (current.length > 0) {
-      lines.push(current);
-    }
-    return lines;
-  }
-}
-
-interface PDFFontLike {
-  widthOfTextAtSize(text: string, size: number): number;
 }

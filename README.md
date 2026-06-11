@@ -1,98 +1,116 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# zaga-backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API del MVP de **ZAGA** — micro-préstamos online, WhatsApp-first, operado bajo PUGIA SAS (Argentina).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Backend NestJS que cubre el flujo de préstamo punta a punta: onboarding, pre-calificación crediticia (BCRA), motor de ofertas, garantes, recolección de datos, generación y firma digital de contratos, y cobranzas.
 
-## Description
+> Contexto de negocio y guía de trabajo: ver [`CLAUDE.md`](./CLAUDE.md) (raíz del repo y de este paquete).
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Stack
 
-```bash
-$ npm install
-```
+- **Runtime:** Node.js + NestJS 11 (TypeScript)
+- **Base de datos:** PostgreSQL — acceso directo con `pg` (sin ORM, SQL raw)
+- **Auth backoffice:** sesiones propias (`admin_sessions`), sin JWT de terceros
+- **Jobs:** `@nestjs/schedule` (cron en-proceso)
+- **Firma digital:** Signatura (proveedor externo)
+- **Contratos → PDF:** Gotenberg (docx → PDF fiel vía LibreOffice)
+- **Docs API:** Swagger (`@nestjs/swagger`)
+- **Deploy:** backend en Railway; PostgreSQL + n8n en Hostinger KVM2; dominio productivo `zaga.com.ar`
 
-## Compile and run the project
+## Requisitos previos
+
+- Node.js 18+ (se usan `fetch`/`FormData`/`Blob` nativos)
+- PostgreSQL accesible vía `DATABASE_URL`
+- Gotenberg accesible vía `GOTENBERG_URL` (solo para generar contratos)
+
+## Setup
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
 ```
 
-## Run tests
+Crear un `.env` local con las variables de la tabla de abajo (nunca commitear `.env` ni secrets).
+
+## Variables de entorno
+
+| Variable | Descripción |
+|---|---|
+| `DATABASE_URL` | Connection string PostgreSQL |
+| `PORT` | Puerto HTTP (default 3000) |
+| `CORS_ORIGIN` | Origen permitido |
+| `BCRA_API_LATEST_URL` | API BCRA — deudas vigentes |
+| `BCRA_API_HISTORICAL_URL` | API BCRA — deudas históricas |
+| `BCRA_API_TIMEOUT_MS` | Timeout BCRA en ms |
+| `BCRA_MAX_CONCURRENT_REQUESTS` | Límite de concurrencia para queries BCRA |
+| `SIGNATURA_API_BASE_URL` | Base URL Signatura |
+| `SIGNATURA_API_KEY` | API key Signatura |
+| `SIGNATURA_WEBHOOK_SECRET` | Secret para validar webhooks de Signatura |
+| `CONTRACTS_EXPIRATION_CRON_ENABLED` | Activa el cron de vencimiento de contratos |
+| `CONTRACTS_EXPIRATION_REMOTE_CANCEL_ENABLED` | Activa cancelación remota de contratos vencidos |
+| `CONTRACT_TEMPLATE_DOCX_PATH` | Override opcional de plantilla `.docx` (solo testing) |
+| `GOTENBERG_URL` | URL interna de Gotenberg (docx→PDF). Sin default público |
+| `GOTENBERG_TIMEOUT_MS` | Timeout de Gotenberg en ms (default 30000) |
+| `GOTENBERG_USER` / `GOTENBERG_PASS` | Basic Auth de Gotenberg (opcional, si hay proxy con auth) |
+| `N8N_POST_SIGNATURA_WEBHOOK_URL` | Webhook n8n que se dispara post-firma |
+
+## Comandos
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run start:dev        # servidor en watch mode
+npm run start:prod       # node dist/main (requiere build previo)
+npm run build            # compila a dist/
+npm run lint             # ESLint + auto-fix
+npm run test             # unit tests (Jest)
+npm run test:e2e         # tests e2e
+npm run test:cov         # cobertura
+npm run admin:create-user  # crear usuario admin del backoffice
+npm run seed:localidades   # seed de localidades de referencia
 ```
 
-## Deployment
+> Antes de pushear: `npm run lint` y `npm run test`. Si el cambio toca contratos o cobranzas, correr también `npm run test:e2e`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Arquitectura
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+API NestJS modular — cada módulo es un dominio de negocio.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+| Módulo | Responsabilidad |
+|---|---|
+| `db` | `DbService` global: pool `pg`, `query()`, `withTransaction()` |
+| `zaga-auth` | Auth del backoffice: sesiones, guards, decoradores |
+| `audit` | Registro de acciones de administradores |
+| `cases` | Solicitudes de préstamo (lead → caso → oferta) |
+| `case-guarantors` | Garantes/codeudores de un caso |
+| `consents` | Consentimientos del usuario final |
+| `prequal` | Motor de pre-calificación crediticia (consulta BCRA) |
+| `offerEngine` | Generación de ofertas de préstamo |
+| `contracts` | Generación, firma digital (Signatura) y gestión de contratos |
+| `loans` | Préstamos activos desembolsados |
+| `cobranzas` | Motor de mora, cuotas, pagos e historial de cobranza |
+| `leads` | Listado y gestión de leads (backoffice) |
+| `users` | Usuarios del sistema (backoffice) |
+| `dashboard` | Métricas y resumen para el backoffice |
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Backoffice vs app:** los controllers con sufijo `-backoffice` son del panel admin (protegidos por `ZagaSessionGuard`); los sin sufijo son para la app del usuario final.
 
-## Resources
+### Generación de contratos
 
-Check out a few resources that may come in handy when working with NestJS:
+Según la operación se elige el contrato (`resolveContractKind`):
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+| Caso | Kind | templateCode |
+|---|---|---|
+| Préstamo titular sin garante | `MUTUO` | `CONTRATO_MUTUO_ZAGA_V1` |
+| Préstamo titular + garante | `MUTUO_CODEUDOR` | `CONTRATO_MUTUO_CODEUDOR_ZAGA_V1` |
+| Refinanciación (siempre con codeudor) | `REFINANCIACION` | `CONTRATO_REFINANCIACION_ZAGA_V1` |
 
-## Support
+Las plantillas viven en [`src/contracts/assets/`](./src/contracts/assets/) como `.docx` con tags `{{VAR}}`. El flujo: docxtemplater rellena el `.docx` → `GotenbergPdfConverter` lo convierte a PDF fiel → se envía a Signatura en base64. Sin `GOTENBERG_URL` configurada, la generación de contratos falla con error claro.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Convenciones
 
-## Stay in touch
+- **Sin ORM:** todas las queries son SQL raw vía `DbService.query()`. La capa de datos va en clases `*.repository.ts`; los servicios no hacen queries directas.
+- **Transacciones:** usar `DbService.withTransaction(async (client) => { ... })`, nunca `BEGIN/COMMIT/ROLLBACK` manual.
+- **Validación de entrada:** DTOs con `class-validator`. `ValidationPipe` global con `whitelist` + `forbidNonWhitelisted`.
+- **Esquema SQL:** sin migraciones automáticas; los cambios se aplican a mano desde [`scripts/sql/`](./scripts/sql/).
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Detalle completo de convenciones, reglas y criterio de terminado en [`CLAUDE.md`](./CLAUDE.md).

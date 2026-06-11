@@ -6,8 +6,10 @@ import {
   CaseForContractRow,
   CaseOfferRow,
   CaseContractRow,
+  ContractGuarantorRow,
   ExpiredCaseContractRow,
   LoanRow,
+  RefinancedLoanRow,
 } from './interfaces/contracts.interface';
 
 @Injectable()
@@ -20,8 +22,8 @@ export class ContractsRepository {
   ): Promise<CaseForContractRow | null> {
     const result = await client.query<CaseForContractRow>(
       `
-      SELECT c.id, c.user_id, c.phone, c.status, c.case_type, c.refinances_loan_id,
-             c.current_offer_id, u.first_name, u.last_name, u.dni, u.cuit,
+      SELECT c.id, c.user_id, c.phone, c.status, c.case_type, c.requires_guarantor,
+             c.refinances_loan_id, c.current_offer_id, u.first_name, u.last_name, u.dni, u.cuit,
              u.email, u.domicilio_calle, u.domicilio_numero, u.domicilio_localidad, u.domicilio_provincia
       FROM cases c
       INNER JOIN users u ON u.id = c.user_id
@@ -29,6 +31,44 @@ export class ContractsRepository {
       FOR UPDATE
       `,
       [caseId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** Codeudor aprobado del caso (último intento), con los datos para el contrato. */
+  public async findApprovedGuarantorForContract(
+    client: DbClient,
+    caseId: string,
+  ): Promise<ContractGuarantorRow | null> {
+    const result = await client.query<ContractGuarantorRow>(
+      `
+      SELECT id, first_name, last_name, dni, cuit,
+             domicilio_calle, domicilio_numero, domicilio_localidad, domicilio_provincia
+      FROM case_guarantors
+      WHERE case_id = $1
+        AND status = 'APPROVED'
+      ORDER BY attempt_no DESC
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [caseId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** Préstamo refinanciado: número público que referencia el contrato de refi. */
+  public async findRefinancedLoanForContract(
+    client: DbClient,
+    refinancedLoanId: string,
+  ): Promise<RefinancedLoanRow | null> {
+    const result = await client.query<RefinancedLoanRow>(
+      `
+      SELECT id, public_loan_number
+      FROM loans
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [refinancedLoanId],
     );
     return result.rows[0] ?? null;
   }
