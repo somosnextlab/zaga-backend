@@ -9,7 +9,8 @@ import { ContractDataErrors } from '../utils/contract-data.errors';
 import { ContractDataSubmitService } from './contract-data-submit.service';
 
 const CASE_ID = '550e8400-e29b-41d4-a716-446655440000';
-const TOKEN = '660e8400-e29b-41d4-a716-446655440001';
+// Valor de test: findValidToken está mockeado, no se valida el formato UUID.
+const TOKEN = 'test-contract-data-token';
 const USER_ID = '770e8400-e29b-41d4-a716-446655440002';
 
 describe('ContractDataSubmitService', () => {
