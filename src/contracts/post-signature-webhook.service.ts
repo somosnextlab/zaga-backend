@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { PostSignatureN8nPayload } from './interfaces/contracts.interface';
+import type { N8nNotifyPayload } from './interfaces/contracts.interface';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -31,7 +31,7 @@ export class PostSignatureWebhookService {
   /**
    * POST al workflow n8n post-firma. No lanza: errores de red o HTTP se registran y se ignoran.
    */
-  public async notify(payload: PostSignatureN8nPayload): Promise<void> {
+  public async notify(payload: N8nNotifyPayload): Promise<void> {
     if (!this.webhookUrl) {
       this.logger.debug(
         'Webhook post-firma n8n omitido: N8N_POST_SIGNATURA_WEBHOOK_URL no está configurada.',
@@ -60,13 +60,13 @@ export class PostSignatureWebhookService {
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         this.logger.warn(
-          `Webhook post-firma n8n respondió HTTP ${response.status} case_id=${payload.case_id} loan_id=${payload.loan_id} body=${text.slice(0, 500)}`,
+          `Webhook post-firma n8n respondió HTTP ${response.status} case_id=${payload.case_id} trigger_source=${payload.trigger_source} body=${text.slice(0, 500)}`,
         );
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        `Webhook post-firma n8n falló case_id=${payload.case_id} loan_id=${payload.loan_id}: ${message}`,
+        `Webhook post-firma n8n falló case_id=${payload.case_id} trigger_source=${payload.trigger_source}: ${message}`,
       );
     } finally {
       clearTimeout(timeoutId);

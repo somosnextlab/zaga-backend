@@ -53,6 +53,18 @@ export interface PostSignatureN8nPayload {
   readonly trigger_source: 'CONTRACT_SIGNED';
 }
 
+/** Cuerpo enviado al webhook n8n cuando un contrato queda FAILED. */
+export interface ContractFailedN8nPayload {
+  readonly trigger_source: 'CONTRACT_VALIDATION_FAILED';
+  readonly case_id: string;
+  readonly case_contract_id: string;
+  readonly fail_reason: string;
+}
+
+export type N8nNotifyPayload =
+  | PostSignatureN8nPayload
+  | ContractFailedN8nPayload;
+
 /** Payload normalizado del webhook de Signatura (snake_case y camelCase). */
 export interface SignaturaWebhookParsed {
   readonly documentId: string | null;
