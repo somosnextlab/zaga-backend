@@ -9,8 +9,8 @@ import { ContractDataErrors } from '../utils/contract-data.errors';
 import { ContractDataSubmitService } from './contract-data-submit.service';
 
 const CASE_ID = '550e8400-e29b-41d4-a716-446655440000';
-// Valor de test: findValidToken está mockeado, no se valida el formato UUID.
-const TOKEN = 'test-contract-data-token';
+// Referencia de test: findValidToken está mockeado, el formato no se valida.
+const COLLECTION_REF = 'contract-data-ref';
 const USER_ID = '770e8400-e29b-41d4-a716-446655440002';
 
 describe('ContractDataSubmitService', () => {
@@ -101,7 +101,7 @@ describe('ContractDataSubmitService', () => {
       return {
         subject: 'TITULAR',
         caseId: CASE_ID,
-        token: TOKEN,
+        token: COLLECTION_REF,
         email: 'titular@example.com',
         cbu_cvu: '0'.repeat(22),
         bank_name: 'Banco Test',
@@ -152,7 +152,7 @@ describe('ContractDataSubmitService', () => {
       return {
         subject: 'CODEUDOR',
         caseId: CASE_ID,
-        token: TOKEN,
+        token: COLLECTION_REF,
         email: 'codeudor@example.com',
         domicilio_calle: 'Calle',
         domicilio_numero: '123',
