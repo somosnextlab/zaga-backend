@@ -197,7 +197,9 @@ export class ContractsService {
       userCuit: context.caseRow.cuit,
       userPhone: context.caseRow.phone,
       userDomicilio,
-      tasaMoratoria: context.offerRow.tasa_moratoria,
+      // tasa moratoria = TNA de la oferta aceptada
+      tasaMoratoria:
+        context.offerRow.tasa_moratoria ?? context.offerRow.tasa_nominal_anual,
       userEmail: context.caseRow.email ?? undefined,
       codeudorFullName,
       codeudorDni: guarantor?.dni ?? null,
