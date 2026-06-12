@@ -38,9 +38,10 @@ import {
   ContractKind,
   LoanRow,
   SignaturaWebhookParsed,
-  PostSignatureN8nPayload,
+  N8nNotifyPayload,
 } from './interfaces/contracts.interface';
 import { PostSignatureWebhookService } from './post-signature-webhook.service';
+import { deriveDniFromCuit } from '../prequal/cuit-checksum';
 
 @Injectable()
 export class ContractsService {
@@ -338,10 +339,10 @@ export class ContractsService {
 
     const toTxOutcome = (
       webhookResult: SignaturaWebhookResult,
-      postSignatureWebhookPayload: PostSignatureN8nPayload | null = null,
+      postSignatureWebhookPayload: N8nNotifyPayload | null = null,
     ): {
       readonly result: SignaturaWebhookResult;
-      readonly postSignatureWebhookPayload: PostSignatureN8nPayload | null;
+      readonly postSignatureWebhookPayload: N8nNotifyPayload | null;
     } => ({ result: webhookResult, postSignatureWebhookPayload });
 
     const { result, postSignatureWebhookPayload } =
@@ -350,7 +351,7 @@ export class ContractsService {
           client: DbClient,
         ): Promise<{
           readonly result: SignaturaWebhookResult;
-          readonly postSignatureWebhookPayload: PostSignatureN8nPayload | null;
+          readonly postSignatureWebhookPayload: N8nNotifyPayload | null;
         }> => {
           const contract =
             await this.contractsRepository.findCaseContractByExternalIdsForUpdate(
@@ -455,13 +456,22 @@ export class ContractsService {
                 providerLastError:
                   parsed.errorMessage ?? parsed.errorCode ?? null,
               });
-            return toTxOutcome({
-              accepted: true,
-              contractFound: true,
-              caseContractId: failed.id,
-              status: failed.status,
-              loanId: null,
-            });
+            return toTxOutcome(
+              {
+                accepted: true,
+                contractFound: true,
+                caseContractId: failed.id,
+                status: failed.status,
+                loanId: null,
+              },
+              {
+                trigger_source: 'CONTRACT_VALIDATION_FAILED',
+                case_id: failed.case_id,
+                case_contract_id: failed.id,
+                fail_reason:
+                  parsed.errorCode ?? ContractsErrors.PROVIDER_BLOCKING_ERROR,
+              },
+            );
           }
 
           if (
@@ -570,13 +580,21 @@ export class ContractsService {
                 },
               });
 
-            return toTxOutcome({
-              accepted: true,
-              contractFound: true,
-              caseContractId: failed.id,
-              status: failed.status,
-              loanId: null,
-            });
+            return toTxOutcome(
+              {
+                accepted: true,
+                contractFound: true,
+                caseContractId: failed.id,
+                status: failed.status,
+                loanId: null,
+              },
+              {
+                trigger_source: 'CONTRACT_VALIDATION_FAILED',
+                case_id: failed.case_id,
+                case_contract_id: failed.id,
+                fail_reason: failReason,
+              },
+            );
           }
 
           const signed = await this.contractsRepository.markCaseContractSigned(
@@ -608,7 +626,7 @@ export class ContractsService {
 
           const loanOutcome = await this.createLoanIfEligible(client, signed);
 
-          const postSignatureWebhookPayload: PostSignatureN8nPayload | null =
+          const postSignatureWebhookPayload: N8nNotifyPayload | null =
             loanOutcome.createdNew &&
             loanOutcome.loan &&
             loanOutcome.notifyContext
@@ -738,9 +756,7 @@ export class ContractsService {
     const isApproved = status.length === 0 || approvedStatuses.includes(status);
     const scoreOk = input.identityScore === null || input.identityScore >= 0.8;
     const hasIdentityFields =
-      !!input.fullName &&
-      !!input.documentNumber &&
-      input.documentNumber.length > 0;
+      !!input.documentNumber && input.documentNumber.length > 0;
 
     if (!isApproved || !scoreOk || !hasIdentityFields) {
       return {
@@ -765,6 +781,7 @@ export class ContractsService {
       return { ok: false, reason: ContractsErrors.CASE_NOT_FOUND };
     }
 
+    // CUIT (duro si viene): en la práctica la biometría no manda cuit; queda inerte.
     if (biometricData.cuit && caseData.cuit) {
       if (
         this.normalizeDigits(biometricData.cuit) !==
@@ -777,10 +794,19 @@ export class ContractsService {
       }
     }
 
-    if (biometricData.documentNumber && caseData.dni) {
+    // DNI (ancla dura): único identificador fuerte que devuelve la biometría.
+    if (biometricData.documentNumber) {
+      const expectedDni =
+        caseData.dni ?? deriveDniFromCuit(caseData.cuit ?? '');
+      if (!expectedDni) {
+        return {
+          ok: false,
+          reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
+        };
+      }
       if (
         this.normalizeDigits(biometricData.documentNumber) !==
-        this.normalizeDigits(caseData.dni)
+        this.normalizeDigits(expectedDni)
       ) {
         return {
           ok: false,
@@ -789,6 +815,7 @@ export class ContractsService {
       }
     }
 
+    // Nombre (blando): puede venir invertido o cargado a mano por el CEO. No bloquea.
     const expectedFullName = this.buildFullName(
       caseData.first_name,
       caseData.last_name,
@@ -801,10 +828,9 @@ export class ContractsService {
         normalizedReceived.length > 0 &&
         normalizedExpected !== normalizedReceived
       ) {
-        return {
-          ok: false,
-          reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
-        };
+        this.logger.warn(
+          `Signatura webhook: nombre biométrico difiere del caso (esperado="${expectedFullName}" recibido="${biometricData.fullName}") contractId=${contract.id}. No bloquea (DNI es el ancla).`,
+        );
       }
     }
 

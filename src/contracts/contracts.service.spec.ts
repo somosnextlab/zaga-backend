@@ -393,7 +393,7 @@ describe('ContractsService', () => {
     expect(mockContractPdfService.generateContractPdf).not.toHaveBeenCalled();
   });
 
-  it('handleSignaturaWebhook marca FAILED si identidad no coincide', async () => {
+  it('handleSignaturaWebhook marca FAILED y notifica n8n si el DNI no coincide', async () => {
     mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
       {
         ...createdContract,
@@ -423,9 +423,9 @@ describe('ContractsService', () => {
     mockSignaturaService.getBiometrics.mockResolvedValue({
       biometricStatus: 'CO',
       identityScore: null,
-      fullName: 'Nombre Distinto',
-      documentNumber: '12345678',
-      cuit: '20123456789',
+      fullName: 'Juan Perez',
+      documentNumber: '99999999',
+      cuit: null,
       raw: {},
     });
     mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue(caseRow);
@@ -450,6 +450,89 @@ describe('ContractsService', () => {
     expect(result.status).toBe(CaseContractStatus.FAILED);
     expect(result.loanId).toBeNull();
     expect(mockContractsRepository.markCaseContractFailed).toHaveBeenCalled();
+    expect(mockPostSignatureWebhookService.notify).toHaveBeenCalledWith({
+      trigger_source: 'CONTRACT_VALIDATION_FAILED',
+      case_id: VALID_CASE_ID,
+      case_contract_id: VALID_CONTRACT_ID,
+      fail_reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
+    });
+    expect(mockContractsRepository.insertLoan).not.toHaveBeenCalled();
+  });
+
+  it('handleSignaturaWebhook no bloquea por nombre distinto si el DNI coincide (firma OK)', async () => {
+    const insertedLoan: LoanRow = {
+      id: VALID_LOAN_ID,
+      case_id: VALID_CASE_ID,
+      offer_id: VALID_OFFER_ID,
+      user_id: caseRow.user_id,
+      loan_type: 'NEW',
+      refinances_loan_id: null,
+      status: 'CREATED',
+    };
+
+    mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
+      {
+        ...createdContract,
+        status: CaseContractStatus.SIGN_PENDING,
+        external_document_id: VALID_DOCUMENT_ID,
+        external_signature_id: VALID_SIGNATURE_ID,
+      },
+    );
+    mockContractsRepository.updateProviderTracking.mockResolvedValue({
+      ...createdContract,
+      status: CaseContractStatus.SIGN_PENDING,
+      external_document_id: VALID_DOCUMENT_ID,
+      external_signature_id: VALID_SIGNATURE_ID,
+      provider_document_status: 'CO',
+      provider_signature_status: 'CO',
+    });
+    mockSignaturaService.getDocument.mockResolvedValue({
+      externalDocumentId: VALID_DOCUMENT_ID,
+      documentStatus: 'CO',
+      signatureStatus: 'CO',
+      signatureUrl: 'https://signatura/sign',
+      signedDocumentUrl: 'https://signatura/doc.pdf',
+      auditCertificateUrl: 'https://signatura/cert.pdf',
+      evidenceZipUrl: 'https://signatura/evidence.zip',
+      raw: {},
+    });
+    // Nombre invertido + DNI ancla derivado del CUIT (caseData.dni ausente).
+    mockSignaturaService.getBiometrics.mockResolvedValue({
+      biometricStatus: 'CO',
+      identityScore: null,
+      fullName: 'Perez Juan',
+      documentNumber: '12345678',
+      cuit: null,
+      raw: {},
+    });
+    mockContractsRepository.findCaseByIdForUpdate
+      .mockResolvedValueOnce({ ...caseRow, dni: null })
+      .mockResolvedValueOnce({ ...caseRow, dni: null });
+    mockContractsRepository.markCaseContractSigned.mockResolvedValue({
+      ...createdContract,
+      status: CaseContractStatus.SIGNED,
+      external_document_id: VALID_DOCUMENT_ID,
+      external_signature_id: VALID_SIGNATURE_ID,
+      signed_at: new Date().toISOString(),
+    });
+    mockContractsRepository.findLoanByCaseIdForUpdate.mockResolvedValue(null);
+    mockContractsRepository.insertLoan.mockResolvedValue(insertedLoan);
+
+    const result = await service.handleSignaturaWebhook(
+      buildValidSignatureHeader(),
+      WEBHOOK_RAW_BODY,
+      {
+        externalDocumentId: VALID_DOCUMENT_ID,
+        externalSignatureId: VALID_SIGNATURE_ID,
+        notification_action: 'DS',
+      },
+    );
+
+    expect(result.status).toBe(CaseContractStatus.SIGNED);
+    expect(result.loanId).toBe(VALID_LOAN_ID);
+    expect(
+      mockContractsRepository.markCaseContractFailed,
+    ).not.toHaveBeenCalled();
   });
 
   it('handleSignaturaWebhook crea loan cuando contrato queda SIGNED y elegible', async () => {
