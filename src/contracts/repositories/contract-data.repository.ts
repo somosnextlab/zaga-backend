@@ -13,6 +13,9 @@ interface CaseForContractDataRow {
 interface ActiveGuarantorRow {
   readonly id: string;
   readonly user_id: string | null;
+  readonly cuit: string;
+  readonly first_name: string | null;
+  readonly last_name: string | null;
 }
 
 interface UpdateUserContractDataInput {
@@ -24,13 +27,11 @@ interface UpdateUserContractDataInput {
   readonly domicilioDepto?: string | null;
   readonly domicilioLocalidad: string;
   readonly domicilioProvincia: string;
-  readonly domicilioCp: string;
+  readonly domicilioCp: string | null;
 }
 
 interface UpdateGuarantorContractDataInput {
   readonly guarantorId: string;
-  readonly firstName: string;
-  readonly lastName: string;
   readonly dni: string;
   readonly email: string;
   readonly phone?: string | null;
@@ -40,7 +41,7 @@ interface UpdateGuarantorContractDataInput {
   readonly domicilioDepto?: string | null;
   readonly domicilioLocalidad: string;
   readonly domicilioProvincia: string;
-  readonly domicilioCp: string;
+  readonly domicilioCp: string | null;
   readonly followUpLevel: GuarantorFollowUpLevel;
 }
 
@@ -68,7 +69,7 @@ export class ContractDataRepository {
   ): Promise<ActiveGuarantorRow | null> {
     const result = await client.query<ActiveGuarantorRow>(
       `
-      SELECT cg.id, cg.user_id
+      SELECT cg.id, cg.user_id, cg.cuit, cg.first_name, cg.last_name
       FROM case_guarantors cg
       WHERE cg.case_id = $1
         AND cg.status = 'APPROVED'
@@ -118,25 +119,21 @@ export class ContractDataRepository {
     await client.query(
       `
       UPDATE case_guarantors
-      SET first_name = $1,
-          last_name = $2,
-          dni = $3,
-          email = $4,
-          phone = $5,
-          domicilio_calle = $6,
-          domicilio_numero = $7,
-          domicilio_piso = $8,
-          domicilio_depto = $9,
-          domicilio_localidad = $10,
-          domicilio_provincia = $11,
-          domicilio_cp = $12,
-          follow_up_level = $13,
+      SET dni = $1,
+          email = $2,
+          phone = $3,
+          domicilio_calle = $4,
+          domicilio_numero = $5,
+          domicilio_piso = $6,
+          domicilio_depto = $7,
+          domicilio_localidad = $8,
+          domicilio_provincia = $9,
+          domicilio_cp = $10,
+          follow_up_level = $11,
           contract_data_collected_at = now()
-      WHERE id = $14
+      WHERE id = $12
       `,
       [
-        input.firstName,
-        input.lastName,
         input.dni,
         input.email,
         input.phone ?? null,

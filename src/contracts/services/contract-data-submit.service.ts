@@ -13,6 +13,7 @@ import {
   SubmitContractDataResult,
 } from '../interfaces/contract-data.interface';
 import { ContractDataErrors } from '../utils/contract-data.errors';
+import { deriveDniFromCuit } from '../../prequal/cuit-checksum';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CBU_CVU_REGEX = /^\d{22}$/;
@@ -144,14 +145,14 @@ export class ContractDataSubmitService {
       domicilioDepto: input.domicilio_depto ?? null,
       domicilioLocalidad: input.domicilio_localidad,
       domicilioProvincia: input.domicilio_provincia,
-      domicilioCp: input.domicilio_cp,
+      domicilioCp: input.domicilio_cp ?? null,
     });
 
     const bankAccountId = await this.bankAccountsRepository.upsertBankAccount(
       client,
       {
         userId,
-        accountKind: input.account_kind,
+        accountKind: input.account_kind ?? null,
         cbuCvu: input.cbu_cvu,
         alias: input.alias ?? null,
         bankName: input.bank_name,
@@ -183,6 +184,13 @@ export class ContractDataSubmitService {
       return this.businessError(ContractDataErrors.GUARANTOR_NOT_FOUND);
     }
 
+    const dni = deriveDniFromCuit(guarantor.cuit);
+    const hasGuarantorName =
+      !!guarantor.first_name?.trim() && !!guarantor.last_name?.trim();
+    if (!dni || !hasGuarantorName) {
+      return this.businessError(ContractDataErrors.GUARANTOR_IDENTITY_REQUIRED);
+    }
+
     const localidadOk =
       await this.refDataRepository.localidadExistsForProvincia(
         client,
@@ -195,9 +203,7 @@ export class ContractDataSubmitService {
 
     await this.contractDataRepository.updateGuarantorContractData(client, {
       guarantorId: guarantor.id,
-      firstName: input.first_name,
-      lastName: input.last_name,
-      dni: input.dni,
+      dni,
       email: input.email,
       phone: input.phone ?? null,
       domicilioCalle: input.domicilio_calle,
@@ -206,7 +212,7 @@ export class ContractDataSubmitService {
       domicilioDepto: input.domicilio_depto ?? null,
       domicilioLocalidad: input.domicilio_localidad,
       domicilioProvincia: input.domicilio_provincia,
-      domicilioCp: input.domicilio_cp,
+      domicilioCp: input.domicilio_cp ?? null,
       followUpLevel: input.follow_up_level,
     });
 

@@ -22,7 +22,7 @@ Backend NestJS que cubre el flujo de préstamo punta a punta: onboarding, pre-ca
 ## Requisitos previos
 
 - Node.js 18+ (se usan `fetch`/`FormData`/`Blob` nativos)
-- PostgreSQL accesible vía `DATABASE_URL`
+- PostgreSQL accesible vía `DATABASE_URL`, con la extensión `unaccent` habilitada (`CREATE EXTENSION IF NOT EXISTS unaccent;`) — el match de localidad en la recolección de datos del contrato es tolerante a tildes
 - Gotenberg accesible vía `GOTENBERG_URL` (solo para generar contratos)
 
 ## Setup

@@ -13,8 +13,8 @@ export class RefDataRepository {
       SELECT EXISTS(
         SELECT 1
         FROM ref_localidades
-        WHERE LOWER(nombre) = LOWER($1)
-          AND LOWER(provincia) = LOWER($2)
+        WHERE unaccent(lower(nombre)) = unaccent(lower($1))
+          AND unaccent(lower(provincia)) = unaccent(lower($2))
       ) AS exists
       `,
       [nombre, provincia],

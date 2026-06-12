@@ -4,7 +4,7 @@ import { BankAccountKind } from '../interfaces/contract-data.interface';
 
 interface UpsertBankAccountInput {
   readonly userId: string;
-  readonly accountKind: BankAccountKind;
+  readonly accountKind: BankAccountKind | null;
   readonly cbuCvu: string;
   readonly alias?: string | null;
   readonly bankName: string;

@@ -20,20 +20,6 @@ export class SaveContractDataCodeudorDto {
   public token!: string;
 
   @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  public first_name!: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  public last_name!: string;
-
-  @ApiProperty({ description: 'DNI de 7 u 8 dígitos' })
-  @Matches(/^\d{7,8}$/)
-  public dni!: string;
-
-  @ApiProperty()
   @IsEmail()
   public email!: string;
 
@@ -72,10 +58,11 @@ export class SaveContractDataCodeudorDto {
   @IsNotEmpty()
   public domicilio_provincia!: string;
 
-  @ApiProperty({ description: 'Código postal de 4 dígitos' })
+  @ApiPropertyOptional({ description: 'Código postal de 4 dígitos' })
+  @IsOptional()
   @IsString()
   @Matches(/^\d{4}$/)
-  public domicilio_cp!: string;
+  public domicilio_cp?: string;
 
   @ApiProperty({ enum: ['CONOCIDO', 'FAMILIAR', 'PROFESIONAL'] })
   @IsIn(['CONOCIDO', 'FAMILIAR', 'PROFESIONAL'])

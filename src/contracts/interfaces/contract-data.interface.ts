@@ -29,7 +29,7 @@ export interface SaveTitularContractDataInput {
   readonly caseId: string;
   readonly token: string;
   readonly email: string;
-  readonly account_kind: BankAccountKind;
+  readonly account_kind?: BankAccountKind;
   readonly cbu_cvu: string;
   readonly alias?: string;
   readonly bank_name: string;
@@ -39,16 +39,13 @@ export interface SaveTitularContractDataInput {
   readonly domicilio_depto?: string;
   readonly domicilio_localidad: string;
   readonly domicilio_provincia: string;
-  readonly domicilio_cp: string;
+  readonly domicilio_cp?: string;
 }
 
 export interface SaveCodeudorContractDataInput {
   readonly subject: 'CODEUDOR';
   readonly caseId: string;
   readonly token: string;
-  readonly first_name: string;
-  readonly last_name: string;
-  readonly dni: string;
   readonly email: string;
   readonly phone?: string;
   readonly domicilio_calle: string;
@@ -57,7 +54,7 @@ export interface SaveCodeudorContractDataInput {
   readonly domicilio_depto?: string;
   readonly domicilio_localidad: string;
   readonly domicilio_provincia: string;
-  readonly domicilio_cp: string;
+  readonly domicilio_cp?: string;
   readonly follow_up_level: GuarantorFollowUpLevel;
 }
 

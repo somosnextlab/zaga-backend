@@ -10,7 +10,9 @@ import {
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { EvaluateCaseGuarantorBodyDto } from './dto/evaluate-case-guarantor-body.dto';
 import { ResolveCaseGuarantorBodyDto } from './dto/resolve-case-guarantor-body.dto';
+import { UpdateGuarantorManualIdentityBodyDto } from './dto/update-guarantor-manual-identity-body.dto';
 import type {
+  ApplyGuarantorManualIdentityResponse,
   EvaluateCaseGuarantorResponse,
   ResolveGuarantorResponse,
 } from './interfaces/case-guarantors.interface';
@@ -77,6 +79,30 @@ export class CaseGuarantorsController {
       action: body.action,
       actor: body.actor,
       rejectReason: body.rejectReason,
+    });
+  }
+
+  @Post(':caseId/update-guarantor-manual-identity')
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'caseId', format: 'uuid' })
+  @ApiOperation({
+    summary:
+      'Carga manual por CEO de first_name y last_name del garante APPROVED del caso (fallback cuando BCRA no devolvió un nombre confiable).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Identidad del garante persistida o error BUSINESS.',
+  })
+  @ApiResponse({ status: 400, description: 'Validación DTO.' })
+  public async updateGuarantorManualIdentity(
+    @Param('caseId', new ParseUUIDPipe()) caseId: string,
+    @Body() body: UpdateGuarantorManualIdentityBodyDto,
+  ): Promise<ApplyGuarantorManualIdentityResponse> {
+    return this.caseGuarantorsService.applyGuarantorManualIdentity({
+      caseId,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      actor: body.actor,
     });
   }
 }

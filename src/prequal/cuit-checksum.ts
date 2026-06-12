@@ -7,6 +7,13 @@ export function normalizeCuit(cuit: string): string | null {
   return digits.length === CUIT_DIGITS_LENGTH ? digits : null;
 }
 
+// CUIT (11 díg) = tipo(2) + DNI(8) + verificador(1). DNI = dígitos 3 a 10.
+export function deriveDniFromCuit(cuit: string): string | null {
+  const d = (cuit ?? '').replace(/\D/g, '');
+  if (d.length !== 11) return null;
+  return d.slice(2, 10).replace(/^0+/, '') || null; // sin ceros a la izquierda
+}
+
 export function isValidCuitChecksum(normalizedCuit: string): boolean {
   if (!/^\d{11}$/.test(normalizedCuit)) {
     return false;
