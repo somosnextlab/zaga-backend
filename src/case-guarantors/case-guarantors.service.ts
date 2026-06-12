@@ -14,6 +14,7 @@ import {
 } from './case-guarantors.constants';
 import { CaseGuarantorsRepository } from './case-guarantors.repository';
 import type { ApplyAprobadoFinalDto } from './dto/apply-aprobado-final.dto';
+import type { ApplyGuarantorManualIdentityDto } from './dto/apply-guarantor-manual-identity.dto';
 import type { ApplyManualIdentityDto } from './dto/apply-manual-identity.dto';
 import type { EvaluateCaseGuarantorDto } from './dto/evaluate-case-guarantor.dto';
 import type { ResolveCaseGuarantorDto } from './dto/resolve-case-guarantor.dto';
@@ -21,6 +22,8 @@ import type {
   ApplyAprobadoFinalBusinessErrorResponse,
   ApplyAprobadoFinalResponse,
   ApplyAprobadoFinalSuccessResponse,
+  ApplyGuarantorManualIdentityResponse,
+  ApplyGuarantorManualIdentitySuccessResponse,
   ApplyManualIdentityBusinessErrorResponse,
   ApplyManualIdentityResponse,
   ApplyManualIdentitySuccessResponse,
@@ -170,6 +173,13 @@ export class CaseGuarantorsService {
           ? evaluation.normalized_latest.periodo
           : null;
 
+        // Persistimos el nombre del BCRA solo si la denominación es confiable;
+        // de lo contrario queda NULL y lo carga el CEO manualmente.
+        const parsedName = evaluation.ok
+          ? evaluation.parsed_denominacion
+          : null;
+        const reliableName = parsedName?.isReliable ? parsedName : null;
+
         const persisted =
           await this.caseGuarantorsRepository.finalizeEvaluation(client, {
             candidateId: inserted.id,
@@ -182,6 +192,8 @@ export class CaseGuarantorsService {
             periodo,
             reviewedBy: CASE_GUARANTOR_SYSTEM_REVIEWER,
             reviewReason: scoreReason,
+            firstName: reliableName?.first_name ?? null,
+            lastName: reliableName?.last_name ?? null,
           });
 
         return {
@@ -394,6 +406,49 @@ export class CaseGuarantorsService {
           ok: true,
           case_id: updated.case_id,
           user_id: updated.user_id,
+          first_name: updated.first_name,
+          last_name: updated.last_name,
+        };
+        return success;
+      },
+    );
+  }
+
+  public async applyGuarantorManualIdentity(
+    dto: ApplyGuarantorManualIdentityDto,
+  ): Promise<ApplyGuarantorManualIdentityResponse> {
+    const firstName = this.normalizeIdentityName(dto.firstName);
+    const lastName = this.normalizeIdentityName(dto.lastName);
+
+    if (!firstName || !lastName) {
+      return {
+        ok: false,
+        error_type: 'BUSINESS',
+        error_code: CASE_MANUAL_IDENTITY_ERRORS.INVALID_MANUAL_IDENTITY_INPUT,
+      };
+    }
+
+    return this.dbService.withTransaction(
+      async (
+        client: DbClient,
+      ): Promise<ApplyGuarantorManualIdentityResponse> => {
+        const updated =
+          await this.caseGuarantorsRepository.updateApprovedGuarantorManualIdentity(
+            client,
+            { caseId: dto.caseId, firstName, lastName },
+          );
+        if (!updated) {
+          return {
+            ok: false,
+            error_type: 'BUSINESS',
+            error_code: CASE_GUARANTOR_ERRORS.NO_APPROVED_GUARANTOR_TO_RESOLVE,
+          };
+        }
+
+        const success: ApplyGuarantorManualIdentitySuccessResponse = {
+          ok: true,
+          case_id: dto.caseId,
+          guarantor_id: updated.id,
           first_name: updated.first_name,
           last_name: updated.last_name,
         };

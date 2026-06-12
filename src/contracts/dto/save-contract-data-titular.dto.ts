@@ -23,9 +23,10 @@ export class SaveContractDataTitularDto {
   @IsEmail()
   public email!: string;
 
-  @ApiProperty({ enum: ['CBU', 'CVU'] })
+  @ApiPropertyOptional({ enum: ['CBU', 'CVU'] })
+  @IsOptional()
   @IsIn(['CBU', 'CVU'])
-  public account_kind!: BankAccountKind;
+  public account_kind?: BankAccountKind;
 
   @ApiProperty({ description: 'CBU/CVU de 22 dígitos numéricos' })
   @Matches(/^\d{22}$/)
@@ -71,8 +72,9 @@ export class SaveContractDataTitularDto {
   @IsNotEmpty()
   public domicilio_provincia!: string;
 
-  @ApiProperty({ description: 'Código postal de 4 dígitos' })
+  @ApiPropertyOptional({ description: 'Código postal de 4 dígitos' })
+  @IsOptional()
   @IsString()
   @Matches(/^\d{4}$/)
-  public domicilio_cp!: string;
+  public domicilio_cp?: string;
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { DbClient } from '../db/db.service';
 import type {
+  GuarantorManualIdentityUpdatedRow,
   ManualIdentityUpdatedRow,
   ManualIdentityUserRow,
   CaseForGuarantorEvaluationRow,
@@ -76,6 +77,28 @@ export class CaseGuarantorsRepository {
       first_name: updatedUser.first_name,
       last_name: updatedUser.last_name,
     };
+  }
+
+  public async updateApprovedGuarantorManualIdentity(
+    client: DbClient,
+    input: {
+      readonly caseId: string;
+      readonly firstName: string;
+      readonly lastName: string;
+    },
+  ): Promise<GuarantorManualIdentityUpdatedRow | null> {
+    const result = await client.query<GuarantorManualIdentityUpdatedRow>(
+      `
+      UPDATE case_guarantors
+      SET first_name = $2,
+          last_name = $3,
+          updated_at = now()
+      WHERE case_id = $1 AND status = 'APPROVED'
+      RETURNING id, first_name, last_name
+      `,
+      [input.caseId, input.firstName, input.lastName],
+    );
+    return result.rows[0] ?? null;
   }
 
   public async findCaseByIdForUpdate(
@@ -270,6 +293,8 @@ export class CaseGuarantorsRepository {
           reviewed_at = now(),
           reviewed_by = $9,
           review_reason = $10,
+          first_name = $11,
+          last_name = $12,
           updated_at = now()
       WHERE id = $1
       RETURNING case_id, attempt_no, status, eligible, zcore_bcra, risk_level, score_reason, periodo
@@ -285,6 +310,8 @@ export class CaseGuarantorsRepository {
         input.periodo,
         input.reviewedBy,
         input.reviewReason,
+        input.firstName,
+        input.lastName,
       ],
     );
 

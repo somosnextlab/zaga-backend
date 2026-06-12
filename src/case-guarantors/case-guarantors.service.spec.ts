@@ -34,6 +34,7 @@ describe('CaseGuarantorsService', () => {
     applyAprobadoFinalFromPendingNosis: jest.fn(),
     findManualIdentityCaseByIdForUpdate: jest.fn(),
     updateUserManualIdentity: jest.fn(),
+    updateApprovedGuarantorManualIdentity: jest.fn(),
   };
 
   const mockBcraEngine = {
@@ -406,6 +407,150 @@ describe('CaseGuarantorsService', () => {
     ).not.toHaveBeenCalled();
     expect(mockRepository.insertEvaluatingCandidate).not.toHaveBeenCalled();
     expect(mockBcraEngine.evaluateNormalizedCuit).not.toHaveBeenCalled();
+  });
+
+  describe('persistencia del nombre del garante al evaluar', () => {
+    function stubApprovedFinalize(): void {
+      mockRepository.finalizeEvaluation.mockResolvedValue({
+        case_id: CASE_ID,
+        attempt_no: 1,
+        status: 'APPROVED',
+        eligible: true,
+        zcore_bcra: 850,
+        risk_level: 'LOW',
+        score_reason: 'ZCORE_BCRA_V1',
+        periodo: '202601',
+      });
+    }
+
+    it('persiste first_name/last_name cuando la denominación es confiable', async () => {
+      stubReadyCaseAndEmptyAttempts();
+      stubApprovedFinalize();
+      mockBcraEngine.evaluateNormalizedCuit.mockResolvedValue({
+        ok: true,
+        normalized_latest: { periodo: '202601' },
+        parsed_denominacion: {
+          first_name: 'Ana',
+          last_name: 'Gomez',
+          isReliable: true,
+        },
+        score: {
+          zcore_bcra: 850,
+          eligible: true,
+          risk_level: 'LOW',
+          score_reason: 'ZCORE_BCRA_V1',
+        },
+      });
+
+      await service.evaluateCaseGuarantor({
+        caseId: CASE_ID,
+        cuit: VALID_CUIT,
+      });
+
+      expect(mockRepository.finalizeEvaluation).toHaveBeenCalledWith(
+        mockClient,
+        expect.objectContaining({ firstName: 'Ana', lastName: 'Gomez' }),
+      );
+    });
+
+    it('deja first_name/last_name en NULL cuando la denominación no es confiable', async () => {
+      stubReadyCaseAndEmptyAttempts();
+      stubApprovedFinalize();
+      mockBcraEngine.evaluateNormalizedCuit.mockResolvedValue({
+        ok: true,
+        normalized_latest: { periodo: '202601' },
+        parsed_denominacion: {
+          first_name: 'Ana',
+          last_name: 'Gomez',
+          isReliable: false,
+        },
+        score: {
+          zcore_bcra: 850,
+          eligible: true,
+          risk_level: 'LOW',
+          score_reason: 'ZCORE_BCRA_V1',
+        },
+      });
+
+      await service.evaluateCaseGuarantor({
+        caseId: CASE_ID,
+        cuit: VALID_CUIT,
+      });
+
+      expect(mockRepository.finalizeEvaluation).toHaveBeenCalledWith(
+        mockClient,
+        expect.objectContaining({ firstName: null, lastName: null }),
+      );
+    });
+  });
+
+  describe('applyGuarantorManualIdentity', () => {
+    it('actualiza el nombre del garante APPROVED y normaliza espacios', async () => {
+      mockRepository.updateApprovedGuarantorManualIdentity.mockResolvedValue({
+        id: CANDIDATE_ID,
+        first_name: 'ANA MARIA',
+        last_name: 'GOMEZ',
+      });
+
+      const result = await service.applyGuarantorManualIdentity({
+        caseId: CASE_ID,
+        firstName: '  ANA   MARIA ',
+        lastName: ' GOMEZ ',
+        actor: 'CEO',
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        case_id: CASE_ID,
+        guarantor_id: CANDIDATE_ID,
+        first_name: 'ANA MARIA',
+        last_name: 'GOMEZ',
+      });
+      expect(
+        mockRepository.updateApprovedGuarantorManualIdentity,
+      ).toHaveBeenCalledWith(mockClient, {
+        caseId: CASE_ID,
+        firstName: 'ANA MARIA',
+        lastName: 'GOMEZ',
+      });
+    });
+
+    it('devuelve NO_APPROVED_GUARANTOR_TO_RESOLVE si no hay garante APPROVED', async () => {
+      mockRepository.updateApprovedGuarantorManualIdentity.mockResolvedValue(
+        null,
+      );
+
+      const result = await service.applyGuarantorManualIdentity({
+        caseId: CASE_ID,
+        firstName: 'ANA',
+        lastName: 'GOMEZ',
+        actor: 'CEO',
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error_type: 'BUSINESS',
+        error_code: CASE_GUARANTOR_ERRORS.NO_APPROVED_GUARANTOR_TO_RESOLVE,
+      });
+    });
+
+    it('devuelve INVALID_MANUAL_IDENTITY_INPUT si falta nombre o apellido', async () => {
+      const result = await service.applyGuarantorManualIdentity({
+        caseId: CASE_ID,
+        firstName: '   ',
+        lastName: 'GOMEZ',
+        actor: 'CEO',
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error_type: 'BUSINESS',
+        error_code: CASE_MANUAL_IDENTITY_ERRORS.INVALID_MANUAL_IDENTITY_INPUT,
+      });
+      expect(
+        mockRepository.updateApprovedGuarantorManualIdentity,
+      ).not.toHaveBeenCalled();
+    });
   });
 
   describe('resolveCaseGuarantor', () => {

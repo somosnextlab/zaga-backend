@@ -41,6 +41,9 @@ export interface FinalizeCaseGuarantorEvaluationInput {
   periodo: string | null;
   reviewedBy: string;
   reviewReason: string;
+  /** Nombre del BCRA persistido solo si la denominación es confiable; NULL si no. */
+  firstName: string | null;
+  lastName: string | null;
 }
 
 export interface CaseGuarantorEvaluationPersisted {
@@ -168,6 +171,32 @@ export interface ApplyManualIdentityBusinessErrorResponse {
 export type ApplyManualIdentityResponse =
   | ApplyManualIdentitySuccessResponse
   | ApplyManualIdentityBusinessErrorResponse;
+
+export interface GuarantorManualIdentityUpdatedRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+}
+
+export interface ApplyGuarantorManualIdentitySuccessResponse {
+  ok: true;
+  case_id: string;
+  guarantor_id: string;
+  first_name: string;
+  last_name: string;
+}
+
+export interface ApplyGuarantorManualIdentityBusinessErrorResponse {
+  ok: false;
+  error_type: 'BUSINESS';
+  error_code:
+    | CaseManualIdentityBusinessErrorCode
+    | CaseGuarantorBusinessErrorCode;
+}
+
+export type ApplyGuarantorManualIdentityResponse =
+  | ApplyGuarantorManualIdentitySuccessResponse
+  | ApplyGuarantorManualIdentityBusinessErrorResponse;
 
 /** Códigos devueltos cuando falla BCRA u otra dependencia antes del score final. */
 export type CaseGuarantorTechnicalErrorCode =
