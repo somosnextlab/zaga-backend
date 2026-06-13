@@ -16,6 +16,7 @@ export interface StartCaseContractResponse {
   readonly externalDocumentId: string;
   readonly externalSignatureId: string;
   readonly signatureUrl: string | null;
+  readonly signatureUrlCodeudor: string | null;
   readonly issuedAt: string | null;
   readonly expiresAt: string | null;
 }
@@ -27,6 +28,7 @@ export interface CaseContractStatusResponse {
   readonly providerDocumentStatus: string | null;
   readonly providerSignatureStatus: string | null;
   readonly signatureUrl: string | null;
+  readonly signatureUrlCodeudor: string | null;
   readonly issuedAt: string | null;
   readonly expiresAt: string | null;
   readonly signedAt: string | null;
@@ -112,6 +114,7 @@ export interface ContractGuarantorRow {
   readonly last_name: string | null;
   readonly dni: string | null;
   readonly cuit: string | null;
+  readonly phone: string | null;
   readonly domicilio_calle: string | null;
   readonly domicilio_numero: string | null;
   readonly domicilio_localidad: string | null;
@@ -144,9 +147,12 @@ export interface CaseContractRow {
   readonly template_code: string | null;
   readonly external_document_id: string | null;
   readonly external_signature_id: string | null;
+  readonly external_signature_id_codeudor: string | null;
   readonly provider_document_status: string | null;
   readonly provider_signature_status: string | null;
+  readonly provider_signature_status_codeudor: string | null;
   readonly signature_url: string | null;
+  readonly signature_url_codeudor: string | null;
   readonly issued_at: string | null;
   readonly expires_at: string | null;
   readonly signed_at: string | null;
@@ -155,6 +161,8 @@ export interface CaseContractRow {
   readonly failure_reason: string | null;
   readonly biometric_status: string | null;
   readonly biometric_payload: Record<string, unknown> | null;
+  readonly biometric_status_codeudor: string | null;
+  readonly biometric_payload_codeudor: Record<string, unknown> | null;
   readonly biometric_fetched_at: string | null;
   readonly signed_document_url: string | null;
   readonly audit_certificate_url: string | null;
