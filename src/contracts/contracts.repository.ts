@@ -42,7 +42,7 @@ export class ContractsRepository {
   ): Promise<ContractGuarantorRow | null> {
     const result = await client.query<ContractGuarantorRow>(
       `
-      SELECT id, first_name, last_name, dni, cuit,
+      SELECT id, first_name, last_name, dni, cuit, phone,
              domicilio_calle, domicilio_numero, domicilio_localidad, domicilio_provincia
       FROM case_guarantors
       WHERE case_id = $1
@@ -154,6 +154,9 @@ export class ContractsRepository {
       readonly providerDocumentStatus: string | null;
       readonly providerSignatureStatus: string | null;
       readonly signatureUrl: string | null;
+      readonly externalSignatureIdCodeudor: string | null;
+      readonly providerSignatureStatusCodeudor: string | null;
+      readonly signatureUrlCodeudor: string | null;
       readonly issuedAt: Date;
       readonly expiresAt: Date;
       readonly providerPayload: Record<string, unknown>;
@@ -170,9 +173,12 @@ export class ContractsRepository {
           provider_document_status = $7,
           provider_signature_status = $8,
           signature_url = $9,
-          issued_at = $10,
-          expires_at = $11,
-          provider_payload = $12::jsonb,
+          external_signature_id_codeudor = $10,
+          provider_signature_status_codeudor = $11,
+          signature_url_codeudor = $12,
+          issued_at = $13,
+          expires_at = $14,
+          provider_payload = $15::jsonb,
           provider_last_error = NULL,
           updated_at = now()
       WHERE id = $1
@@ -188,6 +194,9 @@ export class ContractsRepository {
         input.providerDocumentStatus,
         input.providerSignatureStatus,
         input.signatureUrl,
+        input.externalSignatureIdCodeudor,
+        input.providerSignatureStatusCodeudor,
+        input.signatureUrlCodeudor,
         input.issuedAt.toISOString(),
         input.expiresAt.toISOString(),
         JSON.stringify(input.providerPayload),
@@ -211,6 +220,8 @@ export class ContractsRepository {
       readonly providerSignatureStatus?: string | null;
       readonly biometricStatus?: string | null;
       readonly biometricPayload?: Record<string, unknown> | null;
+      readonly biometricStatusCodeudor?: string | null;
+      readonly biometricPayloadCodeudor?: Record<string, unknown> | null;
       readonly signedDocumentUrl?: string | null;
       readonly auditCertificateUrl?: string | null;
       readonly evidenceZipUrl?: string | null;
@@ -234,6 +245,8 @@ export class ContractsRepository {
           evidence_zip_url = COALESCE($10, evidence_zip_url),
           provider_payload = COALESCE($11::jsonb, provider_payload),
           provider_last_error = COALESCE($12, provider_last_error),
+          biometric_status_codeudor = COALESCE($13, biometric_status_codeudor),
+          biometric_payload_codeudor = COALESCE($14::jsonb, biometric_payload_codeudor),
           updated_at = now()
       WHERE id = $1
       RETURNING *
@@ -251,6 +264,10 @@ export class ContractsRepository {
         input.evidenceZipUrl ?? null,
         input.providerPayload ? JSON.stringify(input.providerPayload) : null,
         input.providerLastError ?? null,
+        input.biometricStatusCodeudor ?? null,
+        input.biometricPayloadCodeudor
+          ? JSON.stringify(input.biometricPayloadCodeudor)
+          : null,
       ],
     );
 
@@ -311,6 +328,8 @@ export class ContractsRepository {
       readonly providerSignatureStatus: string | null;
       readonly biometricStatus: string | null;
       readonly biometricPayload: Record<string, unknown> | null;
+      readonly biometricStatusCodeudor?: string | null;
+      readonly biometricPayloadCodeudor?: Record<string, unknown> | null;
       readonly signedDocumentUrl: string | null;
       readonly auditCertificateUrl: string | null;
       readonly evidenceZipUrl: string | null;
@@ -335,6 +354,8 @@ export class ContractsRepository {
           evidence_zip_url = $9,
           signature_url = COALESCE($10, signature_url),
           provider_payload = $11::jsonb,
+          biometric_status_codeudor = COALESCE($12, biometric_status_codeudor),
+          biometric_payload_codeudor = COALESCE($13::jsonb, biometric_payload_codeudor),
           updated_at = now()
       WHERE id = $1
       RETURNING *
@@ -351,6 +372,10 @@ export class ContractsRepository {
         input.evidenceZipUrl,
         input.signatureUrl,
         JSON.stringify(input.providerPayload),
+        input.biometricStatusCodeudor ?? null,
+        input.biometricPayloadCodeudor
+          ? JSON.stringify(input.biometricPayloadCodeudor)
+          : null,
       ],
     );
 
@@ -371,14 +396,27 @@ export class ContractsRepository {
       readonly signatureUrl: string | null;
       readonly providerPayload: Record<string, unknown> | null;
       readonly providerLastError?: string | null;
+      /**
+       * Firmante al que pertenece el evento. El status/URL de firma se enruta a
+       * las columnas del titular o del codeudor según corresponda. Los campos
+       * a nivel documento (document_status, payload) son compartidos.
+       */
+      readonly signerTarget?: 'TITULAR' | 'CODEUDOR';
     },
   ): Promise<CaseContractRow> {
+    const isCodeudor = input.signerTarget === 'CODEUDOR';
+    const signatureStatusColumn = isCodeudor
+      ? 'provider_signature_status_codeudor'
+      : 'provider_signature_status';
+    const signatureUrlColumn = isCodeudor
+      ? 'signature_url_codeudor'
+      : 'signature_url';
     const result = await client.query<CaseContractRow>(
       `
       UPDATE case_contracts
       SET provider_document_status = COALESCE($2, provider_document_status),
-          provider_signature_status = COALESCE($3, provider_signature_status),
-          signature_url = COALESCE($4, signature_url),
+          ${signatureStatusColumn} = COALESCE($3, ${signatureStatusColumn}),
+          ${signatureUrlColumn} = COALESCE($4, ${signatureUrlColumn}),
           provider_payload = COALESCE($5::jsonb, provider_payload),
           provider_last_error = COALESCE($6, provider_last_error),
           updated_at = now()
@@ -443,6 +481,8 @@ export class ContractsRepository {
         ($1::text IS NOT NULL AND external_document_id = $1::text)
         OR
         ($2::text IS NOT NULL AND external_signature_id = $2::text)
+        OR
+        ($2::text IS NOT NULL AND external_signature_id_codeudor = $2::text)
       )
       ORDER BY created_at DESC
       LIMIT 1
@@ -569,6 +609,11 @@ export class ContractsRepository {
       biometric_payload:
         row.biometric_payload && typeof row.biometric_payload === 'object'
           ? row.biometric_payload
+          : null,
+      biometric_payload_codeudor:
+        row.biometric_payload_codeudor &&
+        typeof row.biometric_payload_codeudor === 'object'
+          ? row.biometric_payload_codeudor
           : null,
       provider_payload:
         row.provider_payload && typeof row.provider_payload === 'object'

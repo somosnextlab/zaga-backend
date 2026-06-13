@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 import {
   BadRequestException,
   ConflictException,
@@ -18,12 +15,14 @@ import type { SignProviderInterface } from './interfaces/sign-provider.interface
 import type {
   SignaturaBiometricResponse,
   SignaturaDocumentResponse,
+  SignaturaSigner,
 } from './interfaces/signatura.types';
 import {
   isProviderCanceled,
   isProviderRejected,
   isProviderSigned,
   normalizeProviderStatus,
+  SIGNED_DOCUMENT_STATUSES,
 } from './mappers/signatura.mapper';
 import { SignaturaService } from './providers/signatura.service';
 import { ContractPdfService } from './templates/contract-pdf.service';
@@ -122,6 +121,17 @@ export class ContractsService {
           this.assertRefinanceConsistency(caseRow, guarantor);
         }
 
+        // El codeudor necesita su teléfono para recibir el link de firma.
+        if (
+          usesCodeudor &&
+          guarantor &&
+          (!guarantor.phone || guarantor.phone.trim().length === 0)
+        ) {
+          throw new BadRequestException(
+            ContractsErrors.GUARANTOR_PHONE_REQUIRED,
+          );
+        }
+
         const refinancedLoan =
           kind === 'REFINANCIACION' && caseRow.refinances_loan_id
             ? await this.contractsRepository.findRefinancedLoanForContract(
@@ -212,17 +222,35 @@ export class ContractsService {
       refinancedLoanNumber: context.refinancedLoan?.public_loan_number ?? null,
     });
 
+    // Titular siempre firma. El codeudor (Mutuo Codeudor / Refinanciación) firma
+    // también: ambos comparten el mismo documento.
+    const signers: SignaturaSigner[] = [
+      {
+        role: 'TITULAR',
+        fullName: userFullName,
+        documentNumber: context.caseRow.dni,
+        cuit: context.caseRow.cuit,
+        phone: context.caseRow.phone,
+      },
+    ];
+    if (guarantor) {
+      signers.push({
+        role: 'CODEUDOR',
+        fullName: codeudorFullName ?? userFullName,
+        documentNumber:
+          guarantor.dni ??
+          (guarantor.cuit ? deriveDniFromCuit(guarantor.cuit) : null),
+        cuit: guarantor.cuit,
+        phone: (guarantor.phone ?? '').trim(),
+      });
+    }
+
     try {
       const signaturaResponse = await this.signProvider.createDocument({
         contractId: context.caseContract.id,
         fileName: pdf.fileName,
         pdfBase64: pdf.pdfBase64,
-        signer: {
-          fullName: userFullName,
-          documentNumber: context.caseRow.dni,
-          cuit: context.caseRow.cuit,
-          phone: context.caseRow.phone,
-        },
+        signers,
         metadata: {
           caseId: context.caseRow.id,
           offerId: context.offerRow.id,
@@ -236,6 +264,14 @@ export class ContractsService {
         new Date(issuedAt.getTime() + 24 * 60 * 60 * 1000),
       );
 
+      const titularSignature = signaturaResponse.signatures[0];
+      if (!titularSignature) {
+        throw new InternalServerErrorException(
+          ContractsErrors.SIGNATURA_RESPONSE_INVALID,
+        );
+      }
+      const codeudorSignature = signaturaResponse.signatures[1] ?? null;
+
       const updatedContract = await this.dbService.withTransaction(
         async (client: DbClient): Promise<CaseContractRow> => {
           return this.contractsRepository.markCaseContractSignPending(client, {
@@ -243,14 +279,20 @@ export class ContractsService {
             contractVersion: pdf.contractVersion,
             templateCode: pdf.templateCode,
             externalDocumentId: signaturaResponse.externalDocumentId,
-            externalSignatureId: signaturaResponse.externalSignatureId,
+            externalSignatureId: titularSignature.externalSignatureId,
             providerDocumentStatus: normalizeProviderStatus(
               signaturaResponse.documentStatus,
             ),
             providerSignatureStatus: normalizeProviderStatus(
-              signaturaResponse.signatureStatus,
+              titularSignature.signatureStatus,
             ),
-            signatureUrl: signaturaResponse.signatureUrl,
+            signatureUrl: titularSignature.signatureUrl,
+            externalSignatureIdCodeudor:
+              codeudorSignature?.externalSignatureId ?? null,
+            providerSignatureStatusCodeudor: codeudorSignature
+              ? normalizeProviderStatus(codeudorSignature.signatureStatus)
+              : null,
+            signatureUrlCodeudor: codeudorSignature?.signatureUrl ?? null,
             issuedAt,
             expiresAt,
             providerPayload: signaturaResponse.raw,
@@ -265,6 +307,7 @@ export class ContractsService {
         externalDocumentId: updatedContract.external_document_id ?? '',
         externalSignatureId: updatedContract.external_signature_id ?? '',
         signatureUrl: updatedContract.signature_url,
+        signatureUrlCodeudor: updatedContract.signature_url_codeudor,
         issuedAt: updatedContract.issued_at,
         expiresAt: updatedContract.expires_at,
       };
@@ -306,6 +349,7 @@ export class ContractsService {
       providerDocumentStatus: contract.provider_document_status,
       providerSignatureStatus: contract.provider_signature_status,
       signatureUrl: contract.signature_url,
+      signatureUrlCodeudor: contract.signature_url_codeudor,
       issuedAt: contract.issued_at,
       expiresAt: contract.expires_at,
       signedAt: contract.signed_at,
@@ -391,6 +435,15 @@ export class ContractsService {
             });
           }
 
+          // Enrutar el status/URL de firma a las columnas del firmante correcto
+          // (titular o codeudor) según el signature_id del evento.
+          const signerTarget: 'TITULAR' | 'CODEUDOR' =
+            contract.external_signature_id_codeudor != null &&
+            signatureId != null &&
+            signatureId === contract.external_signature_id_codeudor
+              ? 'CODEUDOR'
+              : 'TITULAR';
+
           const trackedContract =
             await this.contractsRepository.updateProviderTracking(client, {
               contractId: contract.id,
@@ -399,6 +452,7 @@ export class ContractsService {
               signatureUrl: parsed.signatureUrl,
               providerPayload: storedPayload,
               providerLastError: parsed.errorMessage,
+              signerTarget,
             });
 
           const effectiveDocumentStatus =
@@ -474,6 +528,22 @@ export class ContractsService {
                 fail_reason:
                   parsed.errorCode ?? ContractsErrors.PROVIDER_BLOCKING_ERROR,
               },
+            );
+          }
+
+          // Contrato con codeudor: NO usar el gate de firma única. Sólo se
+          // finaliza cuando el documento está completo (ambos firmaron) y
+          // ambas identidades validan. La firma entrante ya quedó trackeada.
+          const hasCodeudor =
+            trackedContract.external_signature_id_codeudor != null;
+          if (hasCodeudor) {
+            return this.finalizeCodeudorWebhook(
+              client,
+              trackedContract,
+              effectiveDocumentStatus,
+              effectiveSignatureStatus,
+              parsed,
+              storedPayload,
             );
           }
 
@@ -667,6 +737,229 @@ export class ContractsService {
     return result;
   }
 
+  /**
+   * Finalización del webhook para contratos CON codeudor: sólo marca SIGNED
+   * cuando el documento está completo (ambos firmaron) y las dos identidades
+   * (titular + codeudor) validan. Si el documento aún no está completo, deja el
+   * contrato en SIGN_PENDING (la firma entrante ya fue trackeada por el caller).
+   */
+  private async finalizeCodeudorWebhook(
+    client: DbClient,
+    trackedContract: CaseContractRow,
+    effectiveDocumentStatus: string | null,
+    effectiveSignatureStatus: string | null,
+    parsed: SignaturaWebhookParsed,
+    storedPayload: Record<string, unknown>,
+  ): Promise<{
+    readonly result: SignaturaWebhookResult;
+    readonly postSignatureWebhookPayload: N8nNotifyPayload | null;
+  }> {
+    const wrap = (
+      result: SignaturaWebhookResult,
+      postSignatureWebhookPayload: N8nNotifyPayload | null = null,
+    ): {
+      readonly result: SignaturaWebhookResult;
+      readonly postSignatureWebhookPayload: N8nNotifyPayload | null;
+    } => ({ result, postSignatureWebhookPayload });
+
+    const externalDocumentId = trackedContract.external_document_id;
+    if (!externalDocumentId) {
+      const failed = await this.contractsRepository.markCaseContractFailed(
+        client,
+        {
+          contractId: trackedContract.id,
+          reason: ContractsErrors.SIGNATURA_RESPONSE_INVALID,
+          providerDocumentStatus: effectiveDocumentStatus,
+          providerSignatureStatus: effectiveSignatureStatus,
+          providerPayload: storedPayload,
+        },
+      );
+      return wrap({
+        accepted: true,
+        contractFound: true,
+        caseContractId: failed.id,
+        status: failed.status,
+        loanId: null,
+      });
+    }
+
+    // Estado REAL del documento: sólo está completo cuando AMBOS firmaron.
+    const documentData =
+      await this.signProvider.getDocument(externalDocumentId);
+    const documentStatus = normalizeProviderStatus(documentData.documentStatus);
+    const isComplete =
+      documentStatus != null &&
+      SIGNED_DOCUMENT_STATUSES.includes(documentStatus);
+
+    if (!isComplete) {
+      // Falta una firma: seguimos en SIGN_PENDING (sin finalizar).
+      return wrap({
+        accepted: true,
+        contractFound: true,
+        caseContractId: trackedContract.id,
+        status: trackedContract.status,
+        loanId: null,
+      });
+    }
+
+    const titularSignatureId = trackedContract.external_signature_id;
+    const codeudorSignatureId = trackedContract.external_signature_id_codeudor;
+    if (!titularSignatureId || !codeudorSignatureId) {
+      const failed = await this.contractsRepository.markCaseContractFailed(
+        client,
+        {
+          contractId: trackedContract.id,
+          reason: ContractsErrors.SIGNATURA_RESPONSE_INVALID,
+          providerDocumentStatus: documentStatus ?? effectiveDocumentStatus,
+          providerSignatureStatus: effectiveSignatureStatus,
+          providerPayload: storedPayload,
+        },
+      );
+      return wrap({
+        accepted: true,
+        contractFound: true,
+        caseContractId: failed.id,
+        status: failed.status,
+        loanId: null,
+      });
+    }
+
+    const [titularBiometric, codeudorBiometric] = await Promise.all([
+      this.signProvider.getBiometrics(titularSignatureId),
+      this.signProvider.getBiometrics(codeudorSignatureId),
+    ]);
+
+    const titularBiometricValidation =
+      this.evaluateBiometricStatus(titularBiometric);
+    const titularIdentityValidation = await this.evaluateIdentityCoherence(
+      client,
+      trackedContract,
+      titularBiometric,
+    );
+    const codeudorBiometricValidation =
+      this.evaluateBiometricStatus(codeudorBiometric);
+    const codeudorIdentityValidation =
+      await this.evaluateGuarantorIdentityCoherence(
+        client,
+        trackedContract,
+        codeudorBiometric,
+      );
+    const evidenceValidation = this.evaluateEvidence(documentData, parsed);
+
+    const resolvedDocumentStatus = documentStatus ?? effectiveDocumentStatus;
+    const resolvedSignatureStatus =
+      normalizeProviderStatus(documentData.signatureStatus) ??
+      effectiveSignatureStatus;
+
+    if (
+      !titularBiometricValidation.ok ||
+      !titularIdentityValidation.ok ||
+      !codeudorBiometricValidation.ok ||
+      !codeudorIdentityValidation.ok ||
+      !evidenceValidation.ok
+    ) {
+      const failReason =
+        titularBiometricValidation.reason ??
+        titularIdentityValidation.reason ??
+        codeudorBiometricValidation.reason ??
+        codeudorIdentityValidation.reason ??
+        evidenceValidation.reason ??
+        ContractsErrors.PROVIDER_BLOCKING_ERROR;
+      this.logger.warn(
+        `Signatura webhook (codeudor): validación interna fallida → FAILED motivo=${failReason}`,
+      );
+      const failed = await this.contractsRepository.markCaseContractFailed(
+        client,
+        {
+          contractId: trackedContract.id,
+          reason: failReason,
+          providerDocumentStatus: resolvedDocumentStatus,
+          providerSignatureStatus: resolvedSignatureStatus,
+          biometricStatus: titularBiometric.biometricStatus,
+          biometricPayload: titularBiometric.raw,
+          biometricStatusCodeudor: codeudorBiometric.biometricStatus,
+          biometricPayloadCodeudor: codeudorBiometric.raw,
+          signedDocumentUrl:
+            parsed.signedDocumentUrl ?? documentData.signedDocumentUrl,
+          auditCertificateUrl:
+            parsed.auditCertificateUrl ?? documentData.auditCertificateUrl,
+          evidenceZipUrl: parsed.evidenceZipUrl ?? documentData.evidenceZipUrl,
+          providerPayload: {
+            webhook: storedPayload,
+            document: documentData.raw,
+            biometrics: titularBiometric.raw,
+            biometricsCodeudor: codeudorBiometric.raw,
+          },
+        },
+      );
+
+      return wrap(
+        {
+          accepted: true,
+          contractFound: true,
+          caseContractId: failed.id,
+          status: failed.status,
+          loanId: null,
+        },
+        {
+          trigger_source: 'CONTRACT_VALIDATION_FAILED',
+          case_id: failed.case_id,
+          case_contract_id: failed.id,
+          fail_reason: failReason,
+        },
+      );
+    }
+
+    const signed = await this.contractsRepository.markCaseContractSigned(
+      client,
+      {
+        contractId: trackedContract.id,
+        providerDocumentStatus: resolvedDocumentStatus,
+        providerSignatureStatus: resolvedSignatureStatus,
+        biometricStatus: titularBiometric.biometricStatus,
+        biometricPayload: titularBiometric.raw,
+        biometricStatusCodeudor: codeudorBiometric.biometricStatus,
+        biometricPayloadCodeudor: codeudorBiometric.raw,
+        signedDocumentUrl:
+          parsed.signedDocumentUrl ?? documentData.signedDocumentUrl,
+        auditCertificateUrl:
+          parsed.auditCertificateUrl ?? documentData.auditCertificateUrl,
+        evidenceZipUrl: parsed.evidenceZipUrl ?? documentData.evidenceZipUrl,
+        signatureUrl: parsed.signatureUrl ?? documentData.signatureUrl,
+        providerPayload: {
+          webhook: storedPayload,
+          document: documentData.raw,
+          biometrics: titularBiometric.raw,
+          biometricsCodeudor: codeudorBiometric.raw,
+        },
+      },
+    );
+
+    const loanOutcome = await this.createLoanIfEligible(client, signed);
+    const postSignatureWebhookPayload: N8nNotifyPayload | null =
+      loanOutcome.createdNew && loanOutcome.loan && loanOutcome.notifyContext
+        ? {
+            case_id: signed.case_id,
+            loan_id: loanOutcome.loan.id,
+            user_id: loanOutcome.notifyContext.userId,
+            phone: loanOutcome.notifyContext.phone,
+            case_type: loanOutcome.notifyContext.caseType,
+            trigger_source: 'CONTRACT_SIGNED',
+          }
+        : null;
+
+    return wrap(
+      {
+        accepted: true,
+        contractFound: true,
+        caseContractId: signed.id,
+        status: signed.status,
+        loanId: loanOutcome.loan?.id ?? null,
+      },
+      postSignatureWebhookPayload,
+    );
+  }
+
   private async createLoanIfEligible(
     client: DbClient,
     contract: CaseContractRow,
@@ -833,6 +1126,80 @@ export class ContractsService {
       ) {
         this.logger.warn(
           `Signatura webhook: nombre biométrico difiere del caso (esperado="${expectedFullName}" recibido="${biometricData.fullName}") contractId=${contract.id}. No bloquea (DNI es el ancla).`,
+        );
+      }
+    }
+
+    return { ok: true, reason: null };
+  }
+
+  /**
+   * Coherencia de identidad del CODEUDOR (mismo criterio que el titular,
+   * FIX_05): DNI ancla dura, CUIT duro si viene, nombre blando (solo warn).
+   */
+  private async evaluateGuarantorIdentityCoherence(
+    client: DbClient,
+    contract: CaseContractRow,
+    biometricData: SignaturaBiometricResponse,
+  ): Promise<{ readonly ok: boolean; readonly reason: string | null }> {
+    const guarantor =
+      await this.contractsRepository.findApprovedGuarantorForContract(
+        client,
+        contract.case_id,
+      );
+    if (!guarantor) {
+      return { ok: false, reason: ContractsErrors.IDENTITY_VALIDATION_FAILED };
+    }
+
+    // CUIT (duro si viene).
+    if (biometricData.cuit && guarantor.cuit) {
+      if (
+        this.normalizeDigits(biometricData.cuit) !==
+        this.normalizeDigits(guarantor.cuit)
+      ) {
+        return {
+          ok: false,
+          reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
+        };
+      }
+    }
+
+    // DNI (ancla dura).
+    if (biometricData.documentNumber) {
+      const expectedDni =
+        guarantor.dni ?? deriveDniFromCuit(guarantor.cuit ?? '');
+      if (!expectedDni) {
+        return {
+          ok: false,
+          reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
+        };
+      }
+      if (
+        this.normalizeDigits(biometricData.documentNumber) !==
+        this.normalizeDigits(expectedDni)
+      ) {
+        return {
+          ok: false,
+          reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
+        };
+      }
+    }
+
+    // Nombre (blando): no bloquea.
+    const expectedFullName = this.buildFullName(
+      guarantor.first_name,
+      guarantor.last_name,
+    );
+    if (biometricData.fullName && expectedFullName) {
+      const normalizedExpected = this.normalizeText(expectedFullName);
+      const normalizedReceived = this.normalizeText(biometricData.fullName);
+      if (
+        normalizedExpected.length > 0 &&
+        normalizedReceived.length > 0 &&
+        normalizedExpected !== normalizedReceived
+      ) {
+        this.logger.warn(
+          `Signatura webhook: nombre biométrico del codeudor difiere (esperado="${expectedFullName}" recibido="${biometricData.fullName}") contractId=${contract.id}. No bloquea (DNI es el ancla).`,
         );
       }
     }

@@ -4,7 +4,7 @@ const CANCELED_SIGNATURE_STATUSES = ['CANCELED', 'CANCELLED', 'EXPIRED', 'CA'];
 
 const ERROR_DOCUMENT_STATUSES = ['ERROR', 'FAILED'];
 const CANCELED_DOCUMENT_STATUSES = ['CANCELED', 'CANCELLED', 'EXPIRED', 'CA'];
-const SIGNED_DOCUMENT_STATUSES = ['CO'];
+export const SIGNED_DOCUMENT_STATUSES = ['CO'];
 
 function normalizeStatus(status: string | null | undefined): string {
   return (status ?? '').trim().toUpperCase();

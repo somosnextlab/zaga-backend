@@ -24,6 +24,7 @@ const VALID_CONTRACT_ID = '550e8400-e29b-41d4-a716-446655440002';
 const VALID_DOCUMENT_ID = '550e8400-e29b-41d4-a716-446655440003';
 const VALID_SIGNATURE_ID = '550e8400-e29b-41d4-a716-446655440004';
 const VALID_LOAN_ID = '550e8400-e29b-41d4-a716-446655440005';
+const CODEUDOR_SIGNATURE_ID = '550e8400-e29b-41d4-a716-446655440006';
 const WEBHOOK_SECRET = 'test-secret';
 const WEBHOOK_RAW_BODY = Buffer.from('{}', 'utf8');
 
@@ -112,9 +113,12 @@ describe('ContractsService', () => {
     template_code: null,
     external_document_id: null,
     external_signature_id: null,
+    external_signature_id_codeudor: null,
     provider_document_status: null,
     provider_signature_status: null,
+    provider_signature_status_codeudor: null,
     signature_url: null,
+    signature_url_codeudor: null,
     issued_at: null,
     expires_at: null,
     signed_at: null,
@@ -123,6 +127,8 @@ describe('ContractsService', () => {
     failure_reason: null,
     biometric_status: null,
     biometric_payload: null,
+    biometric_status_codeudor: null,
+    biometric_payload_codeudor: null,
     biometric_fetched_at: null,
     signed_document_url: null,
     audit_certificate_url: null,
@@ -184,10 +190,14 @@ describe('ContractsService', () => {
     });
     mockSignaturaService.createDocument.mockResolvedValue({
       externalDocumentId: VALID_DOCUMENT_ID,
-      externalSignatureId: VALID_SIGNATURE_ID,
       documentStatus: 'PE',
-      signatureStatus: 'IN',
-      signatureUrl: 'https://signatura/sign',
+      signatures: [
+        {
+          externalSignatureId: VALID_SIGNATURE_ID,
+          signatureStatus: 'IN',
+          signatureUrl: 'https://signatura/sign',
+        },
+      ],
       issuedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
       raw: {},
@@ -207,6 +217,7 @@ describe('ContractsService', () => {
     expect(result.status).toBe(CaseContractStatus.SIGN_PENDING);
     expect(result.externalDocumentId).toBe(VALID_DOCUMENT_ID);
     expect(result.externalSignatureId).toBe(VALID_SIGNATURE_ID);
+    expect(result.signatureUrlCodeudor).toBeNull();
     expect(mockSignaturaService.createDocument).toHaveBeenCalledTimes(1);
   });
 
@@ -216,6 +227,7 @@ describe('ContractsService', () => {
     last_name: 'Gomez',
     dni: '30111222',
     cuit: '27301112224',
+    phone: '+5493517654321',
     domicilio_calle: 'Av Siempre Viva',
     domicilio_numero: '742',
     domicilio_localidad: 'Córdoba',
@@ -248,10 +260,14 @@ describe('ContractsService', () => {
     });
     mockSignaturaService.createDocument.mockResolvedValue({
       externalDocumentId: VALID_DOCUMENT_ID,
-      externalSignatureId: VALID_SIGNATURE_ID,
       documentStatus: 'PE',
-      signatureStatus: 'IN',
-      signatureUrl: 'https://signatura/sign',
+      signatures: [
+        {
+          externalSignatureId: VALID_SIGNATURE_ID,
+          signatureStatus: 'IN',
+          signatureUrl: 'https://signatura/sign',
+        },
+      ],
       issuedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
       raw: {},
@@ -326,6 +342,109 @@ describe('ContractsService', () => {
         refinancedLoanNumber: 'ZAGA-000123',
       }),
     );
+  });
+
+  it('startCaseContract con codeudor crea documento con 2 firmantes y persiste ambas firmas', async () => {
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue({
+      ...caseRow,
+      requires_guarantor: true,
+    });
+    mockContractsRepository.findApprovedGuarantorForContract.mockResolvedValue(
+      guarantorRow,
+    );
+    primeSuccessfulStart();
+    mockSignaturaService.createDocument.mockResolvedValue({
+      externalDocumentId: VALID_DOCUMENT_ID,
+      documentStatus: 'PE',
+      signatures: [
+        {
+          externalSignatureId: VALID_SIGNATURE_ID,
+          signatureStatus: 'IN',
+          signatureUrl: 'https://signatura/sign/titular',
+        },
+        {
+          externalSignatureId: CODEUDOR_SIGNATURE_ID,
+          signatureStatus: 'IN',
+          signatureUrl: 'https://signatura/sign/codeudor',
+        },
+      ],
+      issuedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      raw: {},
+    });
+    mockContractsRepository.markCaseContractSignPending.mockResolvedValue({
+      ...createdContract,
+      status: CaseContractStatus.SIGN_PENDING,
+      external_document_id: VALID_DOCUMENT_ID,
+      external_signature_id: VALID_SIGNATURE_ID,
+      signature_url: 'https://signatura/sign/titular',
+      external_signature_id_codeudor: CODEUDOR_SIGNATURE_ID,
+      signature_url_codeudor: 'https://signatura/sign/codeudor',
+    });
+
+    const result = await service.startCaseContract(VALID_CASE_ID);
+
+    expect(mockSignaturaService.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signers: [
+          expect.objectContaining({
+            role: 'TITULAR',
+            documentNumber: '12345678',
+          }),
+          expect.objectContaining({
+            role: 'CODEUDOR',
+            documentNumber: '30111222',
+            phone: '+5493517654321',
+          }),
+        ],
+      }),
+    );
+    expect(
+      mockContractsRepository.markCaseContractSignPending,
+    ).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        externalSignatureId: VALID_SIGNATURE_ID,
+        externalSignatureIdCodeudor: CODEUDOR_SIGNATURE_ID,
+        signatureUrlCodeudor: 'https://signatura/sign/codeudor',
+      }),
+    );
+    expect(result.signatureUrlCodeudor).toBe('https://signatura/sign/codeudor');
+  });
+
+  it('startCaseContract con codeudor sin teléfono lanza GUARANTOR_PHONE_REQUIRED', async () => {
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue({
+      ...caseRow,
+      requires_guarantor: true,
+    });
+    mockContractsRepository.findApprovedGuarantorForContract.mockResolvedValue({
+      ...guarantorRow,
+      phone: null,
+    });
+    mockContractsRepository.findAcceptedOfferByCaseIdForUpdate.mockResolvedValue(
+      {
+        id: VALID_OFFER_ID,
+        case_id: VALID_CASE_ID,
+        status: 'ACCEPTED',
+        amount: 300000,
+        installments: 12,
+        tasa_nominal_anual: 210,
+        tasa_moratoria: 120,
+      },
+    );
+    mockContractsRepository.findActiveCaseContractByCaseIdForUpdate.mockResolvedValue(
+      null,
+    );
+
+    await expect(
+      service.startCaseContract(VALID_CASE_ID),
+    ).rejects.toMatchObject({
+      message: ContractsErrors.GUARANTOR_PHONE_REQUIRED,
+    });
+    expect(
+      mockContractsRepository.insertCaseContractCreated,
+    ).not.toHaveBeenCalled();
+    expect(mockSignaturaService.createDocument).not.toHaveBeenCalled();
   });
 
   it('startCaseContract REFINANCE sin garante lanza REFINANCE_RULE_BROKEN', async () => {
@@ -918,5 +1037,211 @@ describe('ContractsService', () => {
     expect(
       mockContractsRepository.markCaseContractFailed,
     ).toHaveBeenCalledTimes(1);
+  });
+
+  const trackedCodeudorContract = (): CaseContractRow => ({
+    ...createdContract,
+    status: CaseContractStatus.SIGN_PENDING,
+    external_document_id: VALID_DOCUMENT_ID,
+    external_signature_id: VALID_SIGNATURE_ID,
+    external_signature_id_codeudor: CODEUDOR_SIGNATURE_ID,
+  });
+
+  it('handleSignaturaWebhook (codeudor) con una sola firma deja SIGN_PENDING', async () => {
+    const tracked = trackedCodeudorContract();
+    mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
+      tracked,
+    );
+    mockContractsRepository.updateProviderTracking.mockResolvedValue(tracked);
+    // Documento aún NO completo: falta una firma.
+    mockSignaturaService.getDocument.mockResolvedValue({
+      externalDocumentId: VALID_DOCUMENT_ID,
+      documentStatus: 'PE',
+      signatureStatus: 'IN',
+      signatureUrl: null,
+      signedDocumentUrl: null,
+      auditCertificateUrl: null,
+      evidenceZipUrl: null,
+      raw: {},
+    });
+
+    const result = await service.handleSignaturaWebhook(
+      buildValidSignatureHeader(),
+      WEBHOOK_RAW_BODY,
+      {
+        document_id: VALID_DOCUMENT_ID,
+        signature_id: VALID_SIGNATURE_ID,
+        notification_action: 'DS',
+      },
+    );
+
+    expect(result.status).toBe(CaseContractStatus.SIGN_PENDING);
+    expect(result.loanId).toBeNull();
+    expect(mockSignaturaService.getBiometrics).not.toHaveBeenCalled();
+    expect(
+      mockContractsRepository.markCaseContractSigned,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('handleSignaturaWebhook (codeudor) con documento CO y ambas biometrías OK firma y crea loan', async () => {
+    const insertedLoan: LoanRow = {
+      id: VALID_LOAN_ID,
+      case_id: VALID_CASE_ID,
+      offer_id: VALID_OFFER_ID,
+      user_id: caseRow.user_id,
+      loan_type: 'NEW',
+      refinances_loan_id: null,
+      status: 'CREATED',
+    };
+    const tracked = trackedCodeudorContract();
+    mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
+      tracked,
+    );
+    mockContractsRepository.updateProviderTracking.mockResolvedValue({
+      ...tracked,
+      provider_document_status: 'CO',
+    });
+    mockSignaturaService.getDocument.mockResolvedValue({
+      externalDocumentId: VALID_DOCUMENT_ID,
+      documentStatus: 'CO',
+      signatureStatus: 'CO',
+      signatureUrl: 'https://signatura/sign',
+      signedDocumentUrl: 'https://signatura/doc.pdf',
+      auditCertificateUrl: 'https://signatura/cert.pdf',
+      evidenceZipUrl: 'https://signatura/evidence.zip',
+      raw: {},
+    });
+    mockSignaturaService.getBiometrics
+      .mockResolvedValueOnce({
+        biometricStatus: 'CO',
+        identityScore: null,
+        fullName: 'Juan Perez',
+        documentNumber: '12345678',
+        cuit: '20123456789',
+        raw: {},
+      })
+      .mockResolvedValueOnce({
+        biometricStatus: 'CO',
+        identityScore: null,
+        fullName: 'Ana Gomez',
+        documentNumber: '30111222',
+        cuit: '27301112224',
+        raw: {},
+      });
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue(caseRow);
+    mockContractsRepository.findApprovedGuarantorForContract.mockResolvedValue(
+      guarantorRow,
+    );
+    mockContractsRepository.markCaseContractSigned.mockResolvedValue({
+      ...tracked,
+      status: CaseContractStatus.SIGNED,
+      signed_at: new Date().toISOString(),
+    });
+    mockContractsRepository.findLoanByCaseIdForUpdate.mockResolvedValue(null);
+    mockContractsRepository.insertLoan.mockResolvedValue(insertedLoan);
+
+    const result = await service.handleSignaturaWebhook(
+      buildValidSignatureHeader(),
+      WEBHOOK_RAW_BODY,
+      {
+        document_id: VALID_DOCUMENT_ID,
+        signature_id: CODEUDOR_SIGNATURE_ID,
+        notification_action: 'DS',
+      },
+    );
+
+    expect(result.status).toBe(CaseContractStatus.SIGNED);
+    expect(result.loanId).toBe(VALID_LOAN_ID);
+    expect(mockSignaturaService.getBiometrics).toHaveBeenCalledTimes(2);
+    expect(mockSignaturaService.getBiometrics).toHaveBeenNthCalledWith(
+      1,
+      VALID_SIGNATURE_ID,
+    );
+    expect(mockSignaturaService.getBiometrics).toHaveBeenNthCalledWith(
+      2,
+      CODEUDOR_SIGNATURE_ID,
+    );
+    expect(mockContractsRepository.markCaseContractSigned).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ biometricStatusCodeudor: 'CO' }),
+    );
+    expect(mockPostSignatureWebhookService.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ trigger_source: 'CONTRACT_SIGNED' }),
+    );
+  });
+
+  it('handleSignaturaWebhook (codeudor) marca FAILED si la biometría del codeudor no coincide con su DNI', async () => {
+    const tracked = trackedCodeudorContract();
+    mockContractsRepository.findCaseContractByExternalIdsForUpdate.mockResolvedValue(
+      tracked,
+    );
+    mockContractsRepository.updateProviderTracking.mockResolvedValue({
+      ...tracked,
+      provider_document_status: 'CO',
+    });
+    mockSignaturaService.getDocument.mockResolvedValue({
+      externalDocumentId: VALID_DOCUMENT_ID,
+      documentStatus: 'CO',
+      signatureStatus: 'CO',
+      signatureUrl: 'https://signatura/sign',
+      signedDocumentUrl: 'https://signatura/doc.pdf',
+      auditCertificateUrl: 'https://signatura/cert.pdf',
+      evidenceZipUrl: 'https://signatura/evidence.zip',
+      raw: {},
+    });
+    mockSignaturaService.getBiometrics
+      .mockResolvedValueOnce({
+        biometricStatus: 'CO',
+        identityScore: null,
+        fullName: 'Juan Perez',
+        documentNumber: '12345678',
+        cuit: '20123456789',
+        raw: {},
+      })
+      .mockResolvedValueOnce({
+        biometricStatus: 'CO',
+        identityScore: null,
+        fullName: 'Ana Gomez',
+        documentNumber: '99999999',
+        cuit: null,
+        raw: {},
+      });
+    mockContractsRepository.findCaseByIdForUpdate.mockResolvedValue(caseRow);
+    mockContractsRepository.findApprovedGuarantorForContract.mockResolvedValue(
+      guarantorRow,
+    );
+    mockContractsRepository.markCaseContractFailed.mockResolvedValue({
+      ...tracked,
+      status: CaseContractStatus.FAILED,
+      failed_at: new Date().toISOString(),
+      failure_reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
+    });
+
+    const result = await service.handleSignaturaWebhook(
+      buildValidSignatureHeader(),
+      WEBHOOK_RAW_BODY,
+      {
+        document_id: VALID_DOCUMENT_ID,
+        signature_id: CODEUDOR_SIGNATURE_ID,
+        notification_action: 'DS',
+      },
+    );
+
+    expect(result.status).toBe(CaseContractStatus.FAILED);
+    expect(result.loanId).toBeNull();
+    expect(mockContractsRepository.markCaseContractFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
+        biometricStatusCodeudor: 'CO',
+      }),
+    );
+    expect(mockPostSignatureWebhookService.notify).toHaveBeenCalledWith({
+      trigger_source: 'CONTRACT_VALIDATION_FAILED',
+      case_id: VALID_CASE_ID,
+      case_contract_id: VALID_CONTRACT_ID,
+      fail_reason: ContractsErrors.IDENTITY_VALIDATION_FAILED,
+    });
+    expect(mockContractsRepository.insertLoan).not.toHaveBeenCalled();
   });
 });

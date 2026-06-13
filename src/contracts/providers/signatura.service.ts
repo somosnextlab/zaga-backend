@@ -11,6 +11,7 @@ import type {
   SignaturaCreateDocumentRequest,
   SignaturaCreateDocumentResponse,
   SignaturaDocumentResponse,
+  SignaturaSigner,
 } from '../interfaces/signatura.types';
 
 @Injectable()
@@ -40,30 +41,59 @@ export class SignaturaService implements SignProviderInterface {
   public async createDocument(
     input: SignaturaCreateDocumentRequest,
   ): Promise<SignaturaCreateDocumentResponse> {
-    const signaturePayload = this.buildSignaturePayload(input);
     const response = await this.request(
       '/documents/create',
       'POST',
       JSON.stringify({
         title: input.fileName,
         file_content: this.normalizePdfContent(input.pdfBase64),
-        signatures: [signaturePayload],
+        signatures: input.signers.map((signer) =>
+          this.buildSignaturePayload(signer),
+        ),
       }),
     );
 
     const raw = this.ensureObject(response);
-    const firstSignature = this.getFirstSignature(raw);
+    const signatures = this.parseCreatedSignatures(raw, input.signers.length);
 
     return {
       externalDocumentId: this.readString(raw, ['id'], true),
-      externalSignatureId: this.readString(firstSignature, ['id'], true),
       documentStatus: this.readString(raw, ['status'], false),
-      signatureStatus: this.readString(firstSignature, ['status'], false),
-      signatureUrl: this.readNullableString(firstSignature, ['url']),
+      signatures,
       issuedAt: this.readNullableString(raw, ['creation_date']),
       expiresAt: null,
       raw,
     };
+  }
+
+  /**
+   * Mapea `raw.signatures` (array) a las firmas de la respuesta, preservando el
+   * orden enviado. Si llegan menos firmas de las solicitadas → error.
+   */
+  private parseCreatedSignatures(
+    source: Record<string, unknown>,
+    expectedCount: number,
+  ): SignaturaCreateDocumentResponse['signatures'] {
+    const signatures = source.signatures;
+    if (!Array.isArray(signatures) || signatures.length < expectedCount) {
+      throw new InternalServerErrorException(
+        'Respuesta inválida de Signatura (firmas insuficientes).',
+      );
+    }
+
+    return (signatures as unknown[]).slice(0, expectedCount).map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw new InternalServerErrorException(
+          'Respuesta inválida de Signatura (firma inválida).',
+        );
+      }
+      const signature = entry as Record<string, unknown>;
+      return {
+        externalSignatureId: this.readString(signature, ['id'], true),
+        signatureStatus: this.readString(signature, ['status'], false),
+        signatureUrl: this.readNullableString(signature, ['url']),
+      };
+    });
   }
 
   public async getDocument(
@@ -270,19 +300,17 @@ export class SignaturaService implements SignProviderInterface {
     return trimmed;
   }
 
-  private buildValidations(
-    input: SignaturaCreateDocumentRequest,
-  ): Record<string, string> {
+  private buildValidations(signer: SignaturaSigner): Record<string, string> {
     const validations: Record<string, string> = {};
 
-    const af = this.normalizeDigits(input.signer.cuit);
+    const af = this.normalizeDigits(signer.cuit);
     if (af) validations.AF = af;
 
-    const bi = this.buildBiometricValidation(input.signer.documentNumber);
+    const bi = this.buildBiometricValidation(signer.documentNumber);
     if (bi) validations.BI = bi;
 
     if (this.enablePhoneValidation) {
-      const ph = this.normalizePhone(input.signer.phone);
+      const ph = this.normalizePhone(signer.phone);
       if (ph) validations.PH = ph;
     }
 
@@ -298,10 +326,10 @@ export class SignaturaService implements SignProviderInterface {
   }
 
   private buildSignaturePayload(
-    input: SignaturaCreateDocumentRequest,
+    signer: SignaturaSigner,
   ): Record<string, unknown> {
     const payload: Record<string, unknown> = {
-      validations: this.buildValidations(input),
+      validations: this.buildValidations(signer),
     };
 
     const inviteChannel = this.buildInviteChannel();
